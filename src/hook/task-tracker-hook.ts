@@ -1,3 +1,4 @@
+import { describeActivity } from "../describe-activity.js";
 import {
   Activity,
   HookPayloadSchema,
@@ -62,31 +63,6 @@ function mergeIdLists(previous: string[] | undefined, added: string[] | undefine
   return Array.from(new Set([...(previous ?? []), ...(added ?? [])]));
 }
 
-/** 幫常見工具抽一句話當 activity 的摘要，抽不出來就留空、只顯示工具名。 */
-function summarizeToolInput(toolName: string, toolInput: unknown): string | undefined {
-  if (!toolInput || typeof toolInput !== "object") return undefined;
-  const input = toolInput as Record<string, unknown>;
-  const pick = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : undefined);
-
-  switch (toolName) {
-    case "Bash":
-      return pick("command");
-    case "Edit":
-    case "Write":
-    case "Read":
-    case "NotebookEdit":
-      return pick("file_path");
-    case "Glob":
-    case "Grep":
-      return pick("pattern");
-    case "WebFetch":
-    case "WebSearch":
-      return pick("url") ?? pick("query");
-    default:
-      return undefined;
-  }
-}
-
 async function main(): Promise<void> {
   const raw = await readStdin();
 
@@ -107,10 +83,16 @@ async function main(): Promise<void> {
   const updatedAt = new Date().toISOString();
   const existing = readTaskState(payload.session_id);
 
+  const phase = payload.hook_event_name === "PreToolUse" ? "running" : "done";
   const activity: Activity = {
     toolName: payload.tool_name,
-    phase: payload.hook_event_name === "PreToolUse" ? "running" : "done",
-    summary: summarizeToolInput(payload.tool_name, payload.tool_input),
+    phase,
+    summary: describeActivity({
+      toolName: payload.tool_name,
+      toolInput: payload.tool_input,
+      cwd: payload.cwd,
+      phase,
+    }),
     at: updatedAt,
   };
 
