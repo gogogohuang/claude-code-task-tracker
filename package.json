@@ -3,12 +3,31 @@
   "version": "0.1.0",
   "description": "終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（TodoWrite / Tasks API）",
   "type": "module",
+  "license": "MIT",
+  "author": "Jinze Huang <jinze.huang@linego.me>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gogogohuang/claude-code-task-tracker.git"
+  },
+  "homepage": "https://github.com/gogogohuang/claude-code-task-tracker#readme",
+  "bugs": {
+    "url": "https://github.com/gogogohuang/claude-code-task-tracker/issues"
+  },
+  "keywords": [
+    "claude-code",
+    "cli",
+    "tui",
+    "task-tracker"
+  ],
   "bin": {
     "task-tracker": "dist/cli.js"
   },
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "tsx src/cli.tsx",
     "build": "tsup",
