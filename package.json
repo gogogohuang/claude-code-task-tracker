@@ -4,7 +4,7 @@
   "description": "終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（TodoWrite / Tasks API）",
   "type": "module",
   "license": "MIT",
-  "author": "Jinze Huang <jinze.huang@linego.me>",
+  "author": "gogogohuang <gogogohuang@gmail.com>",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gogogohuang/claude-code-task-tracker.git"
