@@ -102,6 +102,7 @@ export type ActivityPhase = z.infer<typeof ActivityPhaseSchema>;
 export const ActivitySchema = z.object({
   toolName: z.string(),
   phase: ActivityPhaseSchema,
+  /** 可閱讀的活動句，例如「正在讀取 src/schema.ts」。不存原始指令或檔案內容。 */
   summary: z.string().optional(),
   at: z.string(),
 });

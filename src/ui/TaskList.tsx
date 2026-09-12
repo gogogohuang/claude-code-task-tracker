@@ -62,19 +62,21 @@ function rowsFromTodos(todos: TodoItem[]): Row[] {
 
 function ActivityLine({ activity }: { activity: Activity }) {
   const time = new Date(activity.at).toLocaleTimeString();
-  const label = activity.summary ? `${activity.toolName} — ${activity.summary}` : activity.toolName;
+  const label =
+    activity.summary ??
+    (activity.phase === "running" ? `正在使用 ${activity.toolName}` : `已使用 ${activity.toolName}`);
 
   if (activity.phase === "running") {
     return (
       <Text color="yellow">
-        ◐ 正在執行 {label}
+        ◐ {label}
         <Text dimColor> ({time} 開始)</Text>
       </Text>
     );
   }
   return (
     <Text dimColor>
-      上次動作：{label} ({time} 完成)
+      {label} ({time} 完成)
     </Text>
   );
 }
