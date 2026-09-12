@@ -3,22 +3,24 @@
 [![npm version](https://img.shields.io/npm/v/claude-code-task-tracker.svg)](https://www.npmjs.com/package/claude-code-task-tracker)
 
 終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（`TodoWrite`，以及新版 `TaskCreate` /
-`TaskUpdate` / `TaskList` 系列工具），就算 session 完全沒開 todo/task 清單，也能看到它
-目前在跑哪個工具。
+`TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
+目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.1.0**（已發布到 [npm](https://www.npmjs.com/package/claude-code-task-tracker)）。
+目前版本：**v0.6.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 
 ## 運作原理
 
 1. `task-tracker init` 會在目前專案的 `.claude/settings.json` 註冊 `PreToolUse` 跟
    `PostToolUse` 兩個 hook，matcher 都設為 `*`（涵蓋所有工具，不只 TodoWrite/Task 系列）。
-2. 不論 Claude Code 呼叫的是哪個工具，hook 都會更新
-   `~/.claude-task-tracker/<session_id>.json` 裡的 `activity` 欄位（`PreToolUse` 標記
-   「正在執行」、`PostToolUse` 標記「已完成」），讓沒有 todo/task 清單時也看得到目前
-   在做什麼。如果呼叫的剛好是 `TodoWrite`/`TaskCreate`/`TaskUpdate`/`TaskList`，
-   `PostToolUse` 還會額外跑專屬邏輯更新任務清單：`TodoWrite` 是整包覆寫；`TaskCreate` /
-   `TaskUpdate` 是用 `taskId` 累積 upsert；`TaskList` 若能拿到完整清單則整包 resync，
-   修正前面 create/update 可能累積出的漂移。
+2. 不論 Claude Code 呼叫的是哪個工具，hook 都會把一句可閱讀的活動句寫進
+   `~/.claude-task-tracker/<session_id>.json` 的 `activity.summary`。`PreToolUse` 用
+   「正在…」，`PostToolUse` 用「已…」。例如讀檔是「正在讀取 src/schema.ts」，Bash 優先用
+   工具自帶的短描述，沒有才取指令第一行。句子不包含檔案內容、多行指令或 prompt；抽不出
+   可讀片段時，退回「正在使用 Bash」。如果呼叫的剛好是
+   `TodoWrite`/`TaskCreate`/`TaskUpdate`/`TaskList`，`PostToolUse` 還會額外跑專屬邏輯
+   更新任務清單：`TodoWrite` 是整包覆寫；`TaskCreate` / `TaskUpdate` 是用 `taskId` 累積
+   upsert；`TaskList` 若能拿到完整清單則整包 resync，修正前面 create/update 可能累積出的漂移。
+   活動列只寫工具動作（例如「正在更新任務清單」），進行中項目的 `activeForm` 仍顯示在任務列。
 3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 這個檔案，狀態一有變化就即時重繪。
 
 ```
@@ -35,6 +37,8 @@ cd 你的專案
 npx claude-code-task-tracker init     # 只需要做一次，會寫入 .claude/settings.json
 claude                                 # 照常開始你的 Claude Code session
 ```
+
+若你先前已經跑過 `init`，升到 v0.6.0 後要再執行一次，hook 才會改寫活動句。
 
 開發中測試（本機路徑）也可以直接執行 `npx . init` 代替上面的指令。
 
@@ -62,7 +66,14 @@ task-tracker watch --session <session_id>
 task-tracker version
 ```
 
-畫面內按 `q` 離開。
+畫面內按 `q` 離開。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+`已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。
+
+想看這個目錄啟動 Claude 時會載入哪些 `CLAUDE.md`、rules 與 auto memory：
+
+```bash
+npx claude-code-task-tracker inspect
+```
 
 ## 重要注意事項
 
@@ -94,17 +105,21 @@ task-tracker version
 
 ```
 src/
-├── cli.tsx                  # commander 進入點（init / watch / version 指令）
+├── cli.tsx                   # commander 進入點（init / watch / inspect / version）
+├── describe-activity.ts      # 把工具呼叫收成活動句
 ├── schema.ts                 # zod schema：TodoWrite 格式、hook payload、狀態檔
 ├── store.ts                  # 狀態檔案讀寫（write-then-rename 避免讀到半份資料）
 ├── commands/
-│   └── init.ts                # 寫入 .claude/settings.json 的 hook 設定
+│   └── init.ts               # 寫入 .claude/settings.json 的 hook 設定
 ├── hook/
-│   └── task-tracker-hook.ts   # Claude Code 實際呼叫的 hook 腳本
+│   └── task-tracker-hook.ts  # Claude Code 實際呼叫的 hook 腳本
+├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory）
 └── ui/
-    ├── App.tsx                # 主畫面，負責 session 偵測與檔案監控
-    ├── SessionPicker.tsx       # 多 session 時的選單
-    └── TaskList.tsx            # task 清單 + 進度條渲染
+    ├── App.tsx               # 主畫面，負責 session 偵測與檔案監控
+    ├── SessionPicker.tsx     # 多 session 時的選單
+    ├── TaskList.tsx          # task 清單、活動句與進度條
+    ├── InspectApp.tsx        # inspect 的互動
+    └── InspectView.tsx       # inspect 的排版
 ```
 
 ## 之後可以擴充的方向
