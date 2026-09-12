@@ -32,6 +32,7 @@
     "dev": "tsx src/cli.tsx",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/inspect/*.test.ts",
     "prepare": "npm run build"
   },
   "dependencies": {
