@@ -92,11 +92,28 @@ export const HookPayloadSchema = z
 export type HookPayload = z.infer<typeof HookPayloadSchema>;
 
 /**
+ * 不管有沒有開 TodoWrite/Task 清單，session 呼叫任何工具時都會更新的
+ * 「目前活動」快照。PreToolUse 寫 running，PostToolUse 寫 done，讓沒有
+ * task 清單可看時，畫面上至少還有「目前在做什麼」可看。
+ */
+export const ActivityPhaseSchema = z.enum(["running", "done"]);
+export type ActivityPhase = z.infer<typeof ActivityPhaseSchema>;
+
+export const ActivitySchema = z.object({
+  toolName: z.string(),
+  phase: ActivityPhaseSchema,
+  summary: z.string().optional(),
+  at: z.string(),
+});
+export type Activity = z.infer<typeof ActivitySchema>;
+
+/**
  * 我們自己寫到磁碟的狀態檔案格式（task-tracker 的內部格式，穩定不受
  * Claude Code 版本影響）。
  *
  * `todos` 是舊版 TodoWrite 的資料（整包覆寫）；`tasks` 是新版 Task 系列
  * 工具的資料，用 id 當 key 累積 create/update，兩者互不影響、可以共存。
+ * `activity` 是不論哪個工具都會更新的「目前活動」快照。
  */
 export const TaskStateSchema = z.object({
   sessionId: z.string(),
@@ -104,5 +121,6 @@ export const TaskStateSchema = z.object({
   updatedAt: z.string(),
   todos: z.array(TodoItemSchema).optional(),
   tasks: z.record(z.string(), TaskItemSchema).optional(),
+  activity: ActivitySchema.optional(),
 });
 export type TaskState = z.infer<typeof TaskStateSchema>;

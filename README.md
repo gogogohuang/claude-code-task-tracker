@@ -3,23 +3,27 @@
 [![npm version](https://img.shields.io/npm/v/claude-code-task-tracker.svg)](https://www.npmjs.com/package/claude-code-task-tracker)
 
 終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（`TodoWrite`，以及新版 `TaskCreate` /
-`TaskUpdate` / `TaskList` 系列工具）。
+`TaskUpdate` / `TaskList` 系列工具），就算 session 完全沒開 todo/task 清單，也能看到它
+目前在跑哪個工具。
 
 目前版本：**v0.1.0**（已發布到 [npm](https://www.npmjs.com/package/claude-code-task-tracker)）。
 
 ## 運作原理
 
-1. `task-tracker init` 會在目前專案的 `.claude/settings.json` 註冊一個 `PostToolUse` hook，
-   matcher 設為 `TodoWrite|TaskCreate|TaskUpdate|TaskList`。
-2. 之後 Claude Code 每次呼叫這些工具更新 task，hook 會把當下的 task 狀態寫進
-   `~/.claude-task-tracker/<session_id>.json`：`TodoWrite` 是整包覆寫；`TaskCreate` /
+1. `task-tracker init` 會在目前專案的 `.claude/settings.json` 註冊 `PreToolUse` 跟
+   `PostToolUse` 兩個 hook，matcher 都設為 `*`（涵蓋所有工具，不只 TodoWrite/Task 系列）。
+2. 不論 Claude Code 呼叫的是哪個工具，hook 都會更新
+   `~/.claude-task-tracker/<session_id>.json` 裡的 `activity` 欄位（`PreToolUse` 標記
+   「正在執行」、`PostToolUse` 標記「已完成」），讓沒有 todo/task 清單時也看得到目前
+   在做什麼。如果呼叫的剛好是 `TodoWrite`/`TaskCreate`/`TaskUpdate`/`TaskList`，
+   `PostToolUse` 還會額外跑專屬邏輯更新任務清單：`TodoWrite` 是整包覆寫；`TaskCreate` /
    `TaskUpdate` 是用 `taskId` 累積 upsert；`TaskList` 若能拿到完整清單則整包 resync，
    修正前面 create/update 可能累積出的漂移。
-3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 這個檔案，task 一有變化就即時重繪。
+3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 這個檔案，狀態一有變化就即時重繪。
 
 ```
-Claude Code (TodoWrite / TaskCreate / TaskUpdate / TaskList)
-  → PostToolUse hook → ~/.claude-task-tracker/<session>.json → TUI (watch)
+Claude Code (任何工具)
+  → PreToolUse / PostToolUse hook → ~/.claude-task-tracker/<session>.json → TUI (watch)
 ```
 
 ## 安裝與使用（npx）

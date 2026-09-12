@@ -1,19 +1,24 @@
 import {
+  Activity,
   HookPayloadSchema,
   TaskCreateInputSchema,
   TaskItem,
   TaskItemSchema,
   TaskUpdateInputSchema,
+  TodoItem,
   TodoWriteInputSchema,
 } from "../schema.js";
 import { appendDebugLog, readTaskState, writeTaskState } from "../store.js";
 
 /**
- * 這支腳本會被 Claude Code 以 PostToolUse hook 的形式呼叫，
- * matcher 設定為 TodoWrite|TaskCreate|TaskUpdate|TaskList（見
- * commands/init.ts 產生的設定）。Claude Code 會把該次工具呼叫的 JSON
- * payload 從 stdin 傳進來，這裡的任務只有一件事：把最新的 task 狀態
- * 落地成檔案，讓 TUI 可以讀。
+ * 這支腳本會被 Claude Code 以 PreToolUse／PostToolUse hook 的形式呼叫，
+ * matcher 都設定為 "*"（見 commands/init.ts 產生的設定），涵蓋所有工具，
+ * 不只 TodoWrite/Task 系列。Claude Code 會把該次工具呼叫的 JSON payload
+ * 從 stdin 傳進來，這裡做兩件事：
+ * 1. 不論哪個工具，都更新 activity 欄位（PreToolUse 標 running，
+ *    PostToolUse 標 done），讓沒開 todo/task 清單時也能看到目前在做什麼。
+ * 2. PostToolUse 若是 TodoWrite/TaskCreate/TaskUpdate/TaskList，額外跑
+ *    todos/tasks 的專屬邏輯。
  *
  * 原則：無論發生什麼事都要 exit 0，絕不能讓 hook 失敗而打斷使用者的
  * Claude Code session；所有錯誤都寫進 debug log，不往外拋。
@@ -57,6 +62,31 @@ function mergeIdLists(previous: string[] | undefined, added: string[] | undefine
   return Array.from(new Set([...(previous ?? []), ...(added ?? [])]));
 }
 
+/** 幫常見工具抽一句話當 activity 的摘要，抽不出來就留空、只顯示工具名。 */
+function summarizeToolInput(toolName: string, toolInput: unknown): string | undefined {
+  if (!toolInput || typeof toolInput !== "object") return undefined;
+  const input = toolInput as Record<string, unknown>;
+  const pick = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : undefined);
+
+  switch (toolName) {
+    case "Bash":
+      return pick("command");
+    case "Edit":
+    case "Write":
+    case "Read":
+    case "NotebookEdit":
+      return pick("file_path");
+    case "Glob":
+    case "Grep":
+      return pick("pattern");
+    case "WebFetch":
+    case "WebSearch":
+      return pick("url") ?? pick("query");
+    default:
+      return undefined;
+  }
+}
+
 async function main(): Promise<void> {
   const raw = await readStdin();
 
@@ -77,23 +107,43 @@ async function main(): Promise<void> {
   const updatedAt = new Date().toISOString();
   const existing = readTaskState(payload.session_id);
 
-  if (payload.tool_name === "TodoWrite") {
-    const inputResult = TodoWriteInputSchema.safeParse(payload.tool_input);
-    if (!inputResult.success) {
-      appendDebugLog(`TodoWrite tool_input 格式不符預期: ${inputResult.error.message}`);
-      return;
-    }
+  const activity: Activity = {
+    toolName: payload.tool_name,
+    phase: payload.hook_event_name === "PreToolUse" ? "running" : "done",
+    summary: summarizeToolInput(payload.tool_name, payload.tool_input),
+    at: updatedAt,
+  };
+
+  const persist = (todos?: TodoItem[], tasks?: Record<string, TaskItem>) => {
     try {
       writeTaskState({
         sessionId: payload.session_id,
         cwd: payload.cwd,
         updatedAt,
-        todos: inputResult.data.todos,
-        tasks: existing?.tasks,
+        todos: todos ?? existing?.todos,
+        tasks: tasks ?? existing?.tasks,
+        activity,
       });
     } catch (err) {
       appendDebugLog(`寫入狀態檔失敗: ${(err as Error).message}`);
     }
+  };
+
+  // PreToolUse：不管哪個工具，只更新 activity（此時工具還沒執行，沒有
+  // tool_response，也不該動 todos/tasks）。
+  if (payload.hook_event_name === "PreToolUse") {
+    persist(undefined);
+    return;
+  }
+
+  if (payload.tool_name === "TodoWrite") {
+    const inputResult = TodoWriteInputSchema.safeParse(payload.tool_input);
+    if (!inputResult.success) {
+      appendDebugLog(`TodoWrite tool_input 格式不符預期: ${inputResult.error.message}`);
+      persist(undefined);
+      return;
+    }
+    persist(inputResult.data.todos);
     return;
   }
 
@@ -101,11 +151,13 @@ async function main(): Promise<void> {
     const inputResult = TaskCreateInputSchema.safeParse(payload.tool_input);
     if (!inputResult.success) {
       appendDebugLog(`TaskCreate tool_input 格式不符預期: ${inputResult.error.message}`);
+      persist(undefined);
       return;
     }
     const id = extractCreatedTaskId(payload.tool_response);
     if (!id) {
       appendDebugLog("TaskCreate tool_response 找不到 taskId，略過這次更新");
+      persist(undefined);
       return;
     }
     const tasks = { ...existing?.tasks };
@@ -116,11 +168,7 @@ async function main(): Promise<void> {
       activeForm: inputResult.data.activeForm,
       status: "pending",
     };
-    try {
-      writeTaskState({ sessionId: payload.session_id, cwd: payload.cwd, updatedAt, todos: existing?.todos, tasks });
-    } catch (err) {
-      appendDebugLog(`寫入狀態檔失敗: ${(err as Error).message}`);
-    }
+    persist(undefined, tasks);
     return;
   }
 
@@ -128,6 +176,7 @@ async function main(): Promise<void> {
     const inputResult = TaskUpdateInputSchema.safeParse(payload.tool_input);
     if (!inputResult.success) {
       appendDebugLog(`TaskUpdate tool_input 格式不符預期: ${inputResult.error.message}`);
+      persist(undefined);
       return;
     }
     const input = inputResult.data;
@@ -143,11 +192,7 @@ async function main(): Promise<void> {
       blocks: mergeIdLists(previous?.blocks, input.addBlocks),
     };
     const tasks = { ...existing?.tasks, [input.taskId]: merged };
-    try {
-      writeTaskState({ sessionId: payload.session_id, cwd: payload.cwd, updatedAt, todos: existing?.todos, tasks });
-    } catch (err) {
-      appendDebugLog(`寫入狀態檔失敗: ${(err as Error).message}`);
-    }
+    persist(undefined, tasks);
     return;
   }
 
@@ -155,19 +200,17 @@ async function main(): Promise<void> {
     const list = extractTaskList(payload.tool_response);
     if (!list) {
       appendDebugLog("TaskList tool_response 格式不符預期，略過 resync");
+      persist(undefined);
       return;
     }
     const tasks: Record<string, TaskItem> = {};
     for (const item of list) tasks[item.id] = item;
-    try {
-      writeTaskState({ sessionId: payload.session_id, cwd: payload.cwd, updatedAt, todos: existing?.todos, tasks });
-    } catch (err) {
-      appendDebugLog(`寫入狀態檔失敗: ${(err as Error).message}`);
-    }
+    persist(undefined, tasks);
     return;
   }
 
-  // 其他工具的 PostToolUse 事件直接忽略。
+  // 其他工具：只更新 activity。
+  persist(undefined);
 }
 
 main().catch((err) => {

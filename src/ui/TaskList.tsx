@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import { TaskItem, TaskState, TodoItem } from "../schema.js";
+import { Activity, TaskItem, TaskState, TodoItem } from "../schema.js";
 
 type Status = TodoItem["status"] | TaskItem["status"];
 
@@ -60,6 +60,25 @@ function rowsFromTodos(todos: TodoItem[]): Row[] {
   }));
 }
 
+function ActivityLine({ activity }: { activity: Activity }) {
+  const time = new Date(activity.at).toLocaleTimeString();
+  const label = activity.summary ? `${activity.toolName} — ${activity.summary}` : activity.toolName;
+
+  if (activity.phase === "running") {
+    return (
+      <Text color="yellow">
+        ◐ 正在執行 {label}
+        <Text dimColor> ({time} 開始)</Text>
+      </Text>
+    );
+  }
+  return (
+    <Text dimColor>
+      上次動作：{label} ({time} 完成)
+    </Text>
+  );
+}
+
 export function TaskList({ state }: { state: TaskState }) {
   const rows =
     state.tasks && Object.keys(state.tasks).length > 0
@@ -74,6 +93,12 @@ export function TaskList({ state }: { state: TaskState }) {
         <Text color="cyan">{state.sessionId}</Text>
         {state.cwd ? <Text dimColor> ({state.cwd})</Text> : null}
       </Box>
+
+      {state.activity ? (
+        <Box marginBottom={1}>
+          <ActivityLine activity={state.activity} />
+        </Box>
+      ) : null}
 
       <Box marginBottom={1}>
         <ProgressBar done={done} total={rows.length} />

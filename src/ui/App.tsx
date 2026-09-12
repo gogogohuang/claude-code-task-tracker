@@ -60,8 +60,8 @@ export function App({ initialSessionId }: { initialSessionId?: string }) {
     if (sessionIds.length === 0) {
       return (
         <Box flexDirection="column">
-          <Text dimColor>還沒有偵測到任何 task 資料。</Text>
-          <Text dimColor>請確認已在此專案執行過「task-tracker init」，且 Claude Code 有 task 在進行中。</Text>
+          <Text dimColor>還沒有偵測到任何 session 資料。</Text>
+          <Text dimColor>請確認已在此專案執行過「task-tracker init」，且 Claude Code 正在這個專案裡執行中。</Text>
         </Box>
       );
     }
