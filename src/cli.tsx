@@ -1,10 +1,13 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "ink";
 import { Command } from "commander";
 import { runInit } from "./commands/init.js";
+import { defaultManagedPolicyPath } from "./inspect/paths.js";
 import { App } from "./ui/App.js";
+import { InspectApp } from "./ui/InspectApp.js";
 
 /** dist/cli.js 跟 package.json 固定相鄰一層（src/cli.tsx 開發模式下也是）。 */
 function readPackageVersion(): string {
@@ -30,6 +33,29 @@ program
   .description("顯示目前安裝的 task-tracker 版本")
   .action(() => {
     console.log(readPackageVersion());
+  });
+
+program
+  .command("inspect")
+  .description("檢視這個目錄啟動 Claude 時會載入的 CLAUDE.md、rules 與 auto memory")
+  .option("--dir <path>", "要解析的目錄，預設為目前工作目錄")
+  .action((opts: { dir?: string }) => {
+    const cwd = resolve(opts.dir ?? process.cwd());
+    if (!existsSync(cwd) || !statSync(cwd).isDirectory()) {
+      console.error(`目錄不存在：${cwd}`);
+      process.exitCode = 1;
+      return;
+    }
+    render(
+      <InspectApp
+        options={{
+          cwd,
+          env: process.env,
+          home: homedir(),
+          managedPolicyPath: defaultManagedPolicyPath(),
+        }}
+      />,
+    );
   });
 
 program
