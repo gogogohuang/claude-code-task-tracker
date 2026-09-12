@@ -1,6 +1,10 @@
 # claude-code-task-tracker
 
+[![npm version](https://img.shields.io/npm/v/claude-code-task-tracker.svg)](https://www.npmjs.com/package/claude-code-task-tracker)
+
 終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（`TodoWrite` 工具）。
+
+目前版本：**v0.1.0**（已發布到 [npm](https://www.npmjs.com/package/claude-code-task-tracker)）。
 
 ## 運作原理
 
@@ -15,21 +19,15 @@ Claude Code (TodoWrite) → PostToolUse hook → ~/.claude-task-tracker/<session
 
 ## 安裝與使用（npx）
 
-不需要事先安裝，`npx` 每次都會用最新版本執行。依照套件目前是否已發布到 npm，有三種跑法：
-
-| 情境 | 指令 |
-|---|---|
-| 已發布到 npm registry | `npx claude-code-task-tracker init` |
-| 還沒發布，直接用 GitHub repo | `npx github:<你的帳號>/claude-code-task-tracker init` |
-| 還沒發布，本機路徑（開發中測試用） | 在專案目錄下執行 `npx . init` |
-
-三種情況下，npx 第一次執行都會觸發 `prepare` script（`npm run build`），自動把 TypeScript 編譯成 `dist/`，不用手動 `npm run build`。
+已發布到 npm registry，不需要事先安裝，`npx` 每次都會用最新版本執行：
 
 ```bash
 cd 你的專案
 npx claude-code-task-tracker init     # 只需要做一次，會寫入 .claude/settings.json
 claude                                 # 照常開始你的 Claude Code session
 ```
+
+開發中測試（本機路徑）也可以直接執行 `npx . init` 代替上面的指令。
 
 另開一個終端機視窗：
 
@@ -68,24 +66,23 @@ task-tracker watch --session <session_id>
 - hook 腳本任何時候都不會讓 process 以非 0 結束，避免因為 tracker 的問題打斷你正在跑的
   Claude Code session；所有錯誤會寫進 `~/.claude-task-tracker/hook-debug.log`。
 
-## 發布到 npm（讓 `npx claude-code-task-tracker` 直接可用）
+## 發布到 npm
 
-`.github/workflows/publish.yml` 已經設定好：push 一個 `v*` 開頭的 tag 就會自動 build 並
-`npm publish`。使用前要做兩件事：
+目前 `v0.1.0` 已經發布上去了，`npx claude-code-task-tracker` 可以直接用。
 
-1. 到 npmjs.com 建立帳號（或用既有帳號），產生一組 **Automation 類型**的 access token
-2. 把 token 存成 repo 的 GitHub secret，名稱要叫 `NPM_TOKEN`
+`.github/workflows/publish.yml` 有設定：push 一個 `v*` 開頭的 tag 就會自動 build 並
+`pnpm publish`，需要 repo 的 GitHub secret `NPM_TOKEN`（一組 **Granular Access
+Token**，Read and write、勾選 **Bypass two-factor authentication**）。要注意的是 npm 對
+「全新套件」的第一次發布會強制要求互動式 OTP，即使 token 有勾 bypass 2FA 也一樣，所以
+第一次發布是用本機手動 `pnpm publish --access public --otp=<code>` 完成的；bypass token
+只對「已存在套件」的後續版本發布有效。
 
 之後發新版就是：
 
 ```bash
-npm version patch   # 或 minor / major，會自動 bump 版本號 + 建 git tag
+pnpm version patch   # 或 minor / major，會自動 bump 版本號 + 建 git tag
 git push --follow-tags
 ```
-
-`claude-code-task-tracker` 這個名字目前在 npm 上還沒人用，但如果你想改成自己 scope 底下的
-名字（例如 `@你的帳號/claude-code-task-tracker`），也可以，好處是不用擔心撞名，發布時要加
-`--access public`（workflow 裡已經加了）。改名字的話記得同步改 `package.json` 的 `name`。
 
 ## 專案結構
 
