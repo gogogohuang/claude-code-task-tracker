@@ -84,18 +84,25 @@ task-tracker watch --session <session_id>
 
 目前 `v0.1.0` 已經發布上去了，`npx claude-code-task-tracker` 可以直接用。
 
-`.github/workflows/publish.yml` 有設定：push 一個 `v*` 開頭的 tag 就會自動 build 並
-`pnpm publish`，需要 repo 的 GitHub secret `NPM_TOKEN`（一組 **Granular Access
-Token**，Read and write、勾選 **Bypass two-factor authentication**）。要注意的是 npm 對
-「全新套件」的第一次發布會強制要求互動式 OTP，即使 token 有勾 bypass 2FA 也一樣，所以
-第一次發布是用本機手動 `pnpm publish --access public --otp=<code>` 完成的；bypass token
-只對「已存在套件」的後續版本發布有效。
-
-之後發新版就是：
+版本號更新流程還是：
 
 ```bash
 pnpm version patch   # 或 minor / major，會自動 bump 版本號 + 建 git tag
 git push --follow-tags
+```
+
+但 push tag **不會**自動發布到 npm。`.github/workflows/publish.yml` 原本設定 push
+`v*` tag 會自動 build 並 `pnpm publish`，靠 repo 的 GitHub secret `NPM_TOKEN`（一組
+**Granular Access Token**，Read and write、勾選 **Bypass two-factor authentication**）
+略過 2FA。但實測發現 bypass 2FA token 並不可靠——不只「全新套件」第一次發布會強制
+要求互動式 OTP（v0.1.0 就是這樣，改成本機手動 `pnpm publish --access public
+--otp=<code>` 才發布成功），連「已存在套件」的後續版本（v0.2.0）也一樣被要求 OTP、
+CI 直接 publish 失敗。因為每次都會卡住，所以把 workflow 的觸發條件改成
+`workflow_dispatch`（手動觸發），tag push 只更新版本號跟 git 歷史，不會再自動打去
+npm。要發新版到 npm，一律用本機手動：
+
+```bash
+pnpm publish --access public --otp=<code>
 ```
 
 ## 專案結構
