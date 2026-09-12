@@ -75,7 +75,7 @@ export function InspectApp({ options }: { options: DiscoverOptions }) {
       selectedIndex={selectedIndex}
       preview={preview}
       previewScroll={previewScroll}
-      stacked={columns < 80}
+      columns={columns}
     />
   );
 }

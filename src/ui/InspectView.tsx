@@ -33,12 +33,12 @@ function EntryList({
 
   return (
     <Box flexDirection="column">
-      <Text bold>啟動時載入</Text>
+      <Text bold wrap="truncate-end">啟動時載入</Text>
       {launch.map((entry) => {
         const index = model.entries.indexOf(entry);
         const suffix = STATUS_SUFFIX[entry.status];
         return (
-          <Text key={entry.id} color={index === selectedIndex ? "cyan" : undefined}>
+          <Text key={entry.id} wrap="truncate-end" color={index === selectedIndex ? "cyan" : undefined}>
             {index === selectedIndex ? "› " : "  "}
             {entry.label}
             {suffix ? `  ${suffix}` : ""}
@@ -47,11 +47,11 @@ function EntryList({
           </Text>
         );
       })}
-      {onDemand.length > 0 ? <Text bold>按需才載入</Text> : null}
+      {onDemand.length > 0 ? <Text bold wrap="truncate-end">按需才載入</Text> : null}
       {onDemand.map((entry) => {
         const index = model.entries.indexOf(entry);
         return (
-          <Text key={entry.id} color={index === selectedIndex ? "cyan" : undefined}>
+          <Text key={entry.id} wrap="truncate-end" color={index === selectedIndex ? "cyan" : undefined}>
             {index === selectedIndex ? "› " : "  "}
             {entry.label}
             <Text dimColor>{`  ${entry.absolutePath}`}</Text>
@@ -68,40 +68,32 @@ export function InspectView({
   selectedIndex,
   preview,
   previewScroll,
-  stacked,
+  columns,
 }: {
   model: InspectModel;
   selectedIndex: number;
   preview: Preview;
   previewScroll: number;
-  stacked: boolean;
+  columns: number;
 }) {
   const lines = previewLines(preview).slice(previewScroll, previewScroll + 20);
-  const list = (
-    <Box flexDirection="column" width={stacked ? undefined : 36}>
-      <EntryList model={model} selectedIndex={selectedIndex} />
-    </Box>
-  );
-  const pane = (
-    <Box flexDirection="column" flexGrow={1}>
-      {lines.map((line, index) => (
-        <Text key={`${previewScroll + index}`}>{line}</Text>
-      ))}
-    </Box>
-  );
 
   return (
-    <Box flexDirection="column">
-      <Text bold>Inspect {model.cwd}</Text>
+    <Box flexDirection="column" width={columns}>
+      <Text bold wrap="truncate-end">Inspect {model.cwd}</Text>
       {model.headerNotes.map((note) => (
-        <Text key={note} dimColor>{note}</Text>
+        <Text key={note} dimColor wrap="truncate-end">{note}</Text>
       ))}
       {model.warnings.map((warning) => (
-        <Text key={warning} color="yellow">{warning}</Text>
+        <Text key={warning} color="yellow" wrap="truncate-end">{warning}</Text>
       ))}
-      <Box flexDirection={stacked ? "column" : "row"} marginTop={1}>
-        {list}
-        {pane}
+      <Box flexDirection="column" width={columns} marginTop={1}>
+        <EntryList model={model} selectedIndex={selectedIndex} />
+      </Box>
+      <Box flexDirection="column" width={columns} marginTop={1}>
+        {lines.map((line, index) => (
+          <Text key={`${previewScroll + index}`} wrap="truncate-end">{line.length > 0 ? line : " "}</Text>
+        ))}
       </Box>
       <Box marginTop={1}>
         <Text dimColor>j/k 選擇   [ ] 捲動   q 離開</Text>
