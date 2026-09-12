@@ -27,6 +27,31 @@ function sentenceFor(
       return pathSentence(toolInput, cwd, phase, "修改");
     case "Write":
       return pathSentence(toolInput, cwd, phase, "寫入");
+    case "Glob":
+      return spaced(phase, "尋找", pickFragment(toolInput, "pattern"));
+    case "Grep":
+      return labeled(phase, "搜尋程式碼", pickFragment(toolInput, "pattern"));
+    case "WebSearch":
+      return labeled(phase, "搜尋網頁", pickFragment(toolInput, "query"));
+    case "WebFetch":
+      return spaced(phase, "抓取", pickFragment(toolInput, "url"));
+    case "Bash":
+    case "PowerShell":
+      return spaced(phase, "執行", shellFragment(toolInput));
+    case "Agent":
+      return agentSentence(toolInput, phase);
+    case "AskUserQuestion":
+      return labeled(phase, "詢問", firstQuestion(toolInput));
+    case "ExitPlanMode":
+      return phase === "running" ? "正在等待核准計畫" : "已送出計畫";
+    case "TodoWrite":
+      return phase === "running" ? "正在更新任務清單" : "已更新任務清單";
+    case "TaskCreate":
+      return taskSentence(phase, "建立任務", pickFragment(toolInput, "subject"));
+    case "TaskUpdate":
+      return taskSentence(phase, "更新任務", pickFragment(toolInput, "subject"));
+    case "TaskList":
+      return phase === "running" ? "正在讀取任務清單" : "已讀取任務清單";
     default:
       return undefined;
   }
@@ -49,6 +74,41 @@ function spaced(phase: ActivityPhase, verb: string, fragment: string | undefined
   return `${head} ${fragment}`;
 }
 
+function labeled(phase: ActivityPhase, label: string, fragment: string | undefined): string | undefined {
+  if (!fragment) return undefined;
+  const head = phase === "running" ? `正在${label}` : `已${label}`;
+  return `${head}：${fragment}`;
+}
+
+function taskSentence(phase: ActivityPhase, verb: string, subject: string | undefined): string {
+  if (!subject) return phase === "running" ? `正在${verb}` : `已${verb}`;
+  return labeled(phase, verb, subject) ?? (phase === "running" ? `正在${verb}` : `已${verb}`);
+}
+
+function agentSentence(toolInput: Record<string, unknown>, phase: ActivityPhase): string | undefined {
+  const type = pickFragment(toolInput, "subagent_type");
+  const description = pickFragment(toolInput, "description");
+  if (!type || !description) return undefined;
+  return labeled(phase, `交給 ${type}`, description);
+}
+
+function shellFragment(toolInput: Record<string, unknown>): string | undefined {
+  const description = pickFragment(toolInput, "description");
+  if (description) return description;
+  const command = toolInput.command;
+  if (typeof command !== "string") return undefined;
+  const firstLine = command.split(/\r?\n/, 1)[0] ?? "";
+  return nonemptyClip(firstLine);
+}
+
+function firstQuestion(toolInput: Record<string, unknown>): string | undefined {
+  const questions = toolInput.questions;
+  if (!Array.isArray(questions) || questions.length === 0) return undefined;
+  const first = asRecord(questions[0]);
+  if (!first) return undefined;
+  return pickFragment(first, "question");
+}
+
 function displayPath(filePath: string, cwd?: string): string {
   const normalized = filePath.replaceAll("\\", "/");
   const base = basename(normalized);
@@ -68,10 +128,21 @@ function basename(normalized: string): string {
   return parts.at(-1) ?? normalized;
 }
 
+function pickFragment(record: Record<string, unknown>, key: string): string | undefined {
+  const value = rawString(record, key);
+  if (!value) return undefined;
+  return nonemptyClip(value);
+}
+
 function rawString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   if (typeof value !== "string") return undefined;
   return value.trim().length > 0 ? value : undefined;
+}
+
+function nonemptyClip(value: string): string | undefined {
+  const clipped = clip(value);
+  return clipped.length > 0 ? clipped : undefined;
 }
 
 function clip(value: string): string {
