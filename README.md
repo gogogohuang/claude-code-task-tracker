@@ -52,6 +52,12 @@ npm install -g claude-code-task-tracker
 task-tracker watch --session <session_id>
 ```
 
+想確認目前裝的是哪個版本：
+
+```bash
+task-tracker version
+```
+
 畫面內按 `q` 離開。
 
 ## 重要注意事項
@@ -80,36 +86,11 @@ task-tracker watch --session <session_id>
 - hook 腳本任何時候都不會讓 process 以非 0 結束，避免因為 tracker 的問題打斷你正在跑的
   Claude Code session；所有錯誤會寫進 `~/.claude-task-tracker/hook-debug.log`。
 
-## 發布到 npm
-
-目前 `v0.1.0` 已經發布上去了，`npx claude-code-task-tracker` 可以直接用。
-
-版本號更新流程還是：
-
-```bash
-pnpm version patch   # 或 minor / major，會自動 bump 版本號 + 建 git tag
-git push --follow-tags
-```
-
-但 push tag **不會**自動發布到 npm。`.github/workflows/publish.yml` 原本設定 push
-`v*` tag 會自動 build 並 `pnpm publish`，靠 repo 的 GitHub secret `NPM_TOKEN`（一組
-**Granular Access Token**，Read and write、勾選 **Bypass two-factor authentication**）
-略過 2FA。但實測發現 bypass 2FA token 並不可靠——不只「全新套件」第一次發布會強制
-要求互動式 OTP（v0.1.0 就是這樣，改成本機手動 `pnpm publish --access public
---otp=<code>` 才發布成功），連「已存在套件」的後續版本（v0.2.0）也一樣被要求 OTP、
-CI 直接 publish 失敗。因為每次都會卡住，所以把 workflow 的觸發條件改成
-`workflow_dispatch`（手動觸發），tag push 只更新版本號跟 git 歷史，不會再自動打去
-npm。要發新版到 npm，一律用本機手動：
-
-```bash
-pnpm publish --access public --otp=<code>
-```
-
 ## 專案結構
 
 ```
 src/
-├── cli.tsx                  # commander 進入點（init / watch 指令）
+├── cli.tsx                  # commander 進入點（init / watch / version 指令）
 ├── schema.ts                 # zod schema：TodoWrite 格式、hook payload、狀態檔
 ├── store.ts                  # 狀態檔案讀寫（write-then-rename 避免讀到半份資料）
 ├── commands/
