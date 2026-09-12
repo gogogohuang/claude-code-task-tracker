@@ -23,12 +23,60 @@ export const TodoWriteInputSchema = z.object({
 });
 
 /**
+ * 新版 Task 系列工具（TaskCreate / TaskUpdate / TaskList）的單一 task 結構。
+ *
+ * ⚠️ 這組工具的欄位名稱沒有公開的官方 schema 文件可查（官方 hooks 文件只
+ * 證實 TaskCreate 對應 TaskCreated hook event，沒有給 tool_input/tool_response
+ * 細節），這裡是依非官方文件整理的最佳猜測。所有欄位除了 id/status 都設成
+ * optional，實際串接後請對照 `~/.claude-task-tracker/hook-debug.log`
+ * 或當下版本的 hooks 文件再次確認。
+ */
+export const TaskStatusSchema = z.enum(["pending", "in_progress", "completed", "deleted"]);
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+
+export const TaskItemSchema = z.object({
+  id: z.string(),
+  subject: z.string().optional(),
+  description: z.string().optional(),
+  status: TaskStatusSchema,
+  activeForm: z.string().optional(),
+  owner: z.string().optional(),
+  blockedBy: z.array(z.string()).optional(),
+  blocks: z.array(z.string()).optional(),
+});
+export type TaskItem = z.infer<typeof TaskItemSchema>;
+
+/** TaskCreate 工具呼叫時的 tool_input 結構（猜測，無法從 input 拿到產生的 taskId）。 */
+export const TaskCreateInputSchema = z.object({
+  subject: z.string().optional(),
+  description: z.string().optional(),
+  activeForm: z.string().optional(),
+});
+export type TaskCreateInput = z.infer<typeof TaskCreateInputSchema>;
+
+/** TaskUpdate 工具呼叫時的 tool_input 結構（猜測）。 */
+export const TaskUpdateInputSchema = z.object({
+  taskId: z.string(),
+  status: TaskStatusSchema.optional(),
+  subject: z.string().optional(),
+  description: z.string().optional(),
+  owner: z.string().optional(),
+  addBlockedBy: z.array(z.string()).optional(),
+  addBlocks: z.array(z.string()).optional(),
+});
+export type TaskUpdateInput = z.infer<typeof TaskUpdateInputSchema>;
+
+/**
  * Claude Code PostToolUse hook 從 stdin 傳進來的 JSON payload。
  *
  * ⚠️ 這個結構是依官方 hooks 文件整理，但 Claude Code 版本更新可能調整欄位，
  * 所以除了必要欄位都設成 optional，並用 .passthrough() 保留未知欄位，
  * 避免版本升級後直接解析失敗。實際串接前建議對照當下版本的
  * https://docs.claude.com/en/docs/claude-code/hooks 再次確認欄位名稱。
+ *
+ * tool_response 是為了支援 TaskCreate（拿新產生的 taskId）跟 TaskList
+ * （拿完整清單做 resync）才加的，同樣是 optional + unknown，parse 失敗
+ * 就當作沒有這個欄位處理。
  */
 export const HookPayloadSchema = z
   .object({
@@ -38,6 +86,7 @@ export const HookPayloadSchema = z
     hook_event_name: z.string().optional(),
     tool_name: z.string(),
     tool_input: z.unknown(),
+    tool_response: z.unknown().optional(),
   })
   .passthrough();
 export type HookPayload = z.infer<typeof HookPayloadSchema>;
@@ -45,11 +94,15 @@ export type HookPayload = z.infer<typeof HookPayloadSchema>;
 /**
  * 我們自己寫到磁碟的狀態檔案格式（task-tracker 的內部格式，穩定不受
  * Claude Code 版本影響）。
+ *
+ * `todos` 是舊版 TodoWrite 的資料（整包覆寫）；`tasks` 是新版 Task 系列
+ * 工具的資料，用 id 當 key 累積 create/update，兩者互不影響、可以共存。
  */
 export const TaskStateSchema = z.object({
   sessionId: z.string(),
   cwd: z.string().optional(),
   updatedAt: z.string(),
-  todos: z.array(TodoItemSchema),
+  todos: z.array(TodoItemSchema).optional(),
+  tasks: z.record(z.string(), TaskItemSchema).optional(),
 });
 export type TaskState = z.infer<typeof TaskStateSchema>;

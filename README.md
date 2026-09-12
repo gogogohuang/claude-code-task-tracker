@@ -2,19 +2,24 @@
 
 [![npm version](https://img.shields.io/npm/v/claude-code-task-tracker.svg)](https://www.npmjs.com/package/claude-code-task-tracker)
 
-終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（`TodoWrite` 工具）。
+終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（`TodoWrite`，以及新版 `TaskCreate` /
+`TaskUpdate` / `TaskList` 系列工具）。
 
 目前版本：**v0.1.0**（已發布到 [npm](https://www.npmjs.com/package/claude-code-task-tracker)）。
 
 ## 運作原理
 
-1. `task-tracker init` 會在目前專案的 `.claude/settings.json` 註冊一個 `PostToolUse` hook，matcher 設為 `TodoWrite`。
-2. 之後 Claude Code 每次呼叫 `TodoWrite` 更新 task 清單，hook 會把當下的 task 狀態寫進
-   `~/.claude-task-tracker/<session_id>.json`。
+1. `task-tracker init` 會在目前專案的 `.claude/settings.json` 註冊一個 `PostToolUse` hook，
+   matcher 設為 `TodoWrite|TaskCreate|TaskUpdate|TaskList`。
+2. 之後 Claude Code 每次呼叫這些工具更新 task，hook 會把當下的 task 狀態寫進
+   `~/.claude-task-tracker/<session_id>.json`：`TodoWrite` 是整包覆寫；`TaskCreate` /
+   `TaskUpdate` 是用 `taskId` 累積 upsert；`TaskList` 若能拿到完整清單則整包 resync，
+   修正前面 create/update 可能累積出的漂移。
 3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 這個檔案，task 一有變化就即時重繪。
 
 ```
-Claude Code (TodoWrite) → PostToolUse hook → ~/.claude-task-tracker/<session>.json → TUI (watch)
+Claude Code (TodoWrite / TaskCreate / TaskUpdate / TaskList)
+  → PostToolUse hook → ~/.claude-task-tracker/<session>.json → TUI (watch)
 ```
 
 ## 安裝與使用（npx）
@@ -63,6 +68,15 @@ task-tracker watch --session <session_id>
   hooks 文件整理的欄位，用 `.passthrough()` 保留未知欄位以求穩健，但正式串接前建議對照
   當下版本的 [Claude Code hooks 文件](https://docs.claude.com/en/docs/claude-code/hooks)
   再確認一次欄位名稱。
+- **`TaskCreate` / `TaskUpdate` / `TaskList` 的欄位是推測值，不是官方 schema**：官方 hooks
+  文件目前只證實 `TaskCreate` 對應 `TaskCreated` 這個 hook event，沒有公開
+  `tool_input` / `tool_response` 的完整欄位定義；`subject` / `description` / `taskId` /
+  `status` / `owner` / `addBlockedBy` / `addBlocks` 這些名稱是依現有非官方資料整理的最佳猜測。
+  上游（[anthropics/claude-code#80401](https://github.com/anthropics/claude-code/issues/80401)、
+  [#80015](https://github.com/anthropics/claude-code/issues/80015)）也回報過這組工具會
+  間歇性從工具清單消失，屬於還在變動中的功能。如果實際 payload 跟猜測的欄位對不上，
+  hook 會把錯誤寫進 debug log 並略過那次更新（不會讓狀態檔壞掉），請對照
+  `~/.claude-task-tracker/hook-debug.log` 調整 `src/schema.ts` 裡對應的 schema。
 - hook 腳本任何時候都不會讓 process 以非 0 結束，避免因為 tracker 的問題打斷你正在跑的
   Claude Code session；所有錯誤會寫進 `~/.claude-task-tracker/hook-debug.log`。
 
@@ -103,6 +117,5 @@ src/
 
 ## 之後可以擴充的方向
 
-- 支援新版 Tasks API（`TaskCreate` / `TaskUpdate` / `TaskList`），不只 `TodoWrite`
 - 歷史紀錄（每個 session 結束後保留一份完成率統計）
 - 多 session 同時並排顯示（split view）

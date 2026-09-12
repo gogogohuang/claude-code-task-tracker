@@ -1,17 +1,28 @@
 import { Box, Text } from "ink";
-import { TaskState, TodoItem } from "../schema.js";
+import { TaskItem, TaskState, TodoItem } from "../schema.js";
 
-const STATUS_ICON: Record<TodoItem["status"], string> = {
+type Status = TodoItem["status"] | TaskItem["status"];
+
+const STATUS_ICON: Record<Status, string> = {
   pending: "○",
   in_progress: "◐",
   completed: "✔",
+  deleted: "✖",
 };
 
-const STATUS_COLOR: Record<TodoItem["status"], string> = {
+const STATUS_COLOR: Record<Status, string> = {
   pending: "gray",
   in_progress: "yellow",
   completed: "green",
+  deleted: "gray",
 };
+
+interface Row {
+  key: string;
+  status: Status;
+  label: string;
+  suffix?: string;
+}
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
   const width = 24;
@@ -25,8 +36,36 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
   );
 }
 
+function rowsFromTasks(tasks: Record<string, TaskItem>): Row[] {
+  return Object.values(tasks).map((task) => {
+    const label =
+      (task.status === "in_progress" && task.activeForm) || task.subject || task.description || task.id;
+    const suffixParts: string[] = [];
+    if (task.owner) suffixParts.push(`@${task.owner}`);
+    if (task.blockedBy && task.blockedBy.length > 0) suffixParts.push(`blocked by ${task.blockedBy.length}`);
+    return {
+      key: task.id,
+      status: task.status,
+      label,
+      suffix: suffixParts.length > 0 ? ` (${suffixParts.join(", ")})` : undefined,
+    };
+  });
+}
+
+function rowsFromTodos(todos: TodoItem[]): Row[] {
+  return todos.map((todo, i) => ({
+    key: `${i}-${todo.content}`,
+    status: todo.status,
+    label: todo.status === "in_progress" && todo.activeForm ? todo.activeForm : todo.content,
+  }));
+}
+
 export function TaskList({ state }: { state: TaskState }) {
-  const done = state.todos.filter((t) => t.status === "completed").length;
+  const rows =
+    state.tasks && Object.keys(state.tasks).length > 0
+      ? rowsFromTasks(state.tasks)
+      : rowsFromTodos(state.todos ?? []);
+  const done = rows.filter((r) => r.status === "completed").length;
 
   return (
     <Box flexDirection="column">
@@ -37,21 +76,19 @@ export function TaskList({ state }: { state: TaskState }) {
       </Box>
 
       <Box marginBottom={1}>
-        <ProgressBar done={done} total={state.todos.length} />
+        <ProgressBar done={done} total={rows.length} />
       </Box>
 
-      {state.todos.length === 0 ? (
+      {rows.length === 0 ? (
         <Text dimColor>目前沒有 task。</Text>
       ) : (
         <Box flexDirection="column">
-          {state.todos.map((todo, i) => {
-            const label = todo.status === "in_progress" && todo.activeForm ? todo.activeForm : todo.content;
-            return (
-              <Text key={`${i}-${todo.content}`} color={STATUS_COLOR[todo.status]}>
-                {STATUS_ICON[todo.status]} {label}
-              </Text>
-            );
-          })}
+          {rows.map((row) => (
+            <Text key={row.key} color={STATUS_COLOR[row.status]}>
+              {STATUS_ICON[row.status]} {row.label}
+              {row.suffix ? <Text dimColor>{row.suffix}</Text> : null}
+            </Text>
+          ))}
         </Box>
       )}
 

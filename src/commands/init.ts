@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const HOOK_MATCHER = "TodoWrite";
+/** 涵蓋舊版 TodoWrite 跟新版 Task 系列工具，matcher 用 | 分隔多個工具名。 */
+const HOOK_MATCHER = "TodoWrite|TaskCreate|TaskUpdate|TaskList";
 
 interface ClaudeHookEntry {
   type: string;
@@ -61,6 +62,12 @@ export function runInit(): void {
     console.log("Hook 已經註冊過了，不需要重複設定。");
     return;
   }
+
+  // 舊版（v0.1.0）init 寫入的 matcher 只有 "TodoWrite"，這裡先移除同一個 hook
+  // command 的舊條目，換成新的 matcher，避免同一次 TodoWrite 事件被觸發兩次。
+  settings.hooks.PostToolUse = settings.hooks.PostToolUse.filter(
+    (group) => !group.hooks.some((h) => h.command === hookCommand),
+  );
 
   settings.hooks.PostToolUse.push({
     matcher: HOOK_MATCHER,
