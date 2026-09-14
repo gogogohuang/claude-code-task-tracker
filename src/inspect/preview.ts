@@ -40,6 +40,7 @@ function isClaudeMd(path: string): boolean {
 
 export function readPreview(entry: InspectEntry): Preview {
   if (entry.section === "onDemand") return { notice: "按需載入，不預覽內容" };
+  if (entry.section === "outOfSession") return { notice: "此目錄不會載入，不預覽內容" };
   const notice = NOTICE[entry.status];
   if (notice) return { notice };
   try {

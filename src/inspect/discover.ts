@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { expandImports } from "./expand-imports.js";
 import { collectInstructionEntries } from "./instructions.js";
 import { collectMemoryEntries } from "./memory.js";
+import { collectProjectPromptEntries } from "./prompt-files.js";
 import { findWorktreeRoot, resolveConfigDir } from "./paths.js";
 import { readResolverSettings } from "./settings.js";
 import { DiscoverOptions, InspectModel } from "./types.js";
@@ -38,9 +39,23 @@ export function discoverInspectModel(options: DiscoverOptions): InspectModel {
     }),
     { cwd, configDir, home: options.home },
   );
-  const entries = [
+  const memory = collectMemoryEntries({ cwd, configDir, env: options.env, settings });
+  const already = new Set([...instructions, ...memory].map((entry) => entry.absolutePath));
+  const combined = [
     ...instructions,
-    ...collectMemoryEntries({ cwd, configDir, env: options.env, settings }),
+    ...memory,
+    ...collectProjectPromptEntries({
+      cwd,
+      projectRoot,
+      configDir,
+      excludes: settings.excludes,
+      already,
+    }),
+  ];
+  const entries = [
+    ...combined.filter((entry) => entry.section === "launch"),
+    ...combined.filter((entry) => entry.section === "onDemand"),
+    ...combined.filter((entry) => entry.section === "outOfSession"),
   ];
   return {
     cwd,
