@@ -34,4 +34,8 @@ test("readPreview 對未載入狀態只給提示，present 則回原文", () => 
     readPreview(entry({ absolutePath: file, section: "onDemand" })).notice,
     "按需載入，不預覽內容",
   );
+  assert.equal(
+    readPreview(entry({ absolutePath: file, section: "outOfSession" })).notice,
+    "此目錄不會載入，不預覽內容",
+  );
 });

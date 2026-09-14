@@ -6,7 +6,7 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.6.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.7.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 
 ## 運作原理
 
@@ -69,11 +69,16 @@ task-tracker version
 畫面內按 `q` 離開。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。
 
-想看這個目錄啟動 Claude 時會載入哪些 `CLAUDE.md`、rules 與 auto memory：
+想看這個專案會進 prompt 的東西：
 
 ```bash
 npx claude-code-task-tracker inspect
 ```
+
+除了 `CLAUDE.md`、rules 與 auto memory，也會列出專案與使用者層級的 skills、commands、
+agents、output-styles、workflows、agent-memory。如果檔案存在，但因為目前的 `cwd` 不在
+它的載入範圍內（例如子目錄的 `.claude/skills` 對上層 session 不可見），會歸進「此目錄不會
+載入」那組，跟真的會進這次 session prompt 的項目分開看。
 
 ## 重要注意事項
 
@@ -113,7 +118,7 @@ src/
 │   └── init.ts               # 寫入 .claude/settings.json 的 hook 設定
 ├── hook/
 │   └── task-tracker-hook.ts  # Claude Code 實際呼叫的 hook 腳本
-├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory）
+├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory、prompt 檔案）
 └── ui/
     ├── App.tsx               # 主畫面，負責 session 偵測與檔案監控
     ├── SessionPicker.tsx     # 多 session 時的選單

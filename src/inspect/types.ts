@@ -1,4 +1,4 @@
-export type InspectSection = "launch" | "onDemand";
+export type InspectSection = "launch" | "onDemand" | "outOfSession";
 
 export type InspectStatus =
   | "present"

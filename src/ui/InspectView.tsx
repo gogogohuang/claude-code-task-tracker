@@ -30,6 +30,7 @@ function EntryList({
 }) {
   const launch = model.entries.filter((entry) => entry.section === "launch");
   const onDemand = model.entries.filter((entry) => entry.section === "onDemand");
+  const outOfSession = model.entries.filter((entry) => entry.section === "outOfSession");
 
   return (
     <Box flexDirection="column">
@@ -56,6 +57,17 @@ function EntryList({
             {entry.label}
             <Text dimColor>{`  ${entry.absolutePath}`}</Text>
             {entry.detail ? <Text dimColor>{`  ${entry.detail}`}</Text> : null}
+          </Text>
+        );
+      })}
+      {outOfSession.length > 0 ? <Text bold wrap="truncate-end">此目錄不會載入</Text> : null}
+      {outOfSession.map((entry) => {
+        const index = model.entries.indexOf(entry);
+        return (
+          <Text key={entry.id} wrap="truncate-end" color={index === selectedIndex ? "cyan" : undefined}>
+            {index === selectedIndex ? "› " : "  "}
+            {entry.label}
+            <Text dimColor>{`  ${entry.absolutePath}`}</Text>
           </Text>
         );
       })}

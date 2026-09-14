@@ -37,7 +37,7 @@ program
 
 program
   .command("inspect")
-  .description("檢視這個目錄啟動 Claude 時會載入的 CLAUDE.md、rules 與 auto memory")
+  .description("檢視這個專案會進 prompt 的 CLAUDE.md、rules、skills 與 auto memory")
   .option("--dir <path>", "要解析的目錄，預設為目前工作目錄")
   .action((opts: { dir?: string }) => {
     const cwd = resolve(opts.dir ?? process.cwd());
