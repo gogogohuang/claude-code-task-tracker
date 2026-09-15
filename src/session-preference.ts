@@ -1,9 +1,12 @@
 import { basename, resolve } from "node:path";
+import { formatRelativeAge } from "./format-relative-age.js";
 
 export interface SessionHint {
   sessionId: string;
   cwd?: string;
   updatedAt: string;
+  title?: string;
+  firstPrompt?: string;
   /** 該 session 目前的活動摘要（TaskState.activity.summary），只有用量建議面板需要顯示時才會帶。 */
   activitySummary?: string;
 }
@@ -48,14 +51,25 @@ export function shouldAutoSelectSession(sessions: SessionHint[], watchCwd: strin
   return sessions.some((session) => sameCwd(session.cwd, watchCwd));
 }
 
-function formatSessionLabel(session: SessionHint, marker: "current" | "recent" | undefined): string {
-  const place = session.cwd ? basename(session.cwd) : undefined;
-  if (marker === "current") return place ? `${session.sessionId}  (目前 · ${place})` : `${session.sessionId}  (目前)`;
-  if (marker === "recent") return place ? `${session.sessionId}  (最近 · ${place})` : `${session.sessionId}  (最近)`;
-  return place ? `${session.sessionId}  (${place})` : session.sessionId;
+const LABEL_PART_LIMIT = 32;
+
+function clipLabelPart(value: string): string {
+  return value.length > LABEL_PART_LIMIT ? `${value.slice(0, LABEL_PART_LIMIT)}…` : value;
 }
 
-export function sessionChoices(sessions: SessionHint[], watchCwd: string): SessionChoice[] {
+function formatSessionLabel(session: SessionHint, marker: "current" | "recent" | undefined, now: number): string {
+  const id = shortSessionId(session.sessionId);
+  const head = marker === "current" ? `${id}  (目前)` : marker === "recent" ? `${id}  (最近)` : id;
+  const parts = [head];
+  const title = session.title ?? session.firstPrompt;
+  if (title) parts.push(clipLabelPart(title));
+  if (session.activitySummary) parts.push(clipLabelPart(session.activitySummary));
+  const age = formatRelativeAge(session.updatedAt, now);
+  if (age) parts.push(age);
+  return parts.join(" · ");
+}
+
+export function sessionChoices(sessions: SessionHint[], watchCwd: string, now: number = Date.now()): SessionChoice[] {
   const preferred = pickPreferredSession(sessions, watchCwd);
   const cwdMatched = sessions.some((session) => sameCwd(session.cwd, watchCwd));
   return [...sessions]
@@ -69,6 +83,7 @@ export function sessionChoices(sessions: SessionHint[], watchCwd: string): Sessi
       label: formatSessionLabel(
         session,
         session.sessionId !== preferred ? undefined : cwdMatched ? "current" : "recent",
+        now,
       ),
     }));
 }
@@ -114,6 +129,7 @@ export function sessionChoicesInProject(
   sessions: SessionHint[],
   projectKey: string,
   watchCwd: string,
+  now: number = Date.now(),
 ): SessionChoice[] {
   const inProject = sessions.filter((session) => projectKeyFor(session.cwd) === projectKey);
   const preferred = pickPreferredSession(inProject, watchCwd);
@@ -127,12 +143,14 @@ export function sessionChoicesInProject(
       if (right.sessionId === preferred) return 1;
       return newestFirst(left, right);
     })
-    .map((session) => {
-      const marker = session.sessionId !== preferred ? undefined : cwdMatched ? "current" : "recent";
-      if (marker === "current") return { value: session.sessionId, label: `${session.sessionId}  (目前)` };
-      if (marker === "recent") return { value: session.sessionId, label: `${session.sessionId}  (最近)` };
-      return { value: session.sessionId, label: session.sessionId };
-    });
+    .map((session) => ({
+      value: session.sessionId,
+      label: formatSessionLabel(
+        session,
+        session.sessionId !== preferred ? undefined : cwdMatched ? "current" : "recent",
+        now,
+      ),
+    }));
 }
 
 export function addedSessionIds(previous: string[], current: string[]): string[] {
