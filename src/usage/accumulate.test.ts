@@ -136,15 +136,24 @@ test("accumulate lastOccupiedTokens 是 input + cacheRead + cacheCreation，隨�
     usageEvent({ messageId: "m1", usage: { cacheCreation: 100, cacheRead: 20, output: 9, input: 5 } }),
   ]);
   assert.equal(first.next.lastOccupiedTokens, 125);
+  assert.equal(first.next.lastInput, 5);
+  assert.equal(first.next.lastCacheRead, 20);
+  assert.equal(first.next.lastCacheCreation, 100);
   const second = accumulate(first.next, [
     usageEvent({ messageId: "m1", usage: { cacheCreation: 999, cacheRead: 999, output: 9, input: 999 } }),
     usageEvent({ messageId: "m2", usage: { cacheCreation: 10, cacheRead: 200, output: 1, input: 50 } }),
   ]);
   assert.equal(second.next.lastOccupiedTokens, 260);
+  assert.equal(second.next.lastInput, 50);
+  assert.equal(second.next.lastCacheRead, 200);
+  assert.equal(second.next.lastCacheCreation, 10);
 });
 
 test("accumulate 沒有主線 usage 時 lastOccupiedTokens 仍是 undefined", () => {
   const stats0 = createSessionUsageStats("s1");
   const { next } = accumulate(stats0, [userTextEvent("只有 prompt")]);
   assert.equal(next.lastOccupiedTokens, undefined);
+  assert.equal(next.lastInput, undefined);
+  assert.equal(next.lastCacheRead, undefined);
+  assert.equal(next.lastCacheCreation, undefined);
 });

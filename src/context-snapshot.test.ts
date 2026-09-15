@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   activityLineLabel,
+  formatLastTurnBreakdownLine,
   formatOccupiedTokensLine,
   formatSnapshotActivityLine,
-  shouldShowContextSnapshot,
+  lastTurnUsageFromStats,
 } from "./context-snapshot.js";
 import { Activity } from "./schema.js";
 
@@ -16,12 +17,28 @@ test("formatOccupiedTokensLine 沒有用量資料", () => {
   assert.equal(formatOccupiedTokensLine(undefined), "還沒有用量資料");
 });
 
-test("shouldShowContextSnapshot 同一 id 第二次為 false", () => {
-  const shown = new Set<string>();
-  assert.equal(shouldShowContextSnapshot(shown, "s1"), true);
-  shown.add("s1");
-  assert.equal(shouldShowContextSnapshot(shown, "s1"), false);
-  assert.equal(shouldShowContextSnapshot(shown, "s2"), true);
+test("formatLastTurnBreakdownLine 拆 cache read / create / input", () => {
+  assert.equal(
+    formatLastTurnBreakdownLine({ occupiedTokens: 260, cacheRead: 200, cacheCreation: 10, input: 50 }),
+    "上一輪 cache read 200 · cache create 10 · input 50",
+  );
+});
+
+test("formatLastTurnBreakdownLine 沒有上一輪時省略", () => {
+  assert.equal(formatLastTurnBreakdownLine(undefined), undefined);
+});
+
+test("lastTurnUsageFromStats 欄位齊全才組得出來", () => {
+  assert.deepEqual(
+    lastTurnUsageFromStats({
+      lastOccupiedTokens: 125,
+      lastCacheRead: 20,
+      lastCacheCreation: 100,
+      lastInput: 5,
+    }),
+    { occupiedTokens: 125, cacheRead: 20, cacheCreation: 100, input: 5 },
+  );
+  assert.equal(lastTurnUsageFromStats({ lastOccupiedTokens: 125 }), undefined);
 });
 
 const running: Activity = {
