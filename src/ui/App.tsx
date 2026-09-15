@@ -7,7 +7,13 @@ import { TaskState } from "../schema.js";
 import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
 
-export function App({ initialSessionId }: { initialSessionId?: string }) {
+export function App({
+  initialSessionId,
+  emptyHint,
+}: {
+  initialSessionId?: string;
+  emptyHint?: string[];
+}) {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
   const [sessionIds, setSessionIds] = useState<string[]>([]);
@@ -61,7 +67,13 @@ export function App({ initialSessionId }: { initialSessionId?: string }) {
       return (
         <Box flexDirection="column">
           <Text dimColor>還沒有偵測到任何 session 資料。</Text>
-          <Text dimColor>請確認已在此專案執行過「task-tracker init」，且 Claude Code 正在這個專案裡執行中。</Text>
+          {(emptyHint ?? [
+            "請確認已執行「task-tracker init」，且 Claude Code 正在執行中。",
+          ]).map((line) => (
+            <Text key={line} dimColor>
+              {line}
+            </Text>
+          ))}
         </Box>
       );
     }

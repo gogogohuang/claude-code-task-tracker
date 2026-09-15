@@ -3,7 +3,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { TaskState, TaskStateSchema } from "./schema.js";
 
-export const STATE_DIR = join(homedir(), ".claude-task-tracker");
+function resolveStateDir(): string {
+  const override = process.env.CLAUDE_TASK_TRACKER_DIR?.trim();
+  return override && override.length > 0 ? override : join(homedir(), ".claude-task-tracker");
+}
+
+export const STATE_DIR = resolveStateDir();
 export const DEBUG_LOG_PATH = join(STATE_DIR, "hook-debug.log");
 
 export function ensureStateDir(): void {

@@ -6,26 +6,31 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.7.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.7.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 
 ## 運作原理
 
-1. `task-tracker init` 會在目前專案的 `.claude/settings.json` 註冊 `PreToolUse` 跟
-   `PostToolUse` 兩個 hook，matcher 都設為 `*`（涵蓋所有工具，不只 TodoWrite/Task 系列）。
+1. `task-tracker init` 會在 `~/.claude/settings.json` 註冊 `SessionStart`、
+   `PreToolUse`、`PostToolUse`、`TaskCreated` 與 `TaskCompleted`（所有專案都生效）。
+   工具類 matcher 設為 `*`；`TaskCreated` / `TaskCompleted` 不設 matcher。hook 腳本會複製到
+   `~/.claude-task-tracker/task-tracker-hook.js`，不會綁死 `npx` 快取路徑。若只要單一專案，
+   改跑 `task-tracker init --project`。
 2. 不論 Claude Code 呼叫的是哪個工具，hook 都會把一句可閱讀的活動句寫進
    `~/.claude-task-tracker/<session_id>.json` 的 `activity.summary`。`PreToolUse` 用
    「正在…」，`PostToolUse` 用「已…」。例如讀檔是「正在讀取 src/schema.ts」，Bash 優先用
    工具自帶的短描述，沒有才取指令第一行。句子不包含檔案內容、多行指令或 prompt；抽不出
    可讀片段時，退回「正在使用 Bash」。如果呼叫的剛好是
    `TodoWrite`/`TaskCreate`/`TaskUpdate`/`TaskList`，`PostToolUse` 還會額外跑專屬邏輯
-   更新任務清單：`TodoWrite` 是整包覆寫；`TaskCreate` / `TaskUpdate` 是用 `taskId` 累積
-   upsert；`TaskList` 若能拿到完整清單則整包 resync，修正前面 create/update 可能累積出的漂移。
+   更新任務清單：`TodoWrite` 預設整包覆寫，`merge: true` 則依 id/content 更新；
+   `TaskCreate` / `TaskUpdate` 是用 `taskId`（或 `id`）累積 upsert，新建時視為進行中；
+   `TaskCreated` / `TaskCompleted` 用官方的 `task_id` / `task_subject` 同步進行中與完成狀態。
+   `TaskList` 若能拿到完整清單則整包 resync，修正前面 create/update 可能累積出的漂移。
    活動列只寫工具動作（例如「正在更新任務清單」），進行中項目的 `activeForm` 仍顯示在任務列。
 3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 這個檔案，狀態一有變化就即時重繪。
 
 ```
-Claude Code (任何工具)
-  → PreToolUse / PostToolUse hook → ~/.claude-task-tracker/<session>.json → TUI (watch)
+Claude Code (SessionStart / 任何工具)
+  → hook → ~/.claude-task-tracker/<session>.json → TUI (watch)
 ```
 
 ## 安裝與使用（npx）
@@ -34,11 +39,11 @@ Claude Code (任何工具)
 
 ```bash
 cd 你的專案
-npx claude-code-task-tracker init     # 只需要做一次，會寫入 .claude/settings.json
-claude                                 # 照常開始你的 Claude Code session
+npx claude-code-task-tracker init     # 只需要做一次，會寫入 ~/.claude/settings.json
+claude                                 # 照常開始你的 Claude Code session（若已在跑，請重開一次才會載入 hook）
 ```
 
-若你先前已經跑過 `init`，升到 v0.6.0 後要再執行一次，hook 才會改寫活動句。
+若你先前已經跑過 `init`，升到 v0.7.1 後要再執行一次，hook 才會改寫活動句，並改成使用者層、穩定路徑，也才會接到進行中的 task。
 
 開發中測試（本機路徑）也可以直接執行 `npx . init` 代替上面的指令。
 

@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 import { render } from "ink";
 import { Command } from "commander";
 import { runInit } from "./commands/init.js";
+import { installTrackerHooks, resolveBundledHookPath } from "./install-hooks.js";
 import { defaultManagedPolicyPath } from "./inspect/paths.js";
+import { STATE_DIR } from "./store.js";
 import { App } from "./ui/App.js";
 import { InspectApp } from "./ui/InspectApp.js";
 
@@ -23,9 +25,10 @@ program.name("task-tracker").description("即時追蹤 Claude Code 自己開出�
 
 program
   .command("init")
-  .description("在目前專案的 .claude/settings.json 註冊 task-tracker hook")
-  .action(() => {
-    runInit();
+  .description("在 ~/.claude/settings.json 註冊 task-tracker hook（所有專案都生效）")
+  .option("--project", "改寫入目前專案的 .claude/settings.json")
+  .action((opts: { project?: boolean }) => {
+    runInit(opts.project ? "project" : "user");
   });
 
 program
@@ -63,7 +66,24 @@ program
   .description("開啟 TUI，即時觀看 task 進度")
   .option("--session <id>", "指定要觀看的 session id（不指定則自動偵測或列出選單）")
   .action((opts: { session?: string }) => {
-    render(<App initialSessionId={opts.session} />);
+    const install = installTrackerHooks({
+      scope: "user",
+      home: homedir(),
+      cwd: process.cwd(),
+      execPath: process.execPath,
+      bundledHookPath: resolveBundledHookPath(),
+      stateDir: STATE_DIR,
+    });
+    const emptyHint = install.ok
+      ? [
+          `Hook 已寫入 ${install.settingsPath}。`,
+          "請啟動或重開 Claude Code，開始對話後這裡就會出現進度。",
+        ]
+      : [
+          "請確認已執行「task-tracker init」，且 Claude Code 正在執行中。",
+          install.error,
+        ];
+    render(<App initialSessionId={opts.session} emptyHint={emptyHint} />);
   });
 
 program.parse();
