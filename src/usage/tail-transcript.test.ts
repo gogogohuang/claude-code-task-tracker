@@ -41,7 +41,7 @@ function toolResultLine(opts: { toolUseId: string; text: string; isSidechain?: b
 test("parseNewContent 一次讀多行，回傳每個 assistant 訊息的 usage 事件", () => {
   const state = createTailState();
   const chunk = assistantLine({ id: "m1", cacheCreation: 100 }) + "\n" + assistantLine({ id: "m2", cacheCreation: 200 }) + "\n";
-  const { events } = parseNewContent(chunk, state);
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
   assert.equal(events.length, 2);
   assert.equal(events[0].messageId, "m1");
   assert.equal(events[0].usage?.cacheCreation, 100);
@@ -51,9 +51,11 @@ test("parseNewContent 一次讀多行，回傳每個 assistant 訊息的 usage �
 test("parseNewContent 對跨 chunk 斷行的最後一行，先暫存到下一次呼叫再解析", () => {
   const state = createTailState();
   const fullLine = assistantLine({ id: "m1", cacheCreation: 100 });
-  const first = parseNewContent(fullLine.slice(0, 10), state);
+  const firstChunk = fullLine.slice(0, 10);
+  const first = parseNewContent(firstChunk, state, Buffer.byteLength(firstChunk, "utf-8"));
   assert.equal(first.events.length, 0);
-  const second = parseNewContent(fullLine.slice(10) + "\n", first.state);
+  const secondChunk = fullLine.slice(10) + "\n";
+  const second = parseNewContent(secondChunk, first.state, Buffer.byteLength(secondChunk, "utf-8"));
   assert.equal(second.events.length, 1);
   assert.equal(second.events[0].messageId, "m1");
 });
@@ -61,7 +63,7 @@ test("parseNewContent 對跨 chunk 斷行的最後一行，先暫存到下一次
 test("parseNewContent 跳過壞掉的 JSON 行，不影響其他行", () => {
   const state = createTailState();
   const chunk = "not json\n" + assistantLine({ id: "m1", cacheCreation: 100 }) + "\n";
-  const { events } = parseNewContent(chunk, state);
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
   assert.equal(events.length, 1);
   assert.equal(events[0].messageId, "m1");
 });
@@ -69,7 +71,7 @@ test("parseNewContent 跳過壞掉的 JSON 行，不影響其他行", () => {
 test("parseNewContent 保留 isSidechain 標記，不在這一層過濾", () => {
   const state = createTailState();
   const chunk = assistantLine({ id: "m1", cacheCreation: 100, isSidechain: true }) + "\n";
-  const { events } = parseNewContent(chunk, state);
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
   assert.equal(events[0].isSidechain, true);
 });
 
@@ -84,7 +86,7 @@ test("parseNewContent 用稍早看到的 tool_use id 換回工具名稱（tool_u
     "\n" +
     toolResultLine({ toolUseId: "toolu_1", text: "x".repeat(50) }) +
     "\n";
-  const { events } = parseNewContent(chunk, state);
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
   const toolResultEvent = events.find((e) => e.toolResultChars);
   assert.equal(toolResultEvent?.toolResultChars?.toolName, "Bash");
   assert.equal(toolResultEvent?.toolResultChars?.chars, 50);
@@ -93,7 +95,7 @@ test("parseNewContent 用稍早看到的 tool_use id 換回工具名稱（tool_u
 test("parseNewContent 對不到 tool_use id 時，toolName 是 undefined", () => {
   const state = createTailState();
   const chunk = toolResultLine({ toolUseId: "toolu_missing", text: "x".repeat(10) }) + "\n";
-  const { events } = parseNewContent(chunk, state);
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
   assert.equal(events[0].toolResultChars?.toolName, undefined);
   assert.equal(events[0].toolResultChars?.chars, 10);
 });
@@ -101,6 +103,20 @@ test("parseNewContent 對不到 tool_use id 時，toolName 是 undefined", () =>
 test("parseNewContent 對缺少 usage 的 assistant 行不產生事件，也不會拋錯", () => {
   const state = createTailState();
   const chunk = JSON.stringify({ isSidechain: false, message: { role: "assistant", id: "m1", content: [] } }) + "\n";
-  const { events } = parseNewContent(chunk, state);
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
   assert.equal(events.length, 0);
+});
+
+test("parseNewContent 的下一個 offset 用呼叫端傳入的真實 bytesRead，不會因為多位元組字元被讀取邊界切斷而跟磁碟位置脫節", () => {
+  const state = createTailState();
+  // 模擬磁碟上「中」這個多位元組字元（UTF-8 為 E4 B8 AD，3 bytes）剛好只讀到前 2 bytes；
+  // decode 成字串會變成替代字元 U+FFFD，重新編碼卻是 3 bytes —— 如果 offset 用重新編碼後的
+  // 長度去推算（舊寫法），就會跟磁碟上實際讀到的 2 bytes 對不上，下一次讀取位置錯位、掉行。
+  const truncated = Buffer.from([0xe4, 0xb8]);
+  const chunk = truncated.toString("utf-8");
+  const actualBytesRead = truncated.byteLength;
+  assert.notEqual(Buffer.byteLength(chunk, "utf-8"), actualBytesRead);
+
+  const { state: nextState } = parseNewContent(chunk, state, actualBytesRead);
+  assert.equal(nextState.offset, actualBytesRead);
 });

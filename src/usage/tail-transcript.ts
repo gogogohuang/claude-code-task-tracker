@@ -29,7 +29,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-export function parseNewContent(chunk: string, state: TailState): { events: ParsedEvent[]; state: TailState } {
+/**
+ * bytesRead 必須是呼叫端（fs 層）實際從磁碟讀到的位元組數，不能用 chunk 重新推算。
+ * chunk 是已經 decode 過的 JS 字串；如果讀取邊界剛好切在一個多位元組字元中間，
+ * decode 出來的替代字元（U+FFFD）重新編碼後的位元組長度會跟磁碟上實際讀到的不一樣，
+ * 用 Buffer.byteLength(chunk) 反推 offset 會讓下一次讀取位置跟磁碟真正的位置脫節、掉行。
+ */
+export function parseNewContent(
+  chunk: string,
+  state: TailState,
+  bytesRead: number,
+): { events: ParsedEvent[]; state: TailState } {
   const combined = state.danglingLine + chunk;
   const lines = combined.split("\n");
   const danglingLine = lines.pop() ?? "";
@@ -104,7 +114,7 @@ export function parseNewContent(chunk: string, state: TailState): { events: Pars
   return {
     events,
     state: {
-      offset: state.offset + Buffer.byteLength(chunk, "utf-8"),
+      offset: state.offset + bytesRead,
       toolUseNameById,
       danglingLine,
     },

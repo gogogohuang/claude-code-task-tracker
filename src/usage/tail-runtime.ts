@@ -43,8 +43,9 @@ function runOnce(
   prevTailState: TailState,
   prevStats: SessionUsageStats,
   content: string,
+  bytesRead: number,
 ): { tailState: TailState; stats: SessionUsageStats; advice: Advice[] } {
-  const parsed = parseNewContent(content, prevTailState);
+  const parsed = parseNewContent(content, prevTailState, bytesRead);
   const { next, steps } = accumulate(prevStats, parsed.events);
   const advice = detect(prevStats, next, steps);
   return { tailState: parsed.state, stats: next, advice };
@@ -57,8 +58,10 @@ export function prime(sessionId: string, transcriptPath: string): { stats: Sessi
     sessions.set(sessionId, { tailState: createTailState(), stats: stats0 });
     return { stats: stats0, advice: [] };
   }
+  // 讀取永遠是「從 0 讀到目前檔案大小」，所以這次真正讀到的位元組數就是 size 本身；
+  // 不管 decode 出來的字串長什麼樣子，下一次讀取的 offset 都必須錨在這個磁碟真實位置上。
   const content = readNewBytes(transcriptPath, 0, size);
-  const result = runOnce(createTailState(), stats0, content);
+  const result = runOnce(createTailState(), stats0, content, size);
   sessions.set(sessionId, { tailState: result.tailState, stats: result.stats });
   return { stats: result.stats, advice: result.advice };
 }
@@ -72,8 +75,10 @@ export function refresh(sessionId: string, transcriptPath: string): Advice[] {
   if (size < entry.tailState.offset) return prime(sessionId, transcriptPath).advice; // 檔案被截斷/換新，視同重新開始
   if (size === entry.tailState.offset) return [];
 
+  // 同樣道理：讀取是從目前的 offset 讀到現在的 size，真正讀到的位元組數是 size - offset。
+  const bytesRead = size - entry.tailState.offset;
   const content = readNewBytes(transcriptPath, entry.tailState.offset, size);
-  const result = runOnce(entry.tailState, entry.stats, content);
+  const result = runOnce(entry.tailState, entry.stats, content, bytesRead);
   sessions.set(sessionId, { tailState: result.tailState, stats: result.stats });
   return result.advice;
 }
