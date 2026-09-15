@@ -64,7 +64,8 @@ npm install -g claude-code-task-tracker
 ```
 
 若同時有多個 session 在跑，`watch` 會優先自動選目前工作目錄對得上的那一個，標題旁標「目前」。
-對不上才依專案列出選單，再選該專案底下的 session。觀看途中按 `b` 可隨時回到專案列表；也可以直接指定：
+對不上才依專案列出選單，再選該專案底下的 session。觀看途中按 `b` 可隨時回到專案列表。
+若之後又出現新 session，畫面上方會提示並響鈴，但不會自動切走目前正在看的那一個；按 `b` 回列表後提示會消失。也可以直接指定：
 
 ```bash
 task-tracker watch --session <session_id>

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  addedSessionIds,
+  formatNewSessionNotice,
   groupSessionsByProject,
   pickPreferredSession,
   projectChoices,
@@ -86,5 +88,29 @@ test("sessionChoicesInProject 只列出該專案，不再重複專案名", () =>
   assert.equal(items[0].value, "newer-b");
   assert.equal(items[0].label, "newer-b  (目前)");
   assert.equal(items[1].label, "older-b");
+});
+
+test("addedSessionIds 只回新出現的 id，刪除不算新增", () => {
+  assert.deepEqual(addedSessionIds(["a"], ["a", "b"]), ["b"]);
+  assert.deepEqual(addedSessionIds(["a", "b"], ["a"]), []);
+  assert.deepEqual(addedSessionIds([], ["a"]), ["a"]);
+});
+
+test("formatNewSessionNotice 帶專案名與回到列表提示", () => {
+  assert.equal(
+    formatNewSessionNotice([{ sessionId: "e9efe088-e33b", cwd: "/proj/taxigo_console" }]),
+    "偵測到新 session：taxigo_console · e9efe088 — 按 b 回列表",
+  );
+  assert.equal(
+    formatNewSessionNotice([
+      { sessionId: "one", cwd: "/proj/a" },
+      { sessionId: "two", cwd: "/proj/b" },
+    ]),
+    "偵測到 2 個新 session — 按 b 回列表",
+  );
+  assert.equal(
+    formatNewSessionNotice([{ sessionId: "abc12345-rest" }]),
+    "偵測到新 session：abc12345 — 按 b 回列表",
+  );
 });
 

@@ -132,3 +132,21 @@ export function sessionChoicesInProject(
       return { value: session.sessionId, label: session.sessionId };
     });
 }
+
+export function addedSessionIds(previous: string[], current: string[]): string[] {
+  const seen = new Set(previous);
+  return current.filter((id) => !seen.has(id));
+}
+
+function shortSessionId(sessionId: string): string {
+  return sessionId.length > 8 ? sessionId.slice(0, 8) : sessionId;
+}
+
+export function formatNewSessionNotice(sessions: Array<{ sessionId: string; cwd?: string }>): string {
+  if (sessions.length !== 1) return `偵測到 ${sessions.length} 個新 session — 按 b 回列表`;
+  const session = sessions[0];
+  const place = session.cwd ? basename(session.cwd) : undefined;
+  const id = shortSessionId(session.sessionId);
+  return place ? `偵測到新 session：${place} · ${id} — 按 b 回列表` : `偵測到新 session：${id} — 按 b 回列表`;
+}
+
