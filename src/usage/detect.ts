@@ -28,7 +28,7 @@ function checkLongSession(before: SessionUsageStats, after: SessionUsageStats): 
       sessionId: after.sessionId,
       kind: "long-session",
       at: after.lastMsgAt ?? new Date().toISOString(),
-      message: `現在執行 /clear 或另開新 session（這個 session 已經 ${after.mainThreadMsgCount} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`,
+      message: `現在執行 /clear 或另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`,
     },
   ];
 }

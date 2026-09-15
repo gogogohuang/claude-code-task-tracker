@@ -31,7 +31,7 @@ export function groupAdviceByProject(
       sessionId: session.sessionId,
       shortId: shortSessionId(session.sessionId),
       isCurrent: sameCwd(session.cwd, watchCwd),
-      activitySummary: relevant.find((s) => s.sessionId === session.sessionId)?.activitySummary,
+      activitySummary: session.activitySummary,
       advice: advice.filter((a) => a.sessionId === session.sessionId).sort((left, right) => right.at.localeCompare(left.at)),
     })),
   }));
