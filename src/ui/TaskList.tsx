@@ -86,7 +86,9 @@ export function TaskList({ state, current }: { state: TaskState; current?: boole
       )}
 
       <Box marginTop={1}>
-        <Text dimColor>最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — 按 q 離開</Text>
+        <Text dimColor>
+          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — 按 b 回列表 — 按 q 離開
+        </Text>
       </Box>
     </Box>
   );

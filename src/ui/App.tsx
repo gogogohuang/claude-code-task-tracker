@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState } from "../store.js";
 import { TaskState } from "../schema.js";
 import {
+  groupSessionsByProject,
   pickPreferredSession,
+  projectChoices,
   sameCwd,
-  sessionChoices,
+  sessionChoicesInProject,
   shouldAutoSelectSession,
   type SessionHint,
 } from "../session-preference.js";
@@ -41,14 +43,29 @@ export function App({
   const { isRawModeSupported } = useStdin();
   const [sessionIds, setSessionIds] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(initialSessionId);
+  const [projectKey, setProjectKey] = useState<string | undefined>();
+  const [browsing, setBrowsing] = useState(false);
   const [taskState, setTaskState] = useState<TaskState | null>(null);
+  const cwd = watchCwd ?? process.cwd();
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
   // 注意：isRawModeSupported 在非 TTY 時是 undefined 而非 false，Ink 內部用
   // `=== false` 判斷，所以這裡一定要強制轉成布林值。
   useInput(
-    (input) => {
-      if (input === "q") exit();
+    (input, key) => {
+      if (input === "q") {
+        exit();
+        return;
+      }
+      if (input !== "b" && !key.escape) return;
+      if (selectedSessionId) {
+        setSelectedSessionId(undefined);
+        setProjectKey(undefined);
+        setTaskState(null);
+        setBrowsing(true);
+        return;
+      }
+      if (projectKey) setProjectKey(undefined);
     },
     { isActive: Boolean(isRawModeSupported) },
   );
@@ -65,15 +82,15 @@ export function App({
     };
   }, []);
 
-  // 沒指定 session 時：cwd 對得上就自動選當下專案；只有一個也直接選
+  // 沒指定 session 時：cwd 對得上就自動選當下專案；只有一個也直接選。
+  // 使用者按 b 回到列表後不再自動跳回去。
   useEffect(() => {
-    if (selectedSessionId || sessionIds.length === 0) return;
-    const cwd = watchCwd ?? process.cwd();
+    if (browsing || selectedSessionId || sessionIds.length === 0) return;
     const hints = hintsFor(sessionIds);
     if (!shouldAutoSelectSession(hints, cwd)) return;
     const preferred = pickPreferredSession(hints, cwd);
     if (preferred) setSelectedSessionId(preferred);
-  }, [sessionIds, selectedSessionId, watchCwd]);
+  }, [sessionIds, selectedSessionId, cwd, browsing]);
 
   // 監控被選中 session 的檔案內容變化
   useEffect(() => {
@@ -125,9 +142,32 @@ export function App({
         </Box>
       );
     }
+    const hints = hintsFor(sessionIds);
+    const groups = groupSessionsByProject(hints, cwd);
+    if (!projectKey) {
+      return (
+        <SessionPicker
+          heading="選擇專案"
+          hint="按 q 離開"
+          items={projectChoices(hints, cwd)}
+          onSelect={(key) => {
+            const group = groups.find((item) => item.key === key);
+            const preferred = group ? pickPreferredSession(group.sessions, cwd) : undefined;
+            if (group && group.sessions.length === 1 && preferred) {
+              setSelectedSessionId(preferred);
+              return;
+            }
+            setProjectKey(key);
+          }}
+        />
+      );
+    }
+    const group = groups.find((item) => item.key === projectKey);
     return (
       <SessionPicker
-        items={sessionChoices(hintsFor(sessionIds), watchCwd ?? process.cwd())}
+        heading={`選擇 session · ${group?.label ?? "專案"}`}
+        hint="按 b 回專案列表"
+        items={sessionChoicesInProject(group?.sessions ?? [], projectKey, cwd)}
         onSelect={setSelectedSessionId}
       />
     );
@@ -138,6 +178,6 @@ export function App({
   }
 
   return (
-    <TaskList state={taskState} current={sameCwd(taskState.cwd, watchCwd ?? process.cwd())} />
+    <TaskList state={taskState} current={sameCwd(taskState.cwd, cwd)} />
   );
 }
