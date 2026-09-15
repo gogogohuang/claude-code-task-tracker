@@ -49,7 +49,7 @@ function ActivityLine({ activity }: { activity: Activity }) {
   );
 }
 
-export function TaskList({ state }: { state: TaskState }) {
+export function TaskList({ state, current }: { state: TaskState; current?: boolean }) {
   const rows = taskRows(state);
   const done = rows.filter((r) => r.status === "completed").length;
 
@@ -58,6 +58,7 @@ export function TaskList({ state }: { state: TaskState }) {
       <Box marginBottom={1}>
         <Text bold>Session: </Text>
         <Text color="cyan">{state.sessionId}</Text>
+        {current ? <Text color="green">  目前</Text> : null}
         {state.cwd ? <Text dimColor> ({state.cwd})</Text> : null}
       </Box>
 

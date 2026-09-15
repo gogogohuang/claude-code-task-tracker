@@ -4,6 +4,13 @@ import chokidar from "chokidar";
 import { join } from "node:path";
 import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState } from "../store.js";
 import { TaskState } from "../schema.js";
+import {
+  pickPreferredSession,
+  sameCwd,
+  sessionChoices,
+  shouldAutoSelectSession,
+  type SessionHint,
+} from "../session-preference.js";
 import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
@@ -13,12 +20,22 @@ function withLiveWorkflow(state: TaskState): TaskState {
   return workflow ? { ...state, workflow } : state;
 }
 
+function hintsFor(sessionIds: string[]): SessionHint[] {
+  return sessionIds.flatMap((sessionId) => {
+    const state = readTaskState(sessionId);
+    if (!state) return [];
+    return [{ sessionId: state.sessionId, cwd: state.cwd, updatedAt: state.updatedAt }];
+  });
+}
+
 export function App({
   initialSessionId,
   emptyHint,
+  watchCwd,
 }: {
   initialSessionId?: string;
   emptyHint?: string[];
+  watchCwd?: string;
 }) {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
@@ -48,12 +65,15 @@ export function App({
     };
   }, []);
 
-  // 若使用者沒指定 session，且目前只有一個，自動選取它
+  // 沒指定 session 時：cwd 對得上就自動選當下專案；只有一個也直接選
   useEffect(() => {
-    if (!selectedSessionId && sessionIds.length === 1) {
-      setSelectedSessionId(sessionIds[0]);
-    }
-  }, [sessionIds, selectedSessionId]);
+    if (selectedSessionId || sessionIds.length === 0) return;
+    const cwd = watchCwd ?? process.cwd();
+    const hints = hintsFor(sessionIds);
+    if (!shouldAutoSelectSession(hints, cwd)) return;
+    const preferred = pickPreferredSession(hints, cwd);
+    if (preferred) setSelectedSessionId(preferred);
+  }, [sessionIds, selectedSessionId, watchCwd]);
 
   // 監控被選中 session 的檔案內容變化
   useEffect(() => {
@@ -105,12 +125,19 @@ export function App({
         </Box>
       );
     }
-    return <SessionPicker sessionIds={sessionIds} onSelect={setSelectedSessionId} />;
+    return (
+      <SessionPicker
+        items={sessionChoices(hintsFor(sessionIds), watchCwd ?? process.cwd())}
+        onSelect={setSelectedSessionId}
+      />
+    );
   }
 
   if (!taskState) {
     return <Text dimColor>讀取 session {selectedSessionId} 資料中…</Text>;
   }
 
-  return <TaskList state={taskState} />;
+  return (
+    <TaskList state={taskState} current={sameCwd(taskState.cwd, watchCwd ?? process.cwd())} />
+  );
 }
