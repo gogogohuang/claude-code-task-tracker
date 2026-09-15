@@ -173,13 +173,16 @@ export function App({
       }
 
       const watcher = chokidar.watch(transcriptPath, { ignoreInitial: true, ignorePermissionErrors: true });
-      watcher.on("change", () => {
+      const onTranscriptEvent = () => {
         try {
           applyAdvice(refresh(sessionId, transcriptPath));
         } catch {
           // 同上
         }
-      });
+      };
+      // transcript 檔案掛 watcher 時可能還沒被 Claude Code 建立（session state 檔通常先寫）；
+      // 跟下面 workflow/journal watcher 用同一個慣例，add／change 都接同一個 handler。
+      watcher.on("add", onTranscriptEvent).on("change", onTranscriptEvent);
       watchers.set(sessionId, watcher);
     }
 
