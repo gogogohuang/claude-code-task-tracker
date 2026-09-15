@@ -3,7 +3,7 @@ import test from "node:test";
 import { appendFileSync, chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { forget, prime, refresh } from "./tail-runtime.js";
+import { forget, peek, prime, refresh } from "./tail-runtime.js";
 
 function assistantLine(id: string, cacheCreation: number): string {
   return JSON.stringify({
@@ -148,4 +148,63 @@ test("refresh 讀取失敗時 offset 不會往前推進，恢復可讀之後能�
     forget(sessionId);
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+function aiTitleLine(aiTitle: string): string {
+  return JSON.stringify({ type: "ai-title", aiTitle });
+}
+
+function userLine(text: string): string {
+  return JSON.stringify({
+    isSidechain: false,
+    timestamp: new Date().toISOString(),
+    message: { role: "user", content: text },
+  });
+}
+
+function occupiedAssistantLine(id: string, input: number, cacheCreation: number, cacheRead: number): string {
+  return JSON.stringify({
+    isSidechain: false,
+    timestamp: new Date().toISOString(),
+    message: {
+      role: "assistant",
+      id,
+      usage: {
+        cache_creation_input_tokens: cacheCreation,
+        cache_read_input_tokens: cacheRead,
+        output_tokens: 0,
+        input_tokens: input,
+      },
+      content: [{ type: "text", text: "hi" }],
+    },
+  });
+}
+
+test("prime 後 peek 拿得到 title、firstPrompt、lastOccupiedTokens", () => {
+  const dir = mkdtempSync(join(tmpdir(), "usage-advisor-"));
+  const path = join(dir, "session.jsonl");
+  const sessionId = `test-${Date.now()}-peek`;
+  try {
+    writeFileSync(
+      path,
+      aiTitleLine("修用量面板") +
+        "\n" +
+        userLine("幫我修") +
+        "\n" +
+        occupiedAssistantLine("m0", 50, 100, 20) +
+        "\n",
+    );
+    prime(sessionId, path);
+    const stats = peek(sessionId);
+    assert.equal(stats?.title, "修用量面板");
+    assert.equal(stats?.firstPrompt, "幫我修");
+    assert.equal(stats?.lastOccupiedTokens, 170);
+  } finally {
+    forget(sessionId);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("peek 對沒 prime 過的 session 回 undefined", () => {
+  assert.equal(peek("never-primed-session"), undefined);
 });
