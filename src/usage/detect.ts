@@ -28,7 +28,7 @@ function checkLongSession(before: SessionUsageStats, after: SessionUsageStats): 
       sessionId: after.sessionId,
       kind: "long-session",
       at: after.lastMsgAt ?? new Date().toISOString(),
-      message: `現在執行 /clear 或另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`,
+      message: `先把進度寫進 docs/superpowers/plans/（結論、檔案清單、未完成項），再執行 /clear 或另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`,
     },
   ];
 }
@@ -68,13 +68,17 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
   const toolResultChars = step.event.toolResultChars;
   if (!toolResultChars) return [];
   if (toolResultChars.chars <= FAT_TOOL_RESULT_CHARS) return [];
-  const toolName = toolResultChars.toolName ?? "工具";
+  const chars = toolResultChars.chars.toLocaleString("en-US");
+  const isSubagent = toolResultChars.toolName === "Agent" || toolResultChars.toolName === "SubagentHandback";
+  const message = isSubagent
+    ? `下次派子 agent 只讓它交回結論與檔案路徑，不要把完整 diff/review 貼回主線（剛剛回傳了 ${chars} 字元）。`
+    : `重跑剛剛那個 ${toolResultChars.toolName ?? "工具"} 呼叫，加上 head/grep/limit 把輸出縮小（原本回傳了 ${chars} 字元）。`;
   return [
     {
       sessionId: stats.sessionId,
       kind: "fat-tool-result",
       at: step.event.timestamp ?? new Date().toISOString(),
-      message: `重跑剛剛那個 ${toolName} 呼叫，加上 head/grep/limit 把輸出縮小（原本回傳了 ${toolResultChars.chars.toLocaleString("en-US")} 字元）。`,
+      message,
     },
   ];
 }

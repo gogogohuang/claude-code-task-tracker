@@ -20,6 +20,7 @@ test("detect：long-session 訊息數剛好跨過 200 才觸發一次", () => {
   const longSession = advice.filter((a) => a.kind === "long-session");
   assert.equal(longSession.length, 1);
   assert.match(longSession[0].message, /\/clear/);
+  assert.match(longSession[0].message, /docs\/superpowers\/plans\//);
 });
 
 test("detect：long-session 剛好等於 200 則不觸發", () => {
@@ -86,4 +87,24 @@ test("detect：fat-tool-result 對不到工具名稱時顯示「工具」", () =
   const { next, steps } = accumulate(stats0, [toolResultEvent(undefined, 40000, "t0")]);
   const advice = detect(stats0, next, steps);
   assert.match(advice[0].message, /^重跑剛剛那個 工具 呼叫/);
+});
+
+test("detect：fat-tool-result 對 Agent 改叫只交結論與檔案路徑", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next, steps } = accumulate(stats0, [toolResultEvent("Agent", 30001, "t0")]);
+  const advice = detect(stats0, next, steps);
+  assert.equal(advice.length, 1);
+  assert.equal(advice[0].kind, "fat-tool-result");
+  assert.match(advice[0].message, /結論與檔案路徑/);
+  assert.equal(/head\/grep\/limit/.test(advice[0].message), false);
+  assert.match(advice[0].message, /30,001/);
+});
+
+test("detect：fat-tool-result 對 SubagentHandback 同樣只交結論與檔案路徑", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next, steps } = accumulate(stats0, [toolResultEvent("SubagentHandback", 30001, "t0")]);
+  const advice = detect(stats0, next, steps);
+  assert.equal(advice[0].kind, "fat-tool-result");
+  assert.match(advice[0].message, /結論與檔案路徑/);
+  assert.equal(/head\/grep\/limit/.test(advice[0].message), false);
 });
