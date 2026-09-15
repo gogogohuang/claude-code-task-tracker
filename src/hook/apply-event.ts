@@ -1,4 +1,5 @@
 import { describeActivity } from "../describe-activity.js";
+import { readFileSync } from "node:fs";
 import {
   Activity,
   HookPayload,
@@ -9,8 +10,11 @@ import {
   TaskUpdateInputSchema,
   TodoItem,
   TodoWriteInputSchema,
+  WorkflowRun,
 } from "../schema.js";
 import { TaskState } from "../schema.js";
+import { extractRunId, journalPathFor, sessionDirFromTranscript } from "../workflow/paths.js";
+import { parseWorkflowMeta } from "../workflow/parse-meta.js";
 
 export interface ApplyHookDeps {
   readTaskState: (sessionId: string) => TaskState | null;
@@ -96,6 +100,37 @@ function lifecycleActivity(kind: "created" | "completed", subject: string | unde
   };
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+function workflowSource(toolInput: unknown): string | undefined {
+  const input = asRecord(toolInput);
+  if (typeof input?.script === "string") return input.script;
+  if (typeof input?.scriptPath !== "string") return undefined;
+  try {
+    return readFileSync(input.scriptPath, "utf-8");
+  } catch {
+    return undefined;
+  }
+}
+
+function seedWorkflow(payload: HookPayload, previous: WorkflowRun | undefined): WorkflowRun | undefined {
+  if (payload.tool_name !== "Workflow") return previous;
+  const source = workflowSource(payload.tool_input);
+  const meta = source ? parseWorkflowMeta(source) : undefined;
+  if (!meta) return previous;
+  const runId = extractRunId(payload.tool_input, payload.tool_response);
+  if (!runId || !payload.transcript_path) return previous;
+  return {
+    runId,
+    name: meta.name,
+    journalPath: journalPathFor(payload.transcript_path, runId),
+    phases: meta.phases.map((title) => ({ title, status: "pending" as const })),
+  };
+}
+
 export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void {
   const updatedAt = (deps.now?.() ?? new Date()).toISOString();
   const existing = deps.readTaskState(payload.session_id);
@@ -105,10 +140,14 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
       deps.writeTaskState({
         sessionId: payload.session_id,
         cwd: payload.cwd ?? existing?.cwd,
+        claudeSessionDir: payload.transcript_path
+          ? sessionDirFromTranscript(payload.transcript_path)
+          : existing?.claudeSessionDir,
         updatedAt,
         todos: todos ?? existing?.todos,
         tasks: tasks ?? existing?.tasks,
         activity,
+        workflow: seedWorkflow(payload, existing?.workflow),
       });
     } catch (err) {
       deps.appendDebugLog(`寫入狀態檔失敗: ${(err as Error).message}`);

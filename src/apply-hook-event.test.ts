@@ -195,3 +195,50 @@ test("TodoWrite merge:true 會留下既有項目並更新進行中那筆", () =>
   assert.equal(todos.find((t) => t.content === "修 bug")?.status, "in_progress");
   assert.equal(todos.find((t) => t.content === "修 bug")?.activeForm, "正在修 bug");
 });
+
+const WORKFLOW_SCRIPT = `export const meta = {
+  name: 'linego-feature-workflow',
+  phases: [{ title: 'Fetch Ticket + Write Plan' }, { title: 'Gate' }],
+}`;
+
+test("任何 hook 都會記下 transcript 所在的 session 目錄", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "abc",
+      transcript_path: "/Users/me/.claude/projects/proj/abc.jsonl",
+      hook_event_name: "SessionStart",
+      tool_input: undefined,
+    },
+    deps,
+  );
+  assert.equal(written[0].claudeSessionDir, "/Users/me/.claude/projects/proj");
+});
+
+test("PostToolUse Workflow 從 script 種入 phase 清單與 journal 路徑", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "abc",
+      transcript_path: "/Users/me/.claude/projects/proj/abc.jsonl",
+      hook_event_name: "PostToolUse",
+      tool_name: "Workflow",
+      tool_input: { script: WORKFLOW_SCRIPT },
+      tool_response: { runId: "wf_27dc174c-59f" },
+    },
+    deps,
+  );
+  const workflow = written[0].workflow;
+  assert.equal(workflow?.runId, "wf_27dc174c-59f");
+  assert.equal(workflow?.name, "linego-feature-workflow");
+  assert.equal(
+    workflow?.journalPath,
+    "/Users/me/.claude/projects/proj/subagents/workflows/wf_27dc174c-59f/journal.jsonl",
+  );
+  assert.deepEqual(
+    workflow?.phases.map((phase) => phase.title),
+    ["Fetch Ticket + Write Plan", "Gate"],
+  );
+  assert.equal(written[0].activity?.summary, "已啟動 workflow linego-feature-workflow");
+});
+

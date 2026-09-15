@@ -6,7 +6,7 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.7.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.8.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 
 ## 運作原理
 
@@ -26,11 +26,15 @@
    `TaskCreated` / `TaskCompleted` 用官方的 `task_id` / `task_subject` 同步進行中與完成狀態。
    `TaskList` 若能拿到完整清單則整包 resync，修正前面 create/update 可能累積出的漂移。
    活動列只寫工具動作（例如「正在更新任務清單」），進行中項目的 `activeForm` 仍顯示在任務列。
-3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 這個檔案，狀態一有變化就即時重繪。
+   若 Claude Code 啟動了 dynamic workflow（`Workflow` 工具），hook 會從 script 的 `meta.phases`
+   種出 phase 清單；`watch` 再盯 session 目錄裡的 `journal.jsonl`，把每列標成 pending /
+   in_progress / completed。巢狀 workflow 的 `▸ …` phase 不另開列，算進最近的父 phase。
+3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 狀態檔與 workflow journal，狀態一有變化就即時重繪。
 
 ```
-Claude Code (SessionStart / 任何工具)
-  → hook → ~/.claude-task-tracker/<session>.json → TUI (watch)
+Claude Code (SessionStart / 任何工具 / Workflow)
+  → hook → ~/.claude-task-tracker/<session>.json
+  → journal.jsonl → TUI (watch)
 ```
 
 ## 安裝與使用（npx）
@@ -124,6 +128,7 @@ src/
 ├── hook/
 │   └── task-tracker-hook.ts  # Claude Code 實際呼叫的 hook 腳本
 ├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory、prompt 檔案）
+├── workflow/                 # dynamic workflow 的 meta.phases 與 journal 解析
 └── ui/
     ├── App.tsx               # 主畫面，負責 session 偵測與檔案監控
     ├── SessionPicker.tsx     # 多 session 時的選單

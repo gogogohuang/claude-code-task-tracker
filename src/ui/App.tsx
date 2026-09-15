@@ -4,8 +4,14 @@ import chokidar from "chokidar";
 import { join } from "node:path";
 import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState } from "../store.js";
 import { TaskState } from "../schema.js";
+import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
+
+function withLiveWorkflow(state: TaskState): TaskState {
+  const workflow = liveWorkflow(state);
+  return workflow ? { ...state, workflow } : state;
+}
 
 export function App({
   initialSessionId,
@@ -52,15 +58,37 @@ export function App({
   // 監控被選中 session 的檔案內容變化
   useEffect(() => {
     if (!selectedSessionId) return;
-    setTaskState(readTaskState(selectedSessionId));
+    const refresh = () => {
+      const latest = readTaskState(selectedSessionId);
+      setTaskState(latest ? withLiveWorkflow(latest) : null);
+    };
+    refresh();
     const filePath = join(STATE_DIR, `${selectedSessionId}.json`);
     const watcher = chokidar.watch(filePath, { ignoreInitial: true });
-    const refresh = () => setTaskState(readTaskState(selectedSessionId));
     watcher.on("add", refresh).on("change", refresh);
     return () => {
       void watcher.close();
     };
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    const journalPath = taskState?.workflow?.journalPath;
+    const workflowsDir = taskState?.claudeSessionDir
+      ? join(taskState.claudeSessionDir, "subagents", "workflows")
+      : undefined;
+    const targets = [journalPath, workflowsDir].filter((path): path is string => Boolean(path));
+    if (targets.length === 0) return;
+    const watcher = chokidar.watch(targets, { ignoreInitial: true, ignorePermissionErrors: true });
+    const refresh = () => {
+      const latest = readTaskState(selectedSessionId);
+      if (latest) setTaskState(withLiveWorkflow(latest));
+    };
+    watcher.on("add", refresh).on("change", refresh);
+    return () => {
+      void watcher.close();
+    };
+  }, [selectedSessionId, taskState?.workflow?.journalPath, taskState?.claudeSessionDir]);
 
   if (!selectedSessionId) {
     if (sessionIds.length === 0) {
