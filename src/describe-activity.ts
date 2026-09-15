@@ -47,9 +47,9 @@ function sentenceFor(
     case "TodoWrite":
       return phase === "running" ? "正在更新任務清單" : "已更新任務清單";
     case "TaskCreate":
-      return taskSentence(phase, "建立任務", pickFragment(toolInput, "subject"));
+      return taskSentence(phase, "建立任務", pickFragment(toolInput, "subject") ?? pickFragment(toolInput, "title"));
     case "TaskUpdate":
-      return taskSentence(phase, "更新任務", pickFragment(toolInput, "subject"));
+      return taskSentence(phase, "更新任務", pickFragment(toolInput, "subject") ?? pickFragment(toolInput, "title"));
     case "TaskList":
       return phase === "running" ? "正在讀取任務清單" : "已讀取任務清單";
     default:

@@ -1,28 +1,20 @@
 import { Box, Text } from "ink";
-import { Activity, TaskItem, TaskState, TodoItem } from "../schema.js";
+import { Activity, TaskState } from "../schema.js";
+import { RowStatus, taskRows } from "./task-rows.js";
 
-type Status = TodoItem["status"] | TaskItem["status"];
-
-const STATUS_ICON: Record<Status, string> = {
+const STATUS_ICON: Record<RowStatus, string> = {
   pending: "○",
   in_progress: "◐",
   completed: "✔",
   deleted: "✖",
 };
 
-const STATUS_COLOR: Record<Status, string> = {
+const STATUS_COLOR: Record<RowStatus, string> = {
   pending: "gray",
   in_progress: "yellow",
   completed: "green",
   deleted: "gray",
 };
-
-interface Row {
-  key: string;
-  status: Status;
-  label: string;
-  suffix?: string;
-}
 
 function ProgressBar({ done, total }: { done: number; total: number }) {
   const width = 24;
@@ -34,30 +26,6 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
       <Text color="green">{bar}</Text> {pct}% ({done}/{total})
     </Text>
   );
-}
-
-function rowsFromTasks(tasks: Record<string, TaskItem>): Row[] {
-  return Object.values(tasks).map((task) => {
-    const label =
-      (task.status === "in_progress" && task.activeForm) || task.subject || task.description || task.id;
-    const suffixParts: string[] = [];
-    if (task.owner) suffixParts.push(`@${task.owner}`);
-    if (task.blockedBy && task.blockedBy.length > 0) suffixParts.push(`blocked by ${task.blockedBy.length}`);
-    return {
-      key: task.id,
-      status: task.status,
-      label,
-      suffix: suffixParts.length > 0 ? ` (${suffixParts.join(", ")})` : undefined,
-    };
-  });
-}
-
-function rowsFromTodos(todos: TodoItem[]): Row[] {
-  return todos.map((todo, i) => ({
-    key: `${i}-${todo.content}`,
-    status: todo.status,
-    label: todo.status === "in_progress" && todo.activeForm ? todo.activeForm : todo.content,
-  }));
 }
 
 function ActivityLine({ activity }: { activity: Activity }) {
@@ -82,10 +50,7 @@ function ActivityLine({ activity }: { activity: Activity }) {
 }
 
 export function TaskList({ state }: { state: TaskState }) {
-  const rows =
-    state.tasks && Object.keys(state.tasks).length > 0
-      ? rowsFromTasks(state.tasks)
-      : rowsFromTodos(state.todos ?? []);
+  const rows = taskRows(state);
   const done = rows.filter((r) => r.status === "completed").length;
 
   return (

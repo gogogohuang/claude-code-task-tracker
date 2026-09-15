@@ -9,6 +9,7 @@ export const TodoStatusSchema = z.enum(["pending", "in_progress", "completed"]);
 export type TodoStatus = z.infer<typeof TodoStatusSchema>;
 
 export const TodoItemSchema = z.object({
+  id: z.string().optional(),
   content: z.string(),
   status: TodoStatusSchema,
   activeForm: z.string().optional(),
@@ -17,9 +18,11 @@ export type TodoItem = z.infer<typeof TodoItemSchema>;
 
 /**
  * TodoWrite 工具呼叫時的 tool_input 結構。
+ * `merge: true` 時依 id（沒有 id 則用 content）更新，不整包覆寫。
  */
 export const TodoWriteInputSchema = z.object({
   todos: z.array(TodoItemSchema),
+  merge: z.boolean().optional(),
 });
 
 /**
@@ -49,16 +52,20 @@ export type TaskItem = z.infer<typeof TaskItemSchema>;
 /** TaskCreate 工具呼叫時的 tool_input 結構（猜測，無法從 input 拿到產生的 taskId）。 */
 export const TaskCreateInputSchema = z.object({
   subject: z.string().optional(),
+  title: z.string().optional(),
   description: z.string().optional(),
   activeForm: z.string().optional(),
+  status: TaskStatusSchema.optional(),
 });
 export type TaskCreateInput = z.infer<typeof TaskCreateInputSchema>;
 
-/** TaskUpdate 工具呼叫時的 tool_input 結構（猜測）。 */
+/** TaskUpdate 工具呼叫時的 tool_input 結構（猜測；id 是 taskId 的別名）。 */
 export const TaskUpdateInputSchema = z.object({
-  taskId: z.string(),
+  taskId: z.string().optional(),
+  id: z.string().optional(),
   status: TaskStatusSchema.optional(),
   subject: z.string().optional(),
+  title: z.string().optional(),
   description: z.string().optional(),
   owner: z.string().optional(),
   addBlockedBy: z.array(z.string()).optional(),
@@ -84,9 +91,14 @@ export const HookPayloadSchema = z
     transcript_path: z.string().optional(),
     cwd: z.string().optional(),
     hook_event_name: z.string().optional(),
-    tool_name: z.string(),
-    tool_input: z.unknown(),
+    source: z.string().optional(),
+    tool_name: z.string().optional(),
+    tool_input: z.unknown().optional(),
     tool_response: z.unknown().optional(),
+    task_id: z.string().optional(),
+    task_subject: z.string().optional(),
+    task_description: z.string().optional(),
+    teammate_name: z.string().optional(),
   })
   .passthrough();
 export type HookPayload = z.infer<typeof HookPayloadSchema>;

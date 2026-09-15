@@ -13,4 +13,6 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
+  // hook 會被複製到 ~/.claude-task-tracker/，那邊沒有套件 node_modules。
+  noExternal: ["zod"],
 });

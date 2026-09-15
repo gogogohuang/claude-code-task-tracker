@@ -1,0 +1,132 @@
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const HOOK_MATCHER = "*";
+export const TRACKER_HOOK_FILENAME = "task-tracker-hook.js";
+const HOOK_TIMEOUT_SECONDS = 5;
+
+export interface ClaudeHookEntry {
+  type: string;
+  command: string;
+  timeout?: number;
+}
+export interface ClaudeHookGroup {
+  matcher?: string;
+  hooks: ClaudeHookEntry[];
+}
+export interface ClaudeSettings {
+  hooks?: {
+    PreToolUse?: ClaudeHookGroup[];
+    PostToolUse?: ClaudeHookGroup[];
+    SessionStart?: ClaudeHookGroup[];
+    TaskCreated?: ClaudeHookGroup[];
+    TaskCompleted?: ClaudeHookGroup[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export type HookScope = "user" | "project";
+
+const MATCHER_EVENTS = ["PreToolUse", "PostToolUse", "SessionStart"] as const;
+const BARE_EVENTS = ["TaskCreated", "TaskCompleted"] as const;
+
+export function isTrackerHookCommand(command: string): boolean {
+  return command.includes("task-tracker-hook");
+}
+
+export function buildHookCommand(execPath: string, hookScriptPath: string): string {
+  return `${JSON.stringify(execPath)} ${JSON.stringify(hookScriptPath)}`;
+}
+
+export function installedHookPath(stateDir: string): string {
+  return join(stateDir, TRACKER_HOOK_FILENAME);
+}
+
+export function settingsPathFor(scope: HookScope, input: { home: string; cwd: string }): string {
+  return scope === "user" ? join(input.home, ".claude", "settings.json") : join(input.cwd, ".claude", "settings.json");
+}
+
+/**
+ * dist/cli.js 旁邊就是 dist/hook/；tsx 跑 src 時改找套件根目錄的 dist。
+ */
+export function resolveBundledHookPath(fromMetaUrl: string = import.meta.url): string {
+  const here = dirname(fileURLToPath(fromMetaUrl));
+  const besideCli = join(here, "hook", TRACKER_HOOK_FILENAME);
+  if (existsSync(besideCli)) return besideCli;
+  return join(here, "..", "dist", "hook", TRACKER_HOOK_FILENAME);
+}
+
+function stripTrackerHooks(groups: ClaudeHookGroup[] | undefined): ClaudeHookGroup[] {
+  return (groups ?? [])
+    .map((group) => ({
+      ...group,
+      hooks: group.hooks.filter((hook) => !isTrackerHookCommand(hook.command)),
+    }))
+    .filter((group) => group.hooks.length > 0);
+}
+
+function trackerGroup(hookCommand: string, matcher?: string): ClaudeHookGroup {
+  const group: ClaudeHookGroup = {
+    hooks: [{ type: "command", command: hookCommand, timeout: HOOK_TIMEOUT_SECONDS }],
+  };
+  if (matcher) group.matcher = matcher;
+  return group;
+}
+
+export function mergeTrackerHooks(settings: ClaudeSettings, hookCommand: string): ClaudeSettings {
+  const hooks: NonNullable<ClaudeSettings["hooks"]> = { ...settings.hooks };
+  for (const event of MATCHER_EVENTS) {
+    const stripped = stripTrackerHooks(hooks[event]);
+    hooks[event] = [...stripped, trackerGroup(hookCommand, HOOK_MATCHER)];
+  }
+  for (const event of BARE_EVENTS) {
+    const stripped = stripTrackerHooks(hooks[event]);
+    hooks[event] = [...stripped, trackerGroup(hookCommand)];
+  }
+  return { ...settings, hooks };
+}
+
+export function readSettingsFile(settingsPath: string): { ok: true; settings: ClaudeSettings } | { ok: false; error: string } {
+  if (!existsSync(settingsPath)) return { ok: true, settings: {} };
+  try {
+    return { ok: true, settings: JSON.parse(readFileSync(settingsPath, "utf-8")) as ClaudeSettings };
+  } catch {
+    return { ok: false, error: `無法解析既有的 ${settingsPath}，請手動檢查後再執行 init。` };
+  }
+}
+
+export function writeSettingsFile(settingsPath: string, settings: ClaudeSettings): void {
+  mkdirSync(dirname(settingsPath), { recursive: true });
+  writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf-8");
+}
+
+export type InstallResult =
+  | { ok: true; settingsPath: string; already: boolean }
+  | { ok: false; error: string };
+
+export function installTrackerHooks(input: {
+  scope: HookScope;
+  home: string;
+  cwd: string;
+  execPath: string;
+  bundledHookPath: string;
+  stateDir: string;
+}): InstallResult {
+  if (!existsSync(input.bundledHookPath)) {
+    return { ok: false, error: `找不到 hook 腳本：${input.bundledHookPath}。請先執行 build。` };
+  }
+  mkdirSync(input.stateDir, { recursive: true });
+  copyFileSync(input.bundledHookPath, installedHookPath(input.stateDir));
+
+  const settingsPath = settingsPathFor(input.scope, input);
+  const loaded = readSettingsFile(settingsPath);
+  if (!loaded.ok) return loaded;
+
+  const hookCommand = buildHookCommand(input.execPath, installedHookPath(input.stateDir));
+  const merged = mergeTrackerHooks(loaded.settings, hookCommand);
+  const already = JSON.stringify(loaded.settings.hooks) === JSON.stringify(merged.hooks);
+  if (!already) writeSettingsFile(settingsPath, merged);
+  return { ok: true, settingsPath, already };
+}
