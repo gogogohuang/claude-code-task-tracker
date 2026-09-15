@@ -107,3 +107,45 @@ test("prime/refresh 對無法讀取的檔案（openSync/readSync 失敗）會 fa
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+function fatToolResultLine(text: string): string {
+  return JSON.stringify({
+    isSidechain: false,
+    timestamp: new Date().toISOString(),
+    message: {
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: "toolu_missing", content: text }],
+    },
+  });
+}
+
+test("refresh 讀取失敗時 offset 不會往前推進，恢復可讀之後能接續讀到暫存的內容，不會被永久跳過", () => {
+  const dir = mkdtempSync(join(tmpdir(), "usage-advisor-"));
+  const path = join(dir, "session.jsonl");
+  const sessionId = `test-${Date.now()}-readfail-offset`;
+  try {
+    writeFileSync(path, assistantLine("m0", 10) + "\n");
+    prime(sessionId, path);
+
+    // 附加一行大到會觸發 fat-tool-result 的 tool_result；readSync 失敗時這段內容還沒被消化。
+    appendFileSync(path, fatToolResultLine("x".repeat(30001)) + "\n");
+
+    chmodSync(path, 0o000);
+    // openSync 應該會失敗，fail open 回傳空陣列；如果這時候 offset 被錯誤地推進到目前檔案大小
+    // （用「想讀多少」而不是「實際讀到多少」去推進），下面恢復權限後就再也讀不到這段內容了。
+    const failedRefresh = refresh(sessionId, path);
+    assert.deepEqual(failedRefresh, []);
+
+    chmodSync(path, 0o644);
+    const recovered = refresh(sessionId, path);
+    assert.equal(recovered.some((a) => a.kind === "fat-tool-result"), true);
+  } finally {
+    try {
+      chmodSync(path, 0o644);
+    } catch {
+      // 忽略，檔案可能已被刪除
+    }
+    forget(sessionId);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

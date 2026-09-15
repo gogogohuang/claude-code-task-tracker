@@ -19,24 +19,29 @@ function fileSize(path: string): number | undefined {
   }
 }
 
-function readNewBytes(path: string, offset: number, size: number): string {
-  if (size <= offset) return "";
+/**
+ * 回傳實際成功讀到的位元組數（bytesRead），不是「想讀多少」。失敗（開檔/讀檔任何一步出錯）
+ * 一律 fail open：content 空字串、bytesRead 0 —— 呼叫端要用這個真實數字去推進 offset，
+ * 不然讀取失敗時 offset 還是往前跳，會把那段還沒讀到的內容永久跳過。
+ */
+function readNewBytes(path: string, offset: number, size: number): { content: string; bytesRead: number } {
+  if (size <= offset) return { content: "", bytesRead: 0 };
   const length = size - offset;
   const buffer = Buffer.alloc(length);
   let fd: number;
   try {
     fd = openSync(path, "r");
   } catch {
-    return "";
+    return { content: "", bytesRead: 0 };
   }
   try {
-    readSync(fd, buffer, 0, length, offset);
+    const bytesRead = readSync(fd, buffer, 0, length, offset);
+    return { content: buffer.toString("utf-8", 0, bytesRead), bytesRead };
   } catch {
-    return "";
+    return { content: "", bytesRead: 0 };
   } finally {
     closeSync(fd);
   }
-  return buffer.toString("utf-8");
 }
 
 function runOnce(
@@ -58,10 +63,10 @@ export function prime(sessionId: string, transcriptPath: string): { stats: Sessi
     sessions.set(sessionId, { tailState: createTailState(), stats: stats0 });
     return { stats: stats0, advice: [] };
   }
-  // 讀取永遠是「從 0 讀到目前檔案大小」，所以這次真正讀到的位元組數就是 size 本身；
-  // 不管 decode 出來的字串長什麼樣子，下一次讀取的 offset 都必須錨在這個磁碟真實位置上。
-  const content = readNewBytes(transcriptPath, 0, size);
-  const result = runOnce(createTailState(), stats0, content, size);
+  // offset 要錨在「這次真正讀到多少 bytes」，不能用 size 這個意圖值 —— 讀取失敗時
+  // readNewBytes 會回傳 bytesRead:0，offset 就該原地不動，等下一次再重試。
+  const { content, bytesRead } = readNewBytes(transcriptPath, 0, size);
+  const result = runOnce(createTailState(), stats0, content, bytesRead);
   sessions.set(sessionId, { tailState: result.tailState, stats: result.stats });
   return { stats: result.stats, advice: result.advice };
 }
@@ -75,9 +80,8 @@ export function refresh(sessionId: string, transcriptPath: string): Advice[] {
   if (size < entry.tailState.offset) return prime(sessionId, transcriptPath).advice; // 檔案被截斷/換新，視同重新開始
   if (size === entry.tailState.offset) return [];
 
-  // 同樣道理：讀取是從目前的 offset 讀到現在的 size，真正讀到的位元組數是 size - offset。
-  const bytesRead = size - entry.tailState.offset;
-  const content = readNewBytes(transcriptPath, entry.tailState.offset, size);
+  // 同樣道理：offset 只能照 readNewBytes 實際回報的 bytesRead 推進，不是預先算好的 size - offset。
+  const { content, bytesRead } = readNewBytes(transcriptPath, entry.tailState.offset, size);
   const result = runOnce(entry.tailState, entry.stats, content, bytesRead);
   sessions.set(sessionId, { tailState: result.tailState, stats: result.stats });
   return result.advice;
