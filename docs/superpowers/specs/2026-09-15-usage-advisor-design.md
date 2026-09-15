@@ -1,0 +1,196 @@
+# Usage Advisor — Design
+
+## 背景與目標
+
+`task-tracker watch` 目前只追蹤 Claude Code 自己開出來的 task/todo（透過 hook 寫進
+`~/.claude-task-tracker/<session_id>.json` 的活動摘要），完全不看 token 用量。
+
+對其他專案的 session transcript（`~/.claude/projects/<project>/<session_id>.jsonl`）做過一次
+人工分析後，找到兩個穩定重現的成本來源：
+
+1. **session 拖太長**：單一 session 訊息數/時間越長，早期塞進 context 的任何內容，就要被後面
+   每一輪重複讀（cache_read）越多次。實測中最貴的幾個 session 都有「幾百則訊息、橫跨數小時」
+   的特徵。
+2. **單輪 cache_creation 暴增**：極少數幾則訊息就佔掉 session 三、四成的新增 token
+   消耗。追查發現觸發點是工具清單或 MCP 設定在 session 中途變動（`deferred_tools_delta` /
+   `mcp_instructions_delta`），導致 prompt cache 的字首整個失效，逼系統把「system prompt +
+   全部工具定義 + 目前為止的完整對話歷史」用全價重算一次，而不是用便宜十倍的 cache_read。
+3. （使用者追加）**單次工具回傳過肥**：單一 tool_result 內容異常大（例如沒過濾的 Bash/Read
+   輸出），會被當成新內容一次性塞進 context，之後又被拖進「拖太長」的複利效應。
+4. （使用者追加）**開場底子就很重**：跟前三種「session 中途才變貴」不同，有些 session 從第
+   一輪 API 呼叫（此時 `cache_read` 必為 0，全部是 `cache_creation`）就已經吃掉異常多 token，
+   代表 system prompt + `CLAUDE.md` + skills/rules 這組固定底子本身太肥，不是對話內容造成的。
+   這種情況前三個偵測器都抓不到，因為它們看的是「跟前面比有沒有變化」，第一輪沒有「前面」可比。
+
+目標：把這個分析常態化成 `watch` 裡的即時監控，偵測到上述四種狀況時，**主動吐出明確、可執行
+的建議指令**（不是籠統的「注意用量」），並且跨 session 監控（不限目前正在看的那個），呈現在
+一個獨立面板，沿用現有「有新 session 出現」的 banner + 響鈴機制提示。
+
+## 非目標
+
+- 不做門檻值可調整的設定介面（CLI flag / config file）——固定預設值。
+- 不修改 hook（`task-tracker-hook.ts`）。usage 資料完全來自 Claude Code 自己寫的 transcript
+  檔案，跟 hook 寫的狀態檔是兩份獨立資料。
+- 不做歷史統計/報表（跟 README「之後可以擴充的方向」的歷史紀錄是分開的題目）。
+- 不處理 `~/.claude/projects/` 底下屬於其他 `cwd`、但跟目前 `watch` 完全無關的 session（範圍
+  仍是 task-tracker 目前已知的 `sessionIds`，也就是 hook 寫過狀態檔的那些）。
+
+## 架構
+
+新增 `src/usage/` 模組，全部跑在 `watch` 這個長駐 TUI process 裡：
+
+```
+src/usage/
+├── types.ts             # UsageEvent, SessionUsageStats, Advice 等型別
+├── tail-transcript.ts    # 純函式：parse 新增的 transcript 內容
+├── accumulate.ts          # 純函式：把新事件疊進 SessionUsageStats
+├── detect.ts              # 純函式：SessionUsageStats + 新事件 → Advice[]
+└── tail-runtime.ts        # 唯一非純模組：per-session in-memory tail 狀態
+```
+
+### `tail-transcript.ts`
+
+```ts
+interface TailState {
+  offset: number;               // 上次讀到的 byte offset
+  toolUseNameById: Map<string, string>; // tool_use_id -> tool name，供 tool_result 對照
+  danglingLine: string;         // 上次讀到一半、還沒換行的殘餘內容
+}
+
+interface ParsedEvent {
+  messageId: string | undefined; // message.id；同一輪 API 回應如果被拆成多個 content block，
+                                  // 會產生多筆 messageId 相同的 assistant 行，usage 也會重複
+  isSidechain: boolean;
+  usage?: { cacheCreation: number; cacheRead: number; output: number };
+  toolResultChars?: { toolName: string | undefined; chars: number };
+  timestamp?: string;
+}
+
+function parseNewContent(chunk: string, state: TailState): { events: ParsedEvent[]; state: TailState };
+```
+
+- 逐行 `JSON.parse`，parse 失敗的行直接跳過（transcript 格式不是 task-tracker 控制的，必須容錯，
+  比照現有 hook schema 的 `.passthrough()` 精神）。
+- 只從 `message.role === "assistant"` 的行取 `usage`；只從 `message.content[].type ===
+  "tool_result"` 取文字長度，並用同一則訊息裡稍早的 `tool_use.id`（存進
+  `toolUseNameById`）換回工具名稱。
+- `isSidechain` 直接讀該行的 `isSidechain` 欄位；`accumulate.ts` 只累加
+  `isSidechain === false` 的事件到主線統計。
+- **重要**：一輪 API 回應如果同時有 `thinking` + `tool_use`（或多個 `tool_use`）等多個 content
+  block，Claude Code 會把每個 block 各寫一行 JSONL，但每一行的 `message.usage` 都是**同一輪的
+  完整用量**，不是分攤值。實測一個 session 直接加總每行的 `cache_creation_input_tokens`
+  比對 message.id 去重後的結果高了 2.19 倍（一輪最多可拆到 13 行）。因此 usage 一定要用
+  `messageId` 去重，同一個 `messageId` 只採計一次，其餘幾種偵測器的門檻才有意義。
+
+### `accumulate.ts`
+
+```ts
+interface SessionUsageStats {
+  sessionId: string;
+  mainThreadMsgCount: number;      // 去重後的「唯一 API 回應數」，不是 JSONL 行數
+  sessionStartedAt: string;      // 該 session 第一筆有 timestamp 的紀錄
+  lastMsgAt: string;
+  cacheCreationTotal: number;
+  cacheCreationRollingAvg: number; // 簡單累積平均，每則「唯一」主線訊息更新一次
+  recentMessageIds: string[];      // 去重用的有界環狀緩衝（例如最近 30 個），非整個 session 無限成長
+}
+
+function accumulate(prev: SessionUsageStats, events: ParsedEvent[]): {
+  next: SessionUsageStats;
+  newMainThreadEvents: ParsedEvent[]; // 只含去重後、真正第一次看到的事件，供 detect.ts 逐一檢查
+};
+```
+
+- 對每個 `isSidechain === false` 且帶 `usage` 的事件：若 `messageId` 已經在
+  `recentMessageIds` 裡，直接跳過（不疊加 total、不更新 rolling average、不算進
+  `mainThreadMsgCount`、也不放進 `newMainThreadEvents`）；否則才採計，並把 `messageId` push
+  進 `recentMessageIds`（超過上限就從最舊的開始丟）。
+- 沒有 `usage`（例如純 `tool_use`/`tool_result` 事件本身）不受去重影響，`toolResultChars`
+  一律照算——`fat-tool-result` 不吃這個 bug，tool_result 不會被同一輪複製多次。
+
+### `detect.ts`
+
+```ts
+function detect(prev: SessionUsageStats, next: SessionUsageStats, newEvents: ParsedEvent[]): Advice[];
+
+interface Advice {
+  sessionId: string;
+  kind: "long-session" | "cache-spike" | "fat-tool-result" | "heavy-baseline";
+  at: string;          // ISO timestamp
+  message: string;      // 明確指令，直接顯示在 UI
+}
+```
+
+四個偵測規則（固定門檻，理由見「背景」章節的實測數據）。`message` 一律寫成**單一動作指令**——
+一句話講清楚現在該做哪個動作，數字只當佐證附在句尾，不留「避免」「記得」這類原則性收尾：
+
+| kind | 條件 | 訊息範本 |
+|---|---|---|
+| `long-session` | `mainThreadMsgCount` 跨過 200，或 `now - sessionStartedAt` 跨過 90 分鐘（各自只觸發一次，用 next 跨過門檻但 prev 未跨過判斷，避免每則訊息重複提醒） | 「現在執行 /clear 或另開新 session（這個 session 已經 {n} 則訊息、開了 {mins} 分鐘）。」 |
+| `cache-spike` | 單則主線訊息的 `cacheCreation` > `max(20000, 5 × prev.cacheCreationRollingAvg)`，且 `prev.mainThreadMsgCount >= 5`（session 剛開始、還沒有穩定平均值時不判斷，避免開場就誤報） | 「現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定（剛剛這一輪因此重算了 {n} token，平常只要 {avg}）。」 |
+| `fat-tool-result` | 單一 tool_result 文字長度 > 30000 字元 | 「重跑剛剛那個 {toolName} 呼叫，加上 head/grep/limit 把輸出縮小（原本回傳了 {chars} 字元）。」（`toolName` 對不到時顯示「工具」） |
+| `heavy-baseline` | 該 session 第一則主線 assistant 訊息（`prev.mainThreadMsgCount === 0`）的 `cacheCreation` > 50000（此時 `cache_read` 必為 0，這筆數字等於系統底子本身的大小） | 「執行 task-tracker inspect 檢查這個專案載入 prompt 的東西（這個 session 開場第一輪就吃了 {n} token）。」 |
+
+`long-session` 用「跨過門檻」而非「超過門檻」觸發；`heavy-baseline` 只在第一則主線訊息判斷一次；
+其餘兩個本質上是單次事件，天生只會觸發一次，都不需要額外去重。
+
+### `tail-runtime.ts`
+
+```ts
+function prime(sessionId: string, transcriptPath: string): { stats: SessionUsageStats; advice: Advice[] };
+function refresh(sessionId: string, transcriptPath: string): Advice[]; // 內部更新 in-memory stats
+function forget(sessionId: string): void; // session 消失時釋放狀態
+```
+
+- `prime`：第一次看到某 session 時，整份讀一次（`readFileSync`），跑過整個 `tail-transcript` +
+  `accumulate` + `detect`，讓「watch 中途才打開、session 早就很長」的情況也能立刻抓到問題，
+  offset 設為當下檔案大小。
+- `refresh`：之後只從 offset 讀新增內容（`fs.readSync` 搭配已知 offset，或用
+  `createReadStream(path, { start: offset })`），增量更新。
+- 全部狀態存 in-memory（`Map<sessionId, { tailState, stats }>`），watch process 重啟就重新
+  `prime`；不落地存檔，因為這是即時監控，不是歷史分析。
+
+## 跨 session 監控 + UI
+
+- `App.tsx` 現有「監控 state 目錄」的 effect 已經知道所有 `sessionIds`。擴充一個新 effect：
+  對每個 sessionId 讀它的 `claudeSessionDir`（讀 `~/.claude-task-tracker/<id>.json` 現成欄位），
+  組出 transcript 路徑 `${claudeSessionDir}/${sessionId}.jsonl`，對它掛 chokidar watcher
+  （`ignoreInitial: true`，因為初始狀態由 `prime` 處理），`change` 時呼叫
+  `tail-runtime.refresh`。session 從 `sessionIds` 消失時呼叫 `forget` 並移除對應 watcher。
+- 新增全域 `Advice[]` state（依時間新到舊排序，可加簡單上限如最近 50 筆避免無限成長）。
+- 新增按鍵 `a`：從主畫面（task list 或 session picker）切到獨立的「建議」面板
+  （`AdvicePanel.tsx`），列出目前所有 advice，依專案/session 分組（沿用
+  `groupSessionsByProject` 的分組邏輯），顯示 session 標籤 + `message`。按 `b`/`Esc` 回上一個
+  畫面。
+- 任何 session（不限正在看的那個）冒出新 advice 時，沿用現有 `notice` + `process.stdout.write("\x07")`
+  響鈴機制，在目前畫面上方提示「有新的用量建議，按 a 查看」，不強制切走畫面——跟現有「有新
+  session 出現」banner 的行為一致。
+
+## 錯誤處理
+
+- transcript 檔案可能中途被壓縮/搬移/不存在（例如 session 被 compact）：`refresh` 讀不到檔案就
+  靜默跳過，不影響其他 session 或主 UI；下次檔案變動事件再重試。
+- JSON parse 失敗的行（不完整行、格式跑掉）一律跳過，不中斷整批 parse。
+- 這整套邏輯全部包在 try/catch 裡，任何錯誤都不能讓 `watch` TUI 本身掛掉或影響現有 task
+  list 功能——跟現有 hook「任何時候都不讓 process 以非 0 結束」同一種穩健性要求。
+
+## 測試
+
+- `tail-transcript.test.ts`：多行一次進來、跨 chunk 斷行（最後一行不完整）、壞掉的 JSON 行、
+  `isSidechain: true` 的行、tool_use_id 對不到名稱的 tool_result。
+- `accumulate.test.ts`：rolling average 計算、多個事件一次疊加、**同一 `messageId` 出現多次
+  （模擬一輪 API 回應被拆成 thinking + 多個 tool_use 行）只採計一次**、去重跨越兩次
+  `accumulate` 呼叫（也就是同一輪的兩行分別出現在不同的 tail chunk）也要能正確去重、
+  `recentMessageIds` 超過上限時最舊的要被丟掉且不影響尚未被丟掉的 id 判斷。
+- `detect.test.ts`：四個 detector 各自的門檻邊界（剛好等於門檻、跨過門檻前後只觸發一次、
+  `mainThreadMsgCount < 5` 時 cache-spike 不觸發、heavy-baseline 只在第一則訊息判斷、第二則
+  之後即使 cacheCreation 很大也不會誤判成 heavy-baseline）。
+- `tail-runtime` 用 tmp 檔案做整合測試：模擬檔案分批寫入，確認 `prime` + 連續 `refresh` 的結果
+  跟一次讀完全部內容等價。
+- UI 部分（`AdvicePanel.tsx` 與 App.tsx 的新 effect）沿用現有 App.tsx 測試模式。
+
+## PR / 版本
+
+依專案 `CLAUDE.md` 規則：這是新功能，`package.json` 版本要 minor bump（目前 0.9.0 →
+0.10.0），README「目前版本」同步更新。不影響既有 hook 行為，不需要更新「升到 vX.Y.Z 後要再
+執行一次」那行。

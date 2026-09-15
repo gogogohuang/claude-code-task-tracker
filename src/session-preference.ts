@@ -4,6 +4,8 @@ export interface SessionHint {
   sessionId: string;
   cwd?: string;
   updatedAt: string;
+  /** 該 session 目前的活動摘要（TaskState.activity.summary），只有用量建議面板需要顯示時才會帶。 */
+  activitySummary?: string;
 }
 
 export interface SessionChoice {
@@ -138,7 +140,7 @@ export function addedSessionIds(previous: string[], current: string[]): string[]
   return current.filter((id) => !seen.has(id));
 }
 
-function shortSessionId(sessionId: string): string {
+export function shortSessionId(sessionId: string): string {
   return sessionId.length > 8 ? sessionId.slice(0, 8) : sessionId;
 }
 
