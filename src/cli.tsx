@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "ink";
 import { Command } from "commander";
+import { runClear } from "./commands/clear.js";
 import { runInit } from "./commands/init.js";
 import { installTrackerHooks, resolveBundledHookPath } from "./install-hooks.js";
 import { defaultManagedPolicyPath } from "./inspect/paths.js";
@@ -36,6 +37,15 @@ program
   .description("顯示目前安裝的 task-tracker 版本")
   .action(() => {
     console.log(readPackageVersion());
+  });
+
+program
+  .command("clear")
+  .description("清除 session 暫存狀態檔（預設只清目前專案）")
+  .option("--all", "清除全部專案的 session 狀態檔")
+  .option("--log", "一併清除 hook-debug.log")
+  .action((opts: { all?: boolean; log?: boolean }) => {
+    runClear({ all: opts.all, log: opts.log });
   });
 
 program

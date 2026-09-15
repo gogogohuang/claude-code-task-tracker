@@ -12,6 +12,7 @@ import {
   projectChoices,
   sameCwd,
   sessionChoicesInProject,
+  shortSessionId,
   shouldAutoSelectSession,
   type SessionHint,
 } from "../session-preference.js";
@@ -19,8 +20,14 @@ import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
 import { AdvicePanel } from "./AdvicePanel.js";
-import { groupAdviceByProject } from "../usage/advice-groups.js";
-import { forget, prime, refresh } from "../usage/tail-runtime.js";
+import { adviceForSession } from "../usage/advice-groups.js";
+import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
+import {
+  formatOccupiedTokensLine,
+  formatSnapshotActivityLine,
+  shouldShowContextSnapshot,
+} from "../context-snapshot.js";
+import { taskRows } from "./task-rows.js";
 import { Advice } from "../usage/types.js";
 
 function withNotice(notice: string | undefined, child: ReactNode) {
@@ -50,12 +57,15 @@ function hintsFor(sessionIds: string[]): SessionHint[] {
   return sessionIds.flatMap((sessionId) => {
     const state = readTaskState(sessionId);
     if (!state) return [];
+    const usage = peek(sessionId);
     return [
       {
         sessionId: state.sessionId,
         cwd: state.cwd,
         updatedAt: state.updatedAt,
         activitySummary: state.activity?.summary,
+        title: usage?.title,
+        firstPrompt: usage?.firstPrompt,
       },
     ];
   });
@@ -82,6 +92,12 @@ export function App({
   const [adviceList, setAdviceList] = useState<Advice[]>([]);
   const adviceWatchers = useRef<Map<string, ReturnType<typeof chokidar.watch>>>(new Map());
   const knownSessionIds = useRef<string[] | null>(null);
+  const selectedSessionIdRef = useRef(selectedSessionId);
+  selectedSessionIdRef.current = selectedSessionId;
+  const shownSnapshotIds = useRef(new Set<string>());
+  const [contextSnapshot, setContextSnapshot] = useState<
+    { sessionId: string; occupiedLine: string; activityLine?: string } | undefined
+  >();
   const cwd = watchCwd ?? process.cwd();
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
@@ -158,7 +174,10 @@ export function App({
       // adviceList 維持「舊到新」排列，蓋過上限時從尾端（新的那端）保留最新 MAX_ADVICE 則；
       // 之前是 prepend 後從頭 slice，一批 advice 超過上限時反而留下該批裡最舊的那些。
       setAdviceList((prev) => [...prev, ...newAdvice].slice(-MAX_ADVICE));
-      setNotice(formatAdviceNotice(newAdvice));
+      const selected = selectedSessionIdRef.current;
+      const relevant = selected ? newAdvice.filter((item) => item.sessionId === selected) : [];
+      if (relevant.length === 0) return;
+      setNotice(formatAdviceNotice(relevant));
       try {
         process.stdout.write("\x07");
       } catch {
@@ -199,8 +218,7 @@ export function App({
       void watcher.close();
       watchers.delete(sessionId);
       forget(sessionId);
-      // session 消失後它的 advice 也要一併清掉，不然會一直卡在 adviceList 的上限額度裡，
-      // 但 groupAdviceByProject 又把它濾掉不顯示，造成「鈴響了但面板說沒有建議」的落差。
+      // session 消失後它的 advice 也要一併清掉，不然會一直卡在 adviceList 的上限額度裡。
       setAdviceList((prev) => prev.filter((advice) => advice.sessionId !== sessionId));
     }
   }, [sessionIds]);
@@ -239,6 +257,32 @@ export function App({
   }, [selectedSessionId]);
 
   useEffect(() => {
+    if (!selectedSessionId) {
+      setContextSnapshot(undefined);
+      return;
+    }
+    if (!sessionIds.includes(selectedSessionId)) return;
+    if (!taskState || taskState.sessionId !== selectedSessionId) return;
+    setContextSnapshot((current) => {
+      if (current?.sessionId === selectedSessionId) return current;
+      if (!shouldShowContextSnapshot(shownSnapshotIds.current, selectedSessionId)) return undefined;
+      shownSnapshotIds.current.add(selectedSessionId);
+      const usage = peek(selectedSessionId);
+      const rows = taskRows(taskState);
+      const done = rows.filter((row) => row.status === "completed").length;
+      return {
+        sessionId: selectedSessionId,
+        occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
+        activityLine: formatSnapshotActivityLine({
+          activity: taskState.activity,
+          done,
+          total: rows.length,
+        }),
+      };
+    });
+  }, [selectedSessionId, taskState, sessionIds]);
+
+  useEffect(() => {
     if (!selectedSessionId) return;
     const journalPath = taskState?.workflow?.journalPath;
     const workflowsDir = taskState?.claudeSessionDir
@@ -258,9 +302,22 @@ export function App({
   }, [selectedSessionId, taskState?.workflow?.journalPath, taskState?.claudeSessionDir]);
 
   if (view === "advice") {
-    const groups = groupAdviceByProject(adviceList, hintsFor(sessionIds), cwd);
-    const uncoveredCount = sessionIds.filter((sessionId) => !readTaskState(sessionId)?.claudeSessionDir).length;
-    return withNotice(notice, <AdvicePanel groups={groups} uncoveredCount={uncoveredCount} />);
+    const filtered = adviceForSession(adviceList, selectedSessionId);
+    const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
+    const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
+    const uncoveredHint =
+      selectedSessionId && !readTaskState(selectedSessionId)?.claudeSessionDir
+        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+        : undefined;
+    return withNotice(
+      notice,
+      <AdvicePanel
+        advice={filtered}
+        shortId={shortId}
+        emptyHint={emptyHint}
+        uncoveredHint={uncoveredHint}
+      />,
+    );
   }
 
   if (!selectedSessionId) {
@@ -318,6 +375,14 @@ export function App({
 
   return withNotice(
     notice,
-    <TaskList state={taskState} current={sameCwd(taskState.cwd, cwd)} />,
+    <TaskList
+      state={taskState}
+      current={sameCwd(taskState.cwd, cwd)}
+      contextSnapshot={
+        contextSnapshot?.sessionId === taskState.sessionId
+          ? { occupiedLine: contextSnapshot.occupiedLine, activityLine: contextSnapshot.activityLine }
+          : undefined
+      }
+    />,
   );
 }

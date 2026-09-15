@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Box, Text, useInput, useStdin } from "ink";
+import { activityLineLabel } from "../context-snapshot.js";
 import { Activity, TaskState } from "../schema.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 import { RowStatus, taskRows } from "./task-rows.js";
@@ -34,32 +35,38 @@ function ProgressBar({ done, total }: { done: number; total: number }) {
 
 function ActivityLine({ activity }: { activity: Activity }) {
   const time = new Date(activity.at).toLocaleTimeString();
-  const label =
-    activity.summary ??
-    (activity.phase === "running" ? `正在使用 ${activity.toolName}` : `已使用 ${activity.toolName}`);
-
+  const label = activityLineLabel(activity);
   if (activity.phase === "running") {
     return (
       <Text color="yellow">
-        ◐ {label}
+        {label}
         <Text dimColor> ({time} 開始)</Text>
       </Text>
     );
   }
   return (
     <Text dimColor>
-      {label} ({time} 完成)
+      {label}
+      <Text dimColor> ({time} 完成)</Text>
     </Text>
   );
 }
 
-export function TaskList({ state, current }: { state: TaskState; current?: boolean }) {
+export function TaskList({
+  state,
+  current,
+  contextSnapshot,
+}: {
+  state: TaskState;
+  current?: boolean;
+  contextSnapshot?: { occupiedLine: string; activityLine?: string };
+}) {
   const { isRawModeSupported } = useStdin();
   const rows = taskRows(state);
   const done = rows.filter((r) => r.status === "completed").length;
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
-  const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS);
+  const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + (contextSnapshot ? 3 : 0));
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
   const hiddenBelow = Math.max(0, rows.length - start - visible.length);
@@ -96,6 +103,13 @@ export function TaskList({ state, current }: { state: TaskState; current?: boole
         {current ? <Text color="green">  目前</Text> : null}
         {state.cwd ? <Text dimColor> ({state.cwd})</Text> : null}
       </Box>
+
+      {contextSnapshot ? (
+        <Box flexDirection="column" marginBottom={1}>
+          <Text>{contextSnapshot.occupiedLine}</Text>
+          {contextSnapshot.activityLine ? <Text>{contextSnapshot.activityLine}</Text> : null}
+        </Box>
+      ) : null}
 
       {state.activity ? (
         <Box marginBottom={1}>
