@@ -23,9 +23,16 @@ function readNewBytes(path: string, offset: number, size: number): string {
   if (size <= offset) return "";
   const length = size - offset;
   const buffer = Buffer.alloc(length);
-  const fd = openSync(path, "r");
+  let fd: number;
+  try {
+    fd = openSync(path, "r");
+  } catch {
+    return "";
+  }
   try {
     readSync(fd, buffer, 0, length, offset);
+  } catch {
+    return "";
   } finally {
     closeSync(fd);
   }
