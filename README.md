@@ -70,7 +70,7 @@ npm install -g claude-code-task-tracker
 `watch` 也會持續分析每個已知 session 的 token 用量（讀 Claude Code 自己寫的 session transcript，
 不限目前正在看的那個），偵測到「session 拖太長」「單輪 cache 重算暴增」「單次工具回傳過肥」
 「開場底子就重」這四種狀況時，會用同一套提示 + 響鈴機制通知你，並直接告訴你現在該做的動作
-（例如 `/clear`、開新 session、或加 `head`/`limit` 重跑）。按 `a` 隨時查看目前所有建議，`b` 回上一頁。
+（例如先把進度寫進 plan 再 `/clear`、開新 session、子 agent 只交結論與路徑、或加 `head`/`limit` 重跑）。按 `a` 隨時查看目前所有建議，`b` 回上一頁。
 
 ```bash
 task-tracker watch --session <session_id>
