@@ -7,6 +7,7 @@ function assistantLine(opts: {
   cacheCreation: number;
   cacheRead?: number;
   output?: number;
+  input?: number;
   isSidechain?: boolean;
   timestamp?: string;
   content?: unknown[];
@@ -21,9 +22,22 @@ function assistantLine(opts: {
         cache_creation_input_tokens: opts.cacheCreation,
         cache_read_input_tokens: opts.cacheRead ?? 0,
         output_tokens: opts.output ?? 0,
+        input_tokens: opts.input ?? 0,
       },
       content: opts.content ?? [{ type: "text", text: "hi" }],
     },
+  });
+}
+
+function aiTitleLine(aiTitle: string): string {
+  return JSON.stringify({ type: "ai-title", aiTitle, timestamp: "2026-09-15T00:00:00.000Z" });
+}
+
+function userTextLine(content: unknown, opts?: { isSidechain?: boolean }): string {
+  return JSON.stringify({
+    isSidechain: opts?.isSidechain ?? false,
+    timestamp: "2026-09-15T00:00:00.000Z",
+    message: { role: "user", content },
   });
 }
 
@@ -119,4 +133,64 @@ test("parseNewContent 的下一個 offset 用呼叫端傳入的真實 bytesRead�
 
   const { state: nextState } = parseNewContent(chunk, state, actualBytesRead);
   assert.equal(nextState.offset, actualBytesRead);
+});
+
+test("parseNewContent 讀 type=ai-title 的 aiTitle，即使沒有 message 也不丟", () => {
+  const chunk = aiTitleLine("修用量面板") + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events.length, 1);
+  assert.equal(events[0].title, "修用量面板");
+  assert.equal(events[0].usage, undefined);
+});
+
+test("parseNewContent 空的 aiTitle 不產生事件", () => {
+  const chunk = aiTitleLine("   ") + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events.length, 0);
+});
+
+test("parseNewContent 主線 user 字串當成 firstPrompt 候選", () => {
+  const chunk = userTextLine("幫我修用量面板") + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events[0].userText, "幫我修用量面板");
+});
+
+test("parseNewContent 串起 array 裡 type=text 的文字", () => {
+  const chunk = userTextLine([
+    { type: "text", text: "第一段" },
+    { type: "text", text: "第二段" },
+  ]) + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events[0].userText, "第一段第二段");
+});
+
+test("parseNewContent 略過只有 tool_result、沒有 text 的 user 行（不當 userText）", () => {
+  const chunk = userTextLine([{ type: "tool_result", tool_use_id: "t1", content: "x" }]) + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events.every((event) => event.userText === undefined), true);
+  assert.equal(events.some((event) => event.toolResultChars), true);
+});
+
+test("parseNewContent 略過 <local-command-caveat> 開頭的 user 文字", () => {
+  const chunk = userTextLine("<local-command-caveat>\n/compact") + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events.length, 0);
+});
+
+test("parseNewContent 略過 trim 後空的 user 文字", () => {
+  const chunk = userTextLine("   ") + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events.length, 0);
+});
+
+test("parseNewContent 把 input_tokens 寫進 usage.input", () => {
+  const chunk = assistantLine({ id: "m1", cacheCreation: 100, input: 500 }) + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events[0].usage?.input, 500);
+});
+
+test("parseNewContent 缺少 input_tokens 時 usage.input 為 0", () => {
+  const chunk = assistantLine({ id: "m1", cacheCreation: 100 }) + "\n";
+  const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events[0].usage?.input, 0);
 });

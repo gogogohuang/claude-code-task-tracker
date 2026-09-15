@@ -5,7 +5,7 @@ import { detect } from "./detect.js";
 import { createSessionUsageStats, ParsedEvent } from "./types.js";
 
 function usageEvent(messageId: string, cacheCreation: number, timestamp: string): ParsedEvent {
-  return { messageId, isSidechain: false, timestamp, usage: { cacheCreation, cacheRead: 0, output: 0 }, toolResultChars: undefined };
+  return { messageId, isSidechain: false, timestamp, usage: { cacheCreation, cacheRead: 0, output: 0, input: 0 }, toolResultChars: undefined };
 }
 
 function toolResultEvent(toolName: string | undefined, chars: number, timestamp: string): ParsedEvent {
