@@ -18,6 +18,10 @@ import {
 import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
+import { AdvicePanel } from "./AdvicePanel.js";
+import { groupAdviceByProject } from "../usage/advice-groups.js";
+import { forget, prime, refresh } from "../usage/tail-runtime.js";
+import { Advice } from "../usage/types.js";
 
 function withNotice(notice: string | undefined, child: ReactNode) {
   if (!notice) return child;
@@ -36,11 +40,24 @@ function withLiveWorkflow(state: TaskState): TaskState {
   return workflow ? { ...state, workflow } : state;
 }
 
+const MAX_ADVICE = 50;
+
+function formatAdviceNotice(newAdvice: Advice[]): string {
+  return newAdvice.length === 1 ? "有新的用量建議 — 按 a 查看" : `有 ${newAdvice.length} 則新的用量建議 — 按 a 查看`;
+}
+
 function hintsFor(sessionIds: string[]): SessionHint[] {
   return sessionIds.flatMap((sessionId) => {
     const state = readTaskState(sessionId);
     if (!state) return [];
-    return [{ sessionId: state.sessionId, cwd: state.cwd, updatedAt: state.updatedAt }];
+    return [
+      {
+        sessionId: state.sessionId,
+        cwd: state.cwd,
+        updatedAt: state.updatedAt,
+        activitySummary: state.activity?.summary,
+      },
+    ];
   });
 }
 
@@ -61,6 +78,9 @@ export function App({
   const [browsing, setBrowsing] = useState(false);
   const [taskState, setTaskState] = useState<TaskState | null>(null);
   const [notice, setNotice] = useState<string | undefined>();
+  const [view, setView] = useState<"main" | "advice">("main");
+  const [adviceList, setAdviceList] = useState<Advice[]>([]);
+  const adviceWatchers = useRef<Map<string, ReturnType<typeof chokidar.watch>>>(new Map());
   const knownSessionIds = useRef<string[] | null>(null);
   const cwd = watchCwd ?? process.cwd();
 
@@ -73,7 +93,15 @@ export function App({
         exit();
         return;
       }
+      if (input === "a" && view === "main") {
+        setView("advice");
+        return;
+      }
       if (input !== "b" && !key.escape) return;
+      if (view === "advice") {
+        setView("main");
+        return;
+      }
       if (selectedSessionId) {
         setSelectedSessionId(undefined);
         setProjectKey(undefined);
@@ -112,6 +140,61 @@ export function App({
     watcher.on("add", refresh).on("unlink", refresh);
     return () => {
       void watcher.close();
+    };
+  }, []);
+
+  // 對每個已知 session 的 transcript 檔案掛用量分析（不限正在看的那個），
+  // 只在 sessionId 第一次出現時 prime，session 消失時才 forget + 關 watcher。
+  useEffect(() => {
+    const watchers = adviceWatchers.current;
+    const current = new Set(sessionIds);
+
+    const applyAdvice = (newAdvice: Advice[]) => {
+      if (newAdvice.length === 0) return;
+      setAdviceList((prev) => [...newAdvice, ...prev].slice(0, MAX_ADVICE));
+      setNotice(formatAdviceNotice(newAdvice));
+      try {
+        process.stdout.write("\x07");
+      } catch {
+        // 終端機不支援鈴就略過
+      }
+    };
+
+    for (const sessionId of sessionIds) {
+      if (watchers.has(sessionId)) continue;
+      const state = readTaskState(sessionId);
+      if (!state?.claudeSessionDir) continue;
+      const transcriptPath = join(state.claudeSessionDir, `${sessionId}.jsonl`);
+
+      try {
+        applyAdvice(prime(sessionId, transcriptPath).advice);
+      } catch {
+        // 用量分析出任何錯誤都不能拖垮主畫面
+      }
+
+      const watcher = chokidar.watch(transcriptPath, { ignoreInitial: true, ignorePermissionErrors: true });
+      watcher.on("change", () => {
+        try {
+          applyAdvice(refresh(sessionId, transcriptPath));
+        } catch {
+          // 同上
+        }
+      });
+      watchers.set(sessionId, watcher);
+    }
+
+    for (const [sessionId, watcher] of [...watchers.entries()]) {
+      if (current.has(sessionId)) continue;
+      void watcher.close();
+      watchers.delete(sessionId);
+      forget(sessionId);
+    }
+  }, [sessionIds]);
+
+  useEffect(() => {
+    return () => {
+      for (const watcher of adviceWatchers.current.values()) void watcher.close();
+      adviceWatchers.current.clear();
     };
   }, []);
 
@@ -159,6 +242,11 @@ export function App({
       void watcher.close();
     };
   }, [selectedSessionId, taskState?.workflow?.journalPath, taskState?.claudeSessionDir]);
+
+  if (view === "advice") {
+    const groups = groupAdviceByProject(adviceList, hintsFor(sessionIds), cwd);
+    return withNotice(notice, <AdvicePanel groups={groups} />);
+  }
 
   if (!selectedSessionId) {
     if (sessionIds.length === 0) {
