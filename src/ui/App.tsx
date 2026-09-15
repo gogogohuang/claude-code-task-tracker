@@ -100,6 +100,7 @@ export function App({
       if (input !== "b" && !key.escape) return;
       if (view === "advice") {
         setView("main");
+        setNotice(undefined);
         return;
       }
       if (selectedSessionId) {
@@ -137,7 +138,10 @@ export function App({
     apply(listSessionIds(), true);
     const watcher = chokidar.watch(STATE_DIR, { ignoreInitial: true, depth: 0 });
     const refresh = () => apply(listSessionIds(), false);
-    watcher.on("add", refresh).on("unlink", refresh);
+    // 也要聽 change：某個既有 session 的 state 檔內容變了（例如稍後才補上 claudeSessionDir），
+    // 即使 sessionIds 的值沒變，重新拿一份新陣列還是會讓下面依賴 sessionIds 的 effect 重新跑一次，
+    // 讓原本沒有 claudeSessionDir、掛不上 watcher 的 session 有機會補掛上去。
+    watcher.on("add", refresh).on("unlink", refresh).on("change", refresh);
     return () => {
       void watcher.close();
     };
@@ -151,7 +155,9 @@ export function App({
 
     const applyAdvice = (newAdvice: Advice[]) => {
       if (newAdvice.length === 0) return;
-      setAdviceList((prev) => [...newAdvice, ...prev].slice(0, MAX_ADVICE));
+      // adviceList 維持「舊到新」排列，蓋過上限時從尾端（新的那端）保留最新 MAX_ADVICE 則；
+      // 之前是 prepend 後從頭 slice，一批 advice 超過上限時反而留下該批裡最舊的那些。
+      setAdviceList((prev) => [...prev, ...newAdvice].slice(-MAX_ADVICE));
       setNotice(formatAdviceNotice(newAdvice));
       try {
         process.stdout.write("\x07");
@@ -182,7 +188,9 @@ export function App({
       };
       // transcript 檔案掛 watcher 時可能還沒被 Claude Code 建立（session state 檔通常先寫）；
       // 跟下面 workflow/journal watcher 用同一個慣例，add／change 都接同一個 handler。
-      watcher.on("add", onTranscriptEvent).on("change", onTranscriptEvent);
+      // chokidar 的 error 事件若沒人聽，會直接丟出未捕捉例外，把整個 TUI 弄掛；
+      // 用量分析本來就設計成任何錯誤都不能拖垮主畫面，這裡補上 no-op listener。
+      watcher.on("add", onTranscriptEvent).on("change", onTranscriptEvent).on("error", () => {});
       watchers.set(sessionId, watcher);
     }
 
@@ -191,6 +199,9 @@ export function App({
       void watcher.close();
       watchers.delete(sessionId);
       forget(sessionId);
+      // session 消失後它的 advice 也要一併清掉，不然會一直卡在 adviceList 的上限額度裡，
+      // 但 groupAdviceByProject 又把它濾掉不顯示，造成「鈴響了但面板說沒有建議」的落差。
+      setAdviceList((prev) => prev.filter((advice) => advice.sessionId !== sessionId));
     }
   }, [sessionIds]);
 
@@ -248,7 +259,8 @@ export function App({
 
   if (view === "advice") {
     const groups = groupAdviceByProject(adviceList, hintsFor(sessionIds), cwd);
-    return withNotice(notice, <AdvicePanel groups={groups} />);
+    const uncoveredCount = sessionIds.filter((sessionId) => !readTaskState(sessionId)?.claudeSessionDir).length;
+    return withNotice(notice, <AdvicePanel groups={groups} uncoveredCount={uncoveredCount} />);
   }
 
   if (!selectedSessionId) {
