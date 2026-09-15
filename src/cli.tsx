@@ -83,7 +83,7 @@ program
           "請確認已執行「task-tracker init」，且 Claude Code 正在執行中。",
           install.error,
         ];
-    render(<App initialSessionId={opts.session} emptyHint={emptyHint} />);
+    render(<App initialSessionId={opts.session} emptyHint={emptyHint} watchCwd={process.cwd()} />);
   });
 
 program.parse();

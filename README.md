@@ -6,7 +6,7 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.8.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.8.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 
 ## 運作原理
 
@@ -63,7 +63,8 @@ npx claude-code-task-tracker watch
 npm install -g claude-code-task-tracker
 ```
 
-若同時有多個 session 在跑，`watch` 會列出選單讓你選；也可以直接指定：
+若同時有多個 session 在跑，`watch` 會優先自動選目前工作目錄對得上的那一個，標題旁標「目前」。
+對不上才列出選單，當下或最近更新的排第一；也可以直接指定：
 
 ```bash
 task-tracker watch --session <session_id>

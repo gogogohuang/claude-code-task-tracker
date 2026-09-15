@@ -1,15 +1,14 @@
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
+import { SessionChoice } from "../session-preference.js";
 
 export function SessionPicker({
-  sessionIds,
+  items,
   onSelect,
 }: {
-  sessionIds: string[];
+  items: SessionChoice[];
   onSelect: (sessionId: string) => void;
 }) {
-  const items = sessionIds.map((id) => ({ label: id, value: id }));
-
   return (
     <Box flexDirection="column">
       <Box marginBottom={1}>
