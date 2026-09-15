@@ -1,19 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Box, Text, useApp, useInput, useStdin } from "ink";
 import chokidar from "chokidar";
 import { join } from "node:path";
 import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState } from "../store.js";
 import { TaskState } from "../schema.js";
 import {
+  addedSessionIds,
+  formatNewSessionNotice,
+  groupSessionsByProject,
   pickPreferredSession,
+  projectChoices,
   sameCwd,
-  sessionChoices,
+  sessionChoicesInProject,
   shouldAutoSelectSession,
   type SessionHint,
 } from "../session-preference.js";
 import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
+
+function withNotice(notice: string | undefined, child: ReactNode) {
+  if (!notice) return child;
+  return (
+    <Box flexDirection="column">
+      <Box marginBottom={1}>
+        <Text color="yellow">⚠ {notice}</Text>
+      </Box>
+      {child}
+    </Box>
+  );
+}
 
 function withLiveWorkflow(state: TaskState): TaskState {
   const workflow = liveWorkflow(state);
@@ -41,39 +57,73 @@ export function App({
   const { isRawModeSupported } = useStdin();
   const [sessionIds, setSessionIds] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(initialSessionId);
+  const [projectKey, setProjectKey] = useState<string | undefined>();
+  const [browsing, setBrowsing] = useState(false);
   const [taskState, setTaskState] = useState<TaskState | null>(null);
+  const [notice, setNotice] = useState<string | undefined>();
+  const knownSessionIds = useRef<string[] | null>(null);
+  const cwd = watchCwd ?? process.cwd();
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
   // 注意：isRawModeSupported 在非 TTY 時是 undefined 而非 false，Ink 內部用
   // `=== false` 判斷，所以這裡一定要強制轉成布林值。
   useInput(
-    (input) => {
-      if (input === "q") exit();
+    (input, key) => {
+      if (input === "q") {
+        exit();
+        return;
+      }
+      if (input !== "b" && !key.escape) return;
+      if (selectedSessionId) {
+        setSelectedSessionId(undefined);
+        setProjectKey(undefined);
+        setTaskState(null);
+        setBrowsing(true);
+        setNotice(undefined);
+        return;
+      }
+      if (projectKey) setProjectKey(undefined);
     },
     { isActive: Boolean(isRawModeSupported) },
   );
 
-  // 監控 state 目錄：抓新出現/消失的 session 檔案
+  // 監控 state 目錄：抓新出現/消失的 session 檔案。第一次列出的當基線，之後才通知。
   useEffect(() => {
+    const apply = (next: string[], initial: boolean) => {
+      if (!initial && knownSessionIds.current) {
+        const added = addedSessionIds(knownSessionIds.current, next);
+        if (added.length > 0) {
+          const hints = hintsFor(added);
+          setNotice(formatNewSessionNotice(hints.length > 0 ? hints : added.map((sessionId) => ({ sessionId }))));
+          try {
+            process.stdout.write("\x07");
+          } catch {
+            // 終端機不支援鈴就略過
+          }
+        }
+      }
+      knownSessionIds.current = next;
+      setSessionIds(next);
+    };
     ensureStateDir();
-    setSessionIds(listSessionIds());
+    apply(listSessionIds(), true);
     const watcher = chokidar.watch(STATE_DIR, { ignoreInitial: true, depth: 0 });
-    const refresh = () => setSessionIds(listSessionIds());
+    const refresh = () => apply(listSessionIds(), false);
     watcher.on("add", refresh).on("unlink", refresh);
     return () => {
       void watcher.close();
     };
   }, []);
 
-  // 沒指定 session 時：cwd 對得上就自動選當下專案；只有一個也直接選
+  // 沒指定 session 時：cwd 對得上就自動選當下專案；只有一個也直接選。
+  // 使用者按 b 回到列表後不再自動跳回去。
   useEffect(() => {
-    if (selectedSessionId || sessionIds.length === 0) return;
-    const cwd = watchCwd ?? process.cwd();
+    if (browsing || selectedSessionId || sessionIds.length === 0) return;
     const hints = hintsFor(sessionIds);
     if (!shouldAutoSelectSession(hints, cwd)) return;
     const preferred = pickPreferredSession(hints, cwd);
     if (preferred) setSelectedSessionId(preferred);
-  }, [sessionIds, selectedSessionId, watchCwd]);
+  }, [sessionIds, selectedSessionId, cwd, browsing]);
 
   // 監控被選中 session 的檔案內容變化
   useEffect(() => {
@@ -112,7 +162,8 @@ export function App({
 
   if (!selectedSessionId) {
     if (sessionIds.length === 0) {
-      return (
+      return withNotice(
+        notice,
         <Box flexDirection="column">
           <Text dimColor>還沒有偵測到任何 session 資料。</Text>
           {(emptyHint ?? [
@@ -122,22 +173,48 @@ export function App({
               {line}
             </Text>
           ))}
-        </Box>
+        </Box>,
       );
     }
-    return (
+    const hints = hintsFor(sessionIds);
+    const groups = groupSessionsByProject(hints, cwd);
+    if (!projectKey) {
+      return withNotice(
+        notice,
+        <SessionPicker
+          heading="選擇專案"
+          hint="按 q 離開"
+          items={projectChoices(hints, cwd)}
+          onSelect={(key) => {
+            const group = groups.find((item) => item.key === key);
+            const preferred = group ? pickPreferredSession(group.sessions, cwd) : undefined;
+            if (group && group.sessions.length === 1 && preferred) {
+              setSelectedSessionId(preferred);
+              return;
+            }
+            setProjectKey(key);
+          }}
+        />,
+      );
+    }
+    const group = groups.find((item) => item.key === projectKey);
+    return withNotice(
+      notice,
       <SessionPicker
-        items={sessionChoices(hintsFor(sessionIds), watchCwd ?? process.cwd())}
+        heading={`選擇 session · ${group?.label ?? "專案"}`}
+        hint="按 b 回專案列表"
+        items={sessionChoicesInProject(group?.sessions ?? [], projectKey, cwd)}
         onSelect={setSelectedSessionId}
-      />
+      />,
     );
   }
 
   if (!taskState) {
-    return <Text dimColor>讀取 session {selectedSessionId} 資料中…</Text>;
+    return withNotice(notice, <Text dimColor>讀取 session {selectedSessionId} 資料中…</Text>);
   }
 
-  return (
-    <TaskList state={taskState} current={sameCwd(taskState.cwd, watchCwd ?? process.cwd())} />
+  return withNotice(
+    notice,
+    <TaskList state={taskState} current={sameCwd(taskState.cwd, cwd)} />,
   );
 }
