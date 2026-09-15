@@ -6,7 +6,7 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.9.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.10.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 
 ## 運作原理
 
@@ -67,6 +67,11 @@ npm install -g claude-code-task-tracker
 對不上才依專案列出選單，再選該專案底下的 session。觀看途中按 `b` 可隨時回到專案列表。
 若之後又出現新 session，畫面上方會提示並響鈴，但不會自動切走目前正在看的那一個；按 `b` 回列表後提示會消失。也可以直接指定：
 
+`watch` 也會持續分析每個已知 session 的 token 用量（讀 Claude Code 自己寫的 session transcript，
+不限目前正在看的那個），偵測到「session 拖太長」「單輪 cache 重算暴增」「單次工具回傳過肥」
+「開場底子就重」這四種狀況時，會用同一套提示 + 響鈴機制通知你，並直接告訴你現在該做的動作
+（例如 `/clear`、開新 session、或加 `head`/`limit` 重跑）。按 `a` 隨時查看目前所有建議，`b` 回上一頁。
+
 ```bash
 task-tracker watch --session <session_id>
 ```
@@ -77,7 +82,7 @@ task-tracker watch --session <session_id>
 task-tracker version
 ```
 
-畫面內按 `q` 離開、按 `b` 回專案列表、↑↓ 在清單裡捲動（一次一頁視窗，不會整份往下刷）。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回專案列表、按 `a` 查看用量建議、↑↓ 在清單裡捲動（一次一頁視窗，不會整份往下刷）。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。
 
 想看這個專案會進 prompt 的東西：
@@ -131,10 +136,12 @@ src/
 │   └── task-tracker-hook.ts  # Claude Code 實際呼叫的 hook 腳本
 ├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory、prompt 檔案）
 ├── workflow/                 # dynamic workflow 的 meta.phases 與 journal 解析
+├── usage/                    # 跨 session 用量分析（tail transcript、偵測、建議文字）
 └── ui/
-    ├── App.tsx               # 主畫面，負責 session 偵測與檔案監控
+    ├── App.tsx               # 主畫面，負責 session 偵測、檔案監控與用量建議通知
     ├── SessionPicker.tsx     # 多 session 時的選單
     ├── TaskList.tsx          # task 清單、活動句與進度條
+    ├── AdvicePanel.tsx       # 用量建議面板
     ├── InspectApp.tsx        # inspect 的互動
     └── InspectView.tsx       # inspect 的排版
 ```
