@@ -28,6 +28,12 @@ import {
   shouldShowContextSnapshot,
 } from "../context-snapshot.js";
 import { taskRows } from "./task-rows.js";
+import {
+  DELETE_SESSION_CONFIRM_NOTICE,
+  armOrConfirmDelete,
+  deleteSessionState,
+  shouldHandleDeleteKey,
+} from "../delete-session.js";
 import { Advice } from "../usage/types.js";
 
 function withNotice(notice: string | undefined, child: ReactNode) {
@@ -98,7 +104,18 @@ export function App({
   const [contextSnapshot, setContextSnapshot] = useState<
     { sessionId: string; occupiedLine: string; activityLine?: string } | undefined
   >();
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | undefined>();
   const cwd = watchCwd ?? process.cwd();
+
+  const leaveSessionToList = () => {
+    setSelectedSessionId(undefined);
+    setProjectKey(undefined);
+    setTaskState(null);
+    setBrowsing(true);
+    setNotice(undefined);
+    setPendingDeleteSessionId(undefined);
+    setContextSnapshot(undefined);
+  };
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
   // 注意：isRawModeSupported 在非 TTY 時是 undefined 而非 false，Ink 內部用
@@ -109,22 +126,39 @@ export function App({
         exit();
         return;
       }
+      if (input === "d" && shouldHandleDeleteKey(view, selectedSessionId) && selectedSessionId) {
+        const step = armOrConfirmDelete(pendingDeleteSessionId, selectedSessionId);
+        if (step === "arm") {
+          setPendingDeleteSessionId(selectedSessionId);
+          setNotice(DELETE_SESSION_CONFIRM_NOTICE);
+          return;
+        }
+        deleteSessionState(selectedSessionId, STATE_DIR);
+        const watcher = adviceWatchers.current.get(selectedSessionId);
+        if (watcher) {
+          void watcher.close();
+          adviceWatchers.current.delete(selectedSessionId);
+        }
+        forget(selectedSessionId);
+        setAdviceList((prev) => prev.filter((advice) => advice.sessionId !== selectedSessionId));
+        shownSnapshotIds.current.delete(selectedSessionId);
+        leaveSessionToList();
+        return;
+      }
       if (input === "a" && view === "main") {
+        setPendingDeleteSessionId(undefined);
         setView("advice");
         return;
       }
       if (input !== "b" && !key.escape) return;
+      setPendingDeleteSessionId(undefined);
       if (view === "advice") {
         setView("main");
         setNotice(undefined);
         return;
       }
       if (selectedSessionId) {
-        setSelectedSessionId(undefined);
-        setProjectKey(undefined);
-        setTaskState(null);
-        setBrowsing(true);
-        setNotice(undefined);
+        leaveSessionToList();
         return;
       }
       if (projectKey) setProjectKey(undefined);
