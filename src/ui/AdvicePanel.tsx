@@ -4,6 +4,9 @@ import { AdviceProjectGroup } from "../usage/advice-groups.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 
 const PANEL_CHROME_ROWS = 6;
+// 每則 advice 實際佔用的終端機行數：dim 標頭行 + 建議內容行 + marginBottom={1} 留白，
+// 捲動換算頁面大小時要除掉這個係數，不然每則 advice 只當 1 行算，六則以上就會塞爆終端機。
+const ROWS_PER_ADVICE = 3;
 
 interface AdviceRow {
   project: string;
@@ -13,6 +16,7 @@ interface AdviceRow {
   activitySummary: string | undefined;
   kind: string;
   message: string;
+  at: string;
 }
 
 function flattenRows(groups: AdviceProjectGroup[]): AdviceRow[] {
@@ -26,17 +30,30 @@ function flattenRows(groups: AdviceProjectGroup[]): AdviceRow[] {
         activitySummary: session.activitySummary,
         kind: advice.kind,
         message: advice.message,
+        at: advice.at,
       })),
     ),
   );
 }
 
-export function AdvicePanel({ groups }: { groups: AdviceProjectGroup[] }) {
+function formatRelativeAge(at: string, now: number = Date.now()): string {
+  const ts = new Date(at).getTime();
+  if (!Number.isFinite(ts)) return "";
+  const diffMinutes = Math.floor(Math.max(0, now - ts) / 60000);
+  if (diffMinutes < 1) return "剛剛";
+  if (diffMinutes < 60) return `${diffMinutes} 分鐘前`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} 小時前`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} 天前`;
+}
+
+export function AdvicePanel({ groups, uncoveredCount = 0 }: { groups: AdviceProjectGroup[]; uncoveredCount?: number }) {
   const { isRawModeSupported } = useStdin();
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
   const rows = flattenRows(groups);
-  const pageSize = pageSizeFromTerminal(termRows, PANEL_CHROME_ROWS);
+  const pageSize = Math.max(1, Math.floor(pageSizeFromTerminal(termRows, PANEL_CHROME_ROWS) / ROWS_PER_ADVICE));
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
   const hiddenBelow = Math.max(0, rows.length - start - visible.length);
@@ -69,6 +86,11 @@ export function AdvicePanel({ groups }: { groups: AdviceProjectGroup[] }) {
     return (
       <Box flexDirection="column">
         <Text dimColor>目前沒有用量建議。</Text>
+        {uncoveredCount > 0 ? (
+          <Text dimColor>
+            {uncoveredCount} 個 session 還沒有 transcript 路徑，尚未納入分析
+          </Text>
+        ) : null}
         <Box marginTop={1}>
           <Text dimColor>按 b 回上一頁</Text>
         </Box>
@@ -88,11 +110,17 @@ export function AdvicePanel({ groups }: { groups: AdviceProjectGroup[] }) {
             {row.project} · {row.shortId}
             {row.isCurrent ? " (目前)" : ""}
             {row.activitySummary ? ` · ${row.activitySummary}` : ""}
+            {` · ${formatRelativeAge(row.at)}`}
           </Text>
           <Text color="yellow">⚠ {row.message}</Text>
         </Box>
       ))}
       {hiddenBelow > 0 ? <Text dimColor>↓ 還有 {hiddenBelow} 則</Text> : null}
+      {uncoveredCount > 0 ? (
+        <Text dimColor>
+          {uncoveredCount} 個 session 還沒有 transcript 路徑，尚未納入分析
+        </Text>
+      ) : null}
       <Box marginTop={1}>
         <Text dimColor>↑↓ 捲動 — 按 b 回上一頁</Text>
       </Box>
