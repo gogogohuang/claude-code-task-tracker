@@ -8,6 +8,7 @@ import {
   projectChoices,
   sessionChoices,
   sessionChoicesInProject,
+  shortSessionId,
   shouldAutoSelectSession,
 } from "./session-preference.js";
 
@@ -94,6 +95,11 @@ test("addedSessionIds 只回新出現的 id，刪除不算新增", () => {
   assert.deepEqual(addedSessionIds(["a"], ["a", "b"]), ["b"]);
   assert.deepEqual(addedSessionIds(["a", "b"], ["a"]), []);
   assert.deepEqual(addedSessionIds([], ["a"]), ["a"]);
+});
+
+test("shortSessionId 超過 8 碼才截斷，否則原樣回傳", () => {
+  assert.equal(shortSessionId("abcdefgh12345"), "abcdefgh");
+  assert.equal(shortSessionId("short"), "short");
 });
 
 test("formatNewSessionNotice 帶專案名與回到列表提示", () => {
