@@ -76,7 +76,7 @@ task-tracker watch --session <session_id>
 task-tracker version
 ```
 
-畫面內按 `q` 離開、按 `b` 回專案列表。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回專案列表、↑↓ 在清單裡捲動（一次一頁視窗，不會整份往下刷）。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。
 
 想看這個專案會進 prompt 的東西：
