@@ -102,13 +102,14 @@ interface Advice {
 }
 ```
 
-三個偵測規則（固定門檻，理由見「背景」章節的實測數據）：
+三個偵測規則（固定門檻，理由見「背景」章節的實測數據）。`message` 一律寫成**單一動作指令**——
+一句話講清楚現在該做哪個動作，數字只當佐證附在句尾，不留「避免」「記得」這類原則性收尾：
 
 | kind | 條件 | 訊息範本 |
 |---|---|---|
-| `long-session` | `mainThreadMsgCount` 跨過 200，或 `now - sessionStartedAt` 跨過 90 分鐘（各自只觸發一次，用 next 跨過門檻但 prev 未跨過判斷，避免每則訊息重複提醒） | 「session 已經 {n} 則訊息、開了 {mins} 分鐘，建議現在執行 /clear 或另開新 session，避免之後的訊息持續重算已累積的 context。」 |
-| `cache-spike` | 單則主線訊息的 `cacheCreation` > `max(20000, 5 × prev.cacheCreationRollingAvg)`，且 `prev.mainThreadMsgCount >= 5`（session 剛開始、還沒有穩定平均值時不判斷，避免開場就誤報） | 「剛剛這一輪重算了 {n} token 的 context（平常這個 session 大約只要 {avg} token），通常是工具清單或 MCP 設定中途變動造成 cache 失效；這個 session 剩下的部分避免再變更工具/MCP 設定，下次要換工具集，開新 session 比較划算。」 |
-| `fat-tool-result` | 單一 tool_result 文字長度 > 30000 字元 | 「{toolName} 剛剛回傳了 {chars} 字元，之後類似操作記得先用 head/grep/limit 縮小輸出，避免整包塞進 context。」（`toolName` 對不到時顯示「某個工具」） |
+| `long-session` | `mainThreadMsgCount` 跨過 200，或 `now - sessionStartedAt` 跨過 90 分鐘（各自只觸發一次，用 next 跨過門檻但 prev 未跨過判斷，避免每則訊息重複提醒） | 「現在執行 /clear 或另開新 session（這個 session 已經 {n} 則訊息、開了 {mins} 分鐘）。」 |
+| `cache-spike` | 單則主線訊息的 `cacheCreation` > `max(20000, 5 × prev.cacheCreationRollingAvg)`，且 `prev.mainThreadMsgCount >= 5`（session 剛開始、還沒有穩定平均值時不判斷，避免開場就誤報） | 「現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定（剛剛這一輪因此重算了 {n} token，平常只要 {avg}）。」 |
+| `fat-tool-result` | 單一 tool_result 文字長度 > 30000 字元 | 「重跑剛剛那個 {toolName} 呼叫，加上 head/grep/limit 把輸出縮小（原本回傳了 {chars} 字元）。」（`toolName` 對不到時顯示「工具」） |
 
 `long-session` 用「跨過門檻」而非「超過門檻」觸發，其餘兩個本質上是單次事件，天生只會觸發一次，
 不需要額外去重。
