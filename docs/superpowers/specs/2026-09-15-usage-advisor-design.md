@@ -58,6 +58,8 @@ interface TailState {
 }
 
 interface ParsedEvent {
+  messageId: string | undefined; // message.id；同一輪 API 回應如果被拆成多個 content block，
+                                  // 會產生多筆 messageId 相同的 assistant 行，usage 也會重複
   isSidechain: boolean;
   usage?: { cacheCreation: number; cacheRead: number; output: number };
   toolResultChars?: { toolName: string | undefined; chars: number };
@@ -74,24 +76,37 @@ function parseNewContent(chunk: string, state: TailState): { events: ParsedEvent
   `toolUseNameById`）換回工具名稱。
 - `isSidechain` 直接讀該行的 `isSidechain` 欄位；`accumulate.ts` 只累加
   `isSidechain === false` 的事件到主線統計。
+- **重要**：一輪 API 回應如果同時有 `thinking` + `tool_use`（或多個 `tool_use`）等多個 content
+  block，Claude Code 會把每個 block 各寫一行 JSONL，但每一行的 `message.usage` 都是**同一輪的
+  完整用量**，不是分攤值。實測一個 session 直接加總每行的 `cache_creation_input_tokens`
+  比對 message.id 去重後的結果高了 2.19 倍（一輪最多可拆到 13 行）。因此 usage 一定要用
+  `messageId` 去重，同一個 `messageId` 只採計一次，其餘幾種偵測器的門檻才有意義。
 
 ### `accumulate.ts`
 
 ```ts
 interface SessionUsageStats {
   sessionId: string;
-  mainThreadMsgCount: number;
+  mainThreadMsgCount: number;      // 去重後的「唯一 API 回應數」，不是 JSONL 行數
   sessionStartedAt: string;      // 該 session 第一筆有 timestamp 的紀錄
   lastMsgAt: string;
   cacheCreationTotal: number;
-  cacheCreationRollingAvg: number; // 簡單累積平均，每則主線訊息更新一次
+  cacheCreationRollingAvg: number; // 簡單累積平均，每則「唯一」主線訊息更新一次
+  recentMessageIds: string[];      // 去重用的有界環狀緩衝（例如最近 30 個），非整個 session 無限成長
 }
 
 function accumulate(prev: SessionUsageStats, events: ParsedEvent[]): {
   next: SessionUsageStats;
-  newMainThreadEvents: ParsedEvent[]; // 供 detect.ts 逐一檢查
+  newMainThreadEvents: ParsedEvent[]; // 只含去重後、真正第一次看到的事件，供 detect.ts 逐一檢查
 };
 ```
+
+- 對每個 `isSidechain === false` 且帶 `usage` 的事件：若 `messageId` 已經在
+  `recentMessageIds` 裡，直接跳過（不疊加 total、不更新 rolling average、不算進
+  `mainThreadMsgCount`、也不放進 `newMainThreadEvents`）；否則才採計，並把 `messageId` push
+  進 `recentMessageIds`（超過上限就從最舊的開始丟）。
+- 沒有 `usage`（例如純 `tool_use`/`tool_result` 事件本身）不受去重影響，`toolResultChars`
+  一律照算——`fat-tool-result` 不吃這個 bug，tool_result 不會被同一輪複製多次。
 
 ### `detect.ts`
 
@@ -163,7 +178,10 @@ function forget(sessionId: string): void; // session 消失時釋放狀態
 
 - `tail-transcript.test.ts`：多行一次進來、跨 chunk 斷行（最後一行不完整）、壞掉的 JSON 行、
   `isSidechain: true` 的行、tool_use_id 對不到名稱的 tool_result。
-- `accumulate.test.ts`：rolling average 計算、多個事件一次疊加。
+- `accumulate.test.ts`：rolling average 計算、多個事件一次疊加、**同一 `messageId` 出現多次
+  （模擬一輪 API 回應被拆成 thinking + 多個 tool_use 行）只採計一次**、去重跨越兩次
+  `accumulate` 呼叫（也就是同一輪的兩行分別出現在不同的 tail chunk）也要能正確去重、
+  `recentMessageIds` 超過上限時最舊的要被丟掉且不影響尚未被丟掉的 id 判斷。
 - `detect.test.ts`：四個 detector 各自的門檻邊界（剛好等於門檻、跨過門檻前後只觸發一次、
   `mainThreadMsgCount < 5` 時 cache-spike 不觸發、heavy-baseline 只在第一則訊息判斷、第二則
   之後即使 cacheCreation 很大也不會誤判成 heavy-baseline）。
