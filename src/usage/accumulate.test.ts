@@ -86,3 +86,65 @@ test("accumulate recentMessageIds 超過上限（30）時丟掉最舊的，較�
   const replayRecent = accumulate(stats, [usageEvent({ messageId: "m34", usage: { cacheCreation: 10, cacheRead: 0, output: 0, input: 0 } })]);
   assert.equal(replayRecent.next.mainThreadMsgCount, 35);
 });
+
+function titleEvent(title: string, isSidechain = false): ParsedEvent {
+  return {
+    messageId: undefined,
+    isSidechain,
+    timestamp: "2026-09-15T00:00:00.000Z",
+    usage: undefined,
+    toolResultChars: undefined,
+    title,
+  };
+}
+
+function userTextEvent(userText: string, isSidechain = false): ParsedEvent {
+  return {
+    messageId: undefined,
+    isSidechain,
+    timestamp: "2026-09-15T00:00:00.000Z",
+    usage: undefined,
+    toolResultChars: undefined,
+    userText,
+  };
+}
+
+test("accumulate 只記第一次 title 與 firstPrompt", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const first = accumulate(stats0, [titleEvent("修用量面板"), userTextEvent("幫我修")]);
+  assert.equal(first.next.title, "修用量面板");
+  assert.equal(first.next.firstPrompt, "幫我修");
+  const second = accumulate(first.next, [titleEvent("另一個標題"), userTextEvent("另一句")]);
+  assert.equal(second.next.title, "修用量面板");
+  assert.equal(second.next.firstPrompt, "幫我修");
+});
+
+test("accumulate 忽略 sidechain 的 userText，但 sidechain 的 title 仍取第一次", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next } = accumulate(stats0, [
+    titleEvent("子代理標題", true),
+    userTextEvent("子代理 prompt", true),
+    userTextEvent("主線 prompt"),
+  ]);
+  assert.equal(next.title, "子代理標題");
+  assert.equal(next.firstPrompt, "主線 prompt");
+});
+
+test("accumulate lastOccupiedTokens 是 input + cacheRead + cacheCreation，隨最新一則去重後主線 usage 覆寫", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const first = accumulate(stats0, [
+    usageEvent({ messageId: "m1", usage: { cacheCreation: 100, cacheRead: 20, output: 9, input: 5 } }),
+  ]);
+  assert.equal(first.next.lastOccupiedTokens, 125);
+  const second = accumulate(first.next, [
+    usageEvent({ messageId: "m1", usage: { cacheCreation: 999, cacheRead: 999, output: 9, input: 999 } }),
+    usageEvent({ messageId: "m2", usage: { cacheCreation: 10, cacheRead: 200, output: 1, input: 50 } }),
+  ]);
+  assert.equal(second.next.lastOccupiedTokens, 260);
+});
+
+test("accumulate 沒有主線 usage 時 lastOccupiedTokens 仍是 undefined", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next } = accumulate(stats0, [userTextEvent("只有 prompt")]);
+  assert.equal(next.lastOccupiedTokens, undefined);
+});
