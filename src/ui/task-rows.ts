@@ -1,4 +1,4 @@
-import { TaskItem, TaskState, TodoItem } from "../schema.js";
+import { TaskItem, TaskState, TodoItem, WorkflowRun } from "../schema.js";
 
 export type RowStatus = TodoItem["status"] | TaskItem["status"];
 
@@ -40,7 +40,17 @@ function rowsFromTodos(todos: TodoItem[]): TaskRow[] {
   }));
 }
 
+function rowsFromWorkflow(run: WorkflowRun | undefined): TaskRow[] {
+  if (!run) return [];
+  return run.phases.map((phase) => ({
+    key: `wf:${run.runId}:${phase.title}`,
+    status: phase.status,
+    label: phase.title,
+  }));
+}
+
 export function taskRows(state: TaskState): TaskRow[] {
   const rows = [...rowsFromTasks(state.tasks ?? {}), ...rowsFromTodos(state.todos ?? [])];
-  return rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+  rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+  return [...rowsFromWorkflow(state.workflow), ...rows];
 }

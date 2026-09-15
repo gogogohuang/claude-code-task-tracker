@@ -1,4 +1,5 @@
 import type { ActivityPhase } from "./schema.js";
+import { parseWorkflowMeta } from "./workflow/parse-meta.js";
 
 const FRAGMENT_LIMIT = 80;
 
@@ -52,6 +53,8 @@ function sentenceFor(
       return taskSentence(phase, "更新任務", pickFragment(toolInput, "subject") ?? pickFragment(toolInput, "title"));
     case "TaskList":
       return phase === "running" ? "正在讀取任務清單" : "已讀取任務清單";
+    case "Workflow":
+      return workflowSentence(toolInput, phase);
     default:
       return undefined;
   }
@@ -78,6 +81,13 @@ function labeled(phase: ActivityPhase, label: string, fragment: string | undefin
   if (!fragment) return undefined;
   const head = phase === "running" ? `正在${label}` : `已${label}`;
   return `${head}：${fragment}`;
+}
+
+function workflowSentence(toolInput: Record<string, unknown>, phase: ActivityPhase): string {
+  const fromScript = typeof toolInput.script === "string" ? parseWorkflowMeta(toolInput.script)?.name : undefined;
+  const name = pickFragment(toolInput, "name") ?? fromScript;
+  if (!name) return phase === "running" ? "正在執行 workflow" : "已啟動 workflow";
+  return phase === "running" ? `正在執行 workflow ${name}` : `已啟動 workflow ${name}`;
 }
 
 function taskSentence(phase: ActivityPhase, verb: string, subject: string | undefined): string {

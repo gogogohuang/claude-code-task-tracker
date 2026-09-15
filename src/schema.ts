@@ -120,6 +120,20 @@ export const ActivitySchema = z.object({
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
+export const WorkflowPhaseSchema = z.object({
+  title: z.string(),
+  status: z.enum(["pending", "in_progress", "completed"]),
+});
+export type WorkflowPhase = z.infer<typeof WorkflowPhaseSchema>;
+
+export const WorkflowRunSchema = z.object({
+  runId: z.string(),
+  name: z.string().optional(),
+  journalPath: z.string(),
+  phases: z.array(WorkflowPhaseSchema),
+});
+export type WorkflowRun = z.infer<typeof WorkflowRunSchema>;
+
 /**
  * 我們自己寫到磁碟的狀態檔案格式（task-tracker 的內部格式，穩定不受
  * Claude Code 版本影響）。
@@ -127,13 +141,17 @@ export type Activity = z.infer<typeof ActivitySchema>;
  * `todos` 是舊版 TodoWrite 的資料（整包覆寫）；`tasks` 是新版 Task 系列
  * 工具的資料，用 id 當 key 累積 create/update，兩者互不影響、可以共存。
  * `activity` 是不論哪個工具都會更新的「目前活動」快照。
+ * `workflow` 是 Claude Code dynamic workflow 的 phase 清單；即時狀態由
+ * watch 讀 journal，不靠每次 hook 覆寫。
  */
 export const TaskStateSchema = z.object({
   sessionId: z.string(),
   cwd: z.string().optional(),
+  claudeSessionDir: z.string().optional(),
   updatedAt: z.string(),
   todos: z.array(TodoItemSchema).optional(),
   tasks: z.record(z.string(), TaskItemSchema).optional(),
   activity: ActivitySchema.optional(),
+  workflow: WorkflowRunSchema.optional(),
 });
 export type TaskState = z.infer<typeof TaskStateSchema>;

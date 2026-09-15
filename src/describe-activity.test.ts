@@ -273,4 +273,17 @@ test("計畫、清單和任務工具寫固定動作，不搬正文或 taskId", (
     "已更新任務",
   );
   assert.equal(describe({ toolName: "TaskList", toolInput: {} }), "正在讀取任務清單");
+  assert.equal(
+    describe({ toolName: "Workflow", toolInput: { name: "linego-feature-workflow" } }),
+    "正在執行 workflow linego-feature-workflow",
+  );
+  assert.equal(
+    describe({
+      toolName: "Workflow",
+      toolInput: { name: "linego-feature-workflow" },
+      phase: "done",
+    }),
+    "已啟動 workflow linego-feature-workflow",
+  );
 });
+

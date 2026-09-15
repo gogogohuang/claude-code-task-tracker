@@ -20,3 +20,26 @@ test("taskRows 合併 todos 與 tasks，進行中排最前", () => {
   );
   assert.equal(rows[0].status, "in_progress");
 });
+
+test("taskRows 把 workflow phases 依宣告順序放在 task 前面", () => {
+  const rows = taskRows({
+    sessionId: "abc",
+    updatedAt: "2026-09-15T01:00:00.000Z",
+    todos: [{ content: "寫測試", status: "pending" }],
+    workflow: {
+      runId: "wf_1",
+      journalPath: "/tmp/journal.jsonl",
+      phases: [
+        { title: "Fetch Ticket + Write Plan", status: "completed" },
+        { title: "Execute Plan", status: "in_progress" },
+        { title: "Gate", status: "pending" },
+      ],
+    },
+  });
+  assert.deepEqual(
+    rows.map((row) => row.label),
+    ["Fetch Ticket + Write Plan", "Execute Plan", "Gate", "寫測試"],
+  );
+  assert.equal(rows[1].status, "in_progress");
+});
+
