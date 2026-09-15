@@ -17,8 +17,12 @@
    全部工具定義 + 目前為止的完整對話歷史」用全價重算一次，而不是用便宜十倍的 cache_read。
 3. （使用者追加）**單次工具回傳過肥**：單一 tool_result 內容異常大（例如沒過濾的 Bash/Read
    輸出），會被當成新內容一次性塞進 context，之後又被拖進「拖太長」的複利效應。
+4. （使用者追加）**開場底子就很重**：跟前三種「session 中途才變貴」不同，有些 session 從第
+   一輪 API 呼叫（此時 `cache_read` 必為 0，全部是 `cache_creation`）就已經吃掉異常多 token，
+   代表 system prompt + `CLAUDE.md` + skills/rules 這組固定底子本身太肥，不是對話內容造成的。
+   這種情況前三個偵測器都抓不到，因為它們看的是「跟前面比有沒有變化」，第一輪沒有「前面」可比。
 
-目標：把這個分析常態化成 `watch` 裡的即時監控，偵測到上述三種狀況時，**主動吐出明確、可執行
+目標：把這個分析常態化成 `watch` 裡的即時監控，偵測到上述四種狀況時，**主動吐出明確、可執行
 的建議指令**（不是籠統的「注意用量」），並且跨 session 監控（不限目前正在看的那個），呈現在
 一個獨立面板，沿用現有「有新 session 出現」的 banner + 響鈴機制提示。
 
@@ -96,13 +100,13 @@ function detect(prev: SessionUsageStats, next: SessionUsageStats, newEvents: Par
 
 interface Advice {
   sessionId: string;
-  kind: "long-session" | "cache-spike" | "fat-tool-result";
+  kind: "long-session" | "cache-spike" | "fat-tool-result" | "heavy-baseline";
   at: string;          // ISO timestamp
   message: string;      // 明確指令，直接顯示在 UI
 }
 ```
 
-三個偵測規則（固定門檻，理由見「背景」章節的實測數據）。`message` 一律寫成**單一動作指令**——
+四個偵測規則（固定門檻，理由見「背景」章節的實測數據）。`message` 一律寫成**單一動作指令**——
 一句話講清楚現在該做哪個動作，數字只當佐證附在句尾，不留「避免」「記得」這類原則性收尾：
 
 | kind | 條件 | 訊息範本 |
@@ -110,9 +114,10 @@ interface Advice {
 | `long-session` | `mainThreadMsgCount` 跨過 200，或 `now - sessionStartedAt` 跨過 90 分鐘（各自只觸發一次，用 next 跨過門檻但 prev 未跨過判斷，避免每則訊息重複提醒） | 「現在執行 /clear 或另開新 session（這個 session 已經 {n} 則訊息、開了 {mins} 分鐘）。」 |
 | `cache-spike` | 單則主線訊息的 `cacheCreation` > `max(20000, 5 × prev.cacheCreationRollingAvg)`，且 `prev.mainThreadMsgCount >= 5`（session 剛開始、還沒有穩定平均值時不判斷，避免開場就誤報） | 「現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定（剛剛這一輪因此重算了 {n} token，平常只要 {avg}）。」 |
 | `fat-tool-result` | 單一 tool_result 文字長度 > 30000 字元 | 「重跑剛剛那個 {toolName} 呼叫，加上 head/grep/limit 把輸出縮小（原本回傳了 {chars} 字元）。」（`toolName` 對不到時顯示「工具」） |
+| `heavy-baseline` | 該 session 第一則主線 assistant 訊息（`prev.mainThreadMsgCount === 0`）的 `cacheCreation` > 50000（此時 `cache_read` 必為 0，這筆數字等於系統底子本身的大小） | 「執行 task-tracker inspect 檢查這個專案載入 prompt 的東西（這個 session 開場第一輪就吃了 {n} token）。」 |
 
-`long-session` 用「跨過門檻」而非「超過門檻」觸發，其餘兩個本質上是單次事件，天生只會觸發一次，
-不需要額外去重。
+`long-session` 用「跨過門檻」而非「超過門檻」觸發；`heavy-baseline` 只在第一則主線訊息判斷一次；
+其餘兩個本質上是單次事件，天生只會觸發一次，都不需要額外去重。
 
 ### `tail-runtime.ts`
 
@@ -159,8 +164,9 @@ function forget(sessionId: string): void; // session 消失時釋放狀態
 - `tail-transcript.test.ts`：多行一次進來、跨 chunk 斷行（最後一行不完整）、壞掉的 JSON 行、
   `isSidechain: true` 的行、tool_use_id 對不到名稱的 tool_result。
 - `accumulate.test.ts`：rolling average 計算、多個事件一次疊加。
-- `detect.test.ts`：三個 detector 各自的門檻邊界（剛好等於門檻、跨過門檻前後只觸發一次、
-  `mainThreadMsgCount < 5` 時 cache-spike 不觸發）。
+- `detect.test.ts`：四個 detector 各自的門檻邊界（剛好等於門檻、跨過門檻前後只觸發一次、
+  `mainThreadMsgCount < 5` 時 cache-spike 不觸發、heavy-baseline 只在第一則訊息判斷、第二則
+  之後即使 cacheCreation 很大也不會誤判成 heavy-baseline）。
 - `tail-runtime` 用 tmp 檔案做整合測試：模擬檔案分批寫入，確認 `prime` + 連續 `refresh` 的結果
   跟一次讀完全部內容等價。
 - UI 部分（`AdvicePanel.tsx` 與 App.tsx 的新 effect）沿用現有 App.tsx 測試模式。
