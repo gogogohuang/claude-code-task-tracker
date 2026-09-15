@@ -10,7 +10,14 @@ export function accumulate(
   const steps: AccumulateStep[] = [];
 
   for (const event of events) {
+    if (event.title !== undefined && stats.title === undefined) {
+      stats = { ...stats, title: event.title };
+    }
     if (event.isSidechain) continue;
+
+    if (event.userText !== undefined && stats.firstPrompt === undefined) {
+      stats = { ...stats, firstPrompt: event.userText };
+    }
 
     if (event.toolResultChars) {
       steps.push({ event, statsBefore: stats, statsAfter: stats });
@@ -35,6 +42,7 @@ export function accumulate(
       cacheCreationTotal,
       cacheCreationRollingAvg: cacheCreationTotal / mainThreadMsgCount,
       recentMessageIds,
+      lastOccupiedTokens: event.usage.input + event.usage.cacheRead + event.usage.cacheCreation,
     };
 
     steps.push({ event, statsBefore, statsAfter: stats });

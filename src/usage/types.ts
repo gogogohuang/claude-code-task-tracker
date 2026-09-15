@@ -2,6 +2,7 @@ export interface ParsedUsage {
   cacheCreation: number;
   cacheRead: number;
   output: number;
+  input: number;
 }
 
 export interface ToolResultChars {
@@ -16,6 +17,8 @@ export interface ParsedEvent {
   timestamp: string | undefined;
   usage: ParsedUsage | undefined;
   toolResultChars: ToolResultChars | undefined;
+  title?: string;
+  userText?: string;
 }
 
 export interface TailState {
@@ -32,6 +35,9 @@ export interface SessionUsageStats {
   cacheCreationTotal: number;
   cacheCreationRollingAvg: number;
   recentMessageIds: string[];
+  title?: string;
+  firstPrompt?: string;
+  lastOccupiedTokens?: number;
 }
 
 export function createSessionUsageStats(sessionId: string): SessionUsageStats {

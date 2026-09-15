@@ -6,7 +6,7 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.10.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.11.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 
 ## 運作原理
 
@@ -81,6 +81,16 @@ task-tracker watch --session <session_id>
 ```bash
 task-tracker version
 ```
+
+要清掉本機累積的 session 暫存（`~/.claude-task-tracker/<id>.json`），預設只清目前專案：
+
+```bash
+task-tracker clear              # 只清 cwd 對得上的 session
+task-tracker clear --all        # 清全部專案的 session 狀態
+task-tracker clear --log        # 一併清 hook-debug.log
+```
+
+不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
 畫面內按 `q` 離開、按 `b` 回專案列表、按 `a` 查看用量建議、↑↓ 在清單裡捲動（一次一頁視窗，不會整份往下刷）。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。

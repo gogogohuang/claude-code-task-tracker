@@ -90,3 +90,7 @@ export function refresh(sessionId: string, transcriptPath: string): Advice[] {
 export function forget(sessionId: string): void {
   sessions.delete(sessionId);
 }
+
+export function peek(sessionId: string): SessionUsageStats | undefined {
+  return sessions.get(sessionId)?.stats;
+}
