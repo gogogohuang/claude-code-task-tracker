@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box, Text, useInput, useStdin } from "ink";
 import { AdviceProjectGroup } from "../usage/advice-groups.js";
+import { formatRelativeAge } from "../format-relative-age.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 
 const PANEL_CHROME_ROWS = 6;
@@ -34,18 +35,6 @@ function flattenRows(groups: AdviceProjectGroup[]): AdviceRow[] {
       })),
     ),
   );
-}
-
-function formatRelativeAge(at: string, now: number = Date.now()): string {
-  const ts = new Date(at).getTime();
-  if (!Number.isFinite(ts)) return "";
-  const diffMinutes = Math.floor(Math.max(0, now - ts) / 60000);
-  if (diffMinutes < 1) return "剛剛";
-  if (diffMinutes < 60) return `${diffMinutes} 分鐘前`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} 小時前`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays} 天前`;
 }
 
 export function AdvicePanel({ groups, uncoveredCount = 0 }: { groups: AdviceProjectGroup[]; uncoveredCount?: number }) {
