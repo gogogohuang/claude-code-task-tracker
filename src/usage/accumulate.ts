@@ -43,6 +43,9 @@ export function accumulate(
       cacheCreationRollingAvg: cacheCreationTotal / mainThreadMsgCount,
       recentMessageIds,
       lastOccupiedTokens: event.usage.input + event.usage.cacheRead + event.usage.cacheCreation,
+      lastCacheRead: event.usage.cacheRead,
+      lastCacheCreation: event.usage.cacheCreation,
+      lastInput: event.usage.input,
     };
 
     steps.push({ event, statsBefore, statsAfter: stats });

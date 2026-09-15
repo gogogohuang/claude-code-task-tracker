@@ -23,9 +23,10 @@ import { AdvicePanel } from "./AdvicePanel.js";
 import { adviceForSession } from "../usage/advice-groups.js";
 import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
 import {
+  formatLastTurnBreakdownLine,
   formatOccupiedTokensLine,
   formatSnapshotActivityLine,
-  shouldShowContextSnapshot,
+  lastTurnUsageFromStats,
 } from "../context-snapshot.js";
 import { taskRows } from "./task-rows.js";
 import { Advice } from "../usage/types.js";
@@ -94,10 +95,8 @@ export function App({
   const knownSessionIds = useRef<string[] | null>(null);
   const selectedSessionIdRef = useRef(selectedSessionId);
   selectedSessionIdRef.current = selectedSessionId;
-  const shownSnapshotIds = useRef(new Set<string>());
-  const [contextSnapshot, setContextSnapshot] = useState<
-    { sessionId: string; occupiedLine: string; activityLine?: string } | undefined
-  >();
+  // transcript refresh 常不產生 advice；這個 revision 讓 peek 驅動的 context 仍能重繪。
+  const [usageRevision, setUsageRevision] = useState(0);
   const cwd = watchCwd ?? process.cwd();
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
@@ -170,6 +169,7 @@ export function App({
     const current = new Set(sessionIds);
 
     const applyAdvice = (newAdvice: Advice[]) => {
+      setUsageRevision((revision) => revision + 1);
       if (newAdvice.length === 0) return;
       // adviceList 維持「舊到新」排列，蓋過上限時從尾端（新的那端）保留最新 MAX_ADVICE 則；
       // 之前是 prepend 後從頭 slice，一批 advice 超過上限時反而留下該批裡最舊的那些。
@@ -255,32 +255,6 @@ export function App({
       void watcher.close();
     };
   }, [selectedSessionId]);
-
-  useEffect(() => {
-    if (!selectedSessionId) {
-      setContextSnapshot(undefined);
-      return;
-    }
-    if (!sessionIds.includes(selectedSessionId)) return;
-    if (!taskState || taskState.sessionId !== selectedSessionId) return;
-    setContextSnapshot((current) => {
-      if (current?.sessionId === selectedSessionId) return current;
-      if (!shouldShowContextSnapshot(shownSnapshotIds.current, selectedSessionId)) return undefined;
-      shownSnapshotIds.current.add(selectedSessionId);
-      const usage = peek(selectedSessionId);
-      const rows = taskRows(taskState);
-      const done = rows.filter((row) => row.status === "completed").length;
-      return {
-        sessionId: selectedSessionId,
-        occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
-        activityLine: formatSnapshotActivityLine({
-          activity: taskState.activity,
-          done,
-          total: rows.length,
-        }),
-      };
-    });
-  }, [selectedSessionId, taskState, sessionIds]);
 
   useEffect(() => {
     if (!selectedSessionId) return;
@@ -373,16 +347,27 @@ export function App({
     return withNotice(notice, <Text dimColor>讀取 session {selectedSessionId} 資料中…</Text>);
   }
 
+  void usageRevision; // transcript 推進時 bump，確保 peek 後的 context 會重繪
+  const usage = peek(taskState.sessionId);
+  const lastTurn = lastTurnUsageFromStats(usage);
+  const rows = taskRows(taskState);
+  const done = rows.filter((row) => row.status === "completed").length;
+  const contextSnapshot = {
+    occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
+    breakdownLine: formatLastTurnBreakdownLine(lastTurn),
+    activityLine: formatSnapshotActivityLine({
+      activity: taskState.activity,
+      done,
+      total: rows.length,
+    }),
+  };
+
   return withNotice(
     notice,
     <TaskList
       state={taskState}
       current={sameCwd(taskState.cwd, cwd)}
-      contextSnapshot={
-        contextSnapshot?.sessionId === taskState.sessionId
-          ? { occupiedLine: contextSnapshot.occupiedLine, activityLine: contextSnapshot.activityLine }
-          : undefined
-      }
+      contextSnapshot={contextSnapshot}
     />,
   );
 }

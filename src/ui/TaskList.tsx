@@ -59,14 +59,17 @@ export function TaskList({
 }: {
   state: TaskState;
   current?: boolean;
-  contextSnapshot?: { occupiedLine: string; activityLine?: string };
+  contextSnapshot?: { occupiedLine: string; breakdownLine?: string; activityLine?: string };
 }) {
   const { isRawModeSupported } = useStdin();
   const rows = taskRows(state);
   const done = rows.filter((r) => r.status === "completed").length;
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
-  const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + (contextSnapshot ? 3 : 0));
+  const snapshotExtraRows = contextSnapshot
+    ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) + (contextSnapshot.activityLine ? 1 : 0)
+    : 0;
+  const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + snapshotExtraRows);
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
   const hiddenBelow = Math.max(0, rows.length - start - visible.length);
@@ -107,6 +110,7 @@ export function TaskList({
       {contextSnapshot ? (
         <Box flexDirection="column" marginBottom={1}>
           <Text>{contextSnapshot.occupiedLine}</Text>
+          {contextSnapshot.breakdownLine ? <Text dimColor>{contextSnapshot.breakdownLine}</Text> : null}
           {contextSnapshot.activityLine ? <Text>{contextSnapshot.activityLine}</Text> : null}
         </Box>
       ) : null}

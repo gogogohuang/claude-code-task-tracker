@@ -199,6 +199,9 @@ test("prime 後 peek 拿得到 title、firstPrompt、lastOccupiedTokens", () => 
     assert.equal(stats?.title, "修用量面板");
     assert.equal(stats?.firstPrompt, "幫我修");
     assert.equal(stats?.lastOccupiedTokens, 170);
+    assert.equal(stats?.lastInput, 50);
+    assert.equal(stats?.lastCacheCreation, 100);
+    assert.equal(stats?.lastCacheRead, 20);
   } finally {
     forget(sessionId);
     rmSync(dir, { recursive: true, force: true });

@@ -38,6 +38,9 @@ export interface SessionUsageStats {
   title?: string;
   firstPrompt?: string;
   lastOccupiedTokens?: number;
+  lastCacheRead?: number;
+  lastCacheCreation?: number;
+  lastInput?: number;
 }
 
 export function createSessionUsageStats(sessionId: string): SessionUsageStats {
