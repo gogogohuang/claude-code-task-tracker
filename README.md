@@ -6,7 +6,7 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.13.2**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.13.3**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 ## 運作原理
 
 1. `task-tracker init` 會在 `~/.claude/settings.json` 註冊 `SessionStart`、
@@ -114,6 +114,8 @@ npx claude-code-task-tracker inspect
 agents、output-styles、workflows、agent-memory。如果檔案存在，但因為目前的 `cwd` 不在
 它的載入範圍內（例如子目錄的 `.claude/skills` 對上層 session 不可見），會歸進「此目錄不會
 載入」那組，跟真的會進這次 session prompt 的項目分開看。
+
+畫面先顯示可捲動的清單（`↑↓` / `j` `k`），按 Enter 進預覽、`b` 回清單、`q` 離開。
 
 ## 重要注意事項
 
