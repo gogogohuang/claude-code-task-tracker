@@ -24,7 +24,9 @@ export function AdvicePanel({
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
   const rows = advice;
-  const pageSize = Math.max(1, Math.floor(pageSizeFromTerminal(termRows, PANEL_CHROME_ROWS) / ROWS_PER_ADVICE));
+  const maxDetail = Math.max(0, ...advice.map((item) => item.detailLines?.length ?? 0));
+  const rowsPerAdvice = ROWS_PER_ADVICE + maxDetail;
+  const pageSize = Math.max(1, Math.floor(pageSizeFromTerminal(termRows, PANEL_CHROME_ROWS) / rowsPerAdvice));
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
   const hiddenBelow = Math.max(0, rows.length - start - visible.length);
@@ -74,6 +76,11 @@ export function AdvicePanel({
       {visible.map((row, index) => (
         <Box key={`${row.kind}-${row.at}-${index}`} flexDirection="column" marginBottom={1}>
           <Text color="yellow">⚠ {row.message}</Text>
+          {row.detailLines?.map((line) => (
+            <Text key={line} dimColor>
+              {"  "}· {line}
+            </Text>
+          ))}
           <Text dimColor>{formatRelativeAge(row.at)}</Text>
         </Box>
       ))}

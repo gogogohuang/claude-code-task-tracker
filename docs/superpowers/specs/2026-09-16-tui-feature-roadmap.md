@@ -1,8 +1,8 @@
 # TUI 功能總 Roadmap
 
 日期：2026-09-16（切片重評後再整合）  
-狀態：進行中（感知 P1–P5 ✅；C1 ❌；v0.16 已合入 main）  
-基準版本：v0.14.1（功能合入後再依 release 規則 bump）  
+狀態：進行中（感知 P1–P5 ✅；v0.17 進度／status ✅；v0.18 Context 衛生實作中；C1 ❌）  
+基準版本：v0.17.1（功能合入後再依 release 規則 bump）  
 
 ## 問題／目標
 
@@ -54,13 +54,13 @@
 |----|------|----|--------------|------|
 | P1–P5 | 感知包 | 感知 | ✅ v0.15–0.16 | 已合入 |
 | C1 | 建議一鍵複製 | Context | ❌ 不做 | |
-| E1 | `status` 一行 | CLI | **v0.17** | |
-| T1 | Phase 進度條 | 進度板 | **v0.17** | |
-| T2 | Session 結束摘要 | 進度板 | **v0.17** | |
-| T4 | 「下一個該做」 | 進度板 | **v0.17** | 不依賴 T3 |
-| C2 | `inspect` 熱力 | Context | **v0.18** | |
-| C3 | Session 減肥清單 | Context | **v0.18** | |
-| C4 | 開場底子對照 | Context | **v0.18** | 跟 C2 同版 |
+| E1 | `status` 一行 | CLI | ✅ v0.17 | |
+| T1 | Phase 進度條 | 進度板 | ✅ v0.17 | |
+| T2 | Session 結束摘要 | 進度板 | ✅ v0.17 | |
+| T4 | 「下一個該做」 | 進度板 | ✅ v0.17 | 不依賴 T3 |
+| C2 | `inspect` 熱力 | Context | **v0.18** | 實作中 |
+| C3 | Session 減肥清單 | Context | **v0.18** | 實作中 |
+| C4 | 開場底子對照 | Context | **v0.18** | 實作中 |
 | M1 | Picker 資訊密度 | 多 session | **v0.19** | |
 | M3 | 釘選 session | 多 session | **v0.19** | |
 | M2 | 跨 session 鈴彙總 | 多 session | **v0.19** | |
@@ -74,12 +74,10 @@
 
 ```text
 ✅ v0.15–0.16   感知（P1–P5）
+✅ v0.17        進度板 + status（E1 + T1 + T2 + T4）
 ❌ C1
 
-→  v0.17  進度板 + status
-         E1 + T1 + T2 + T4
-
-→  v0.18  Context 衛生一整包
+→  v0.18  Context 衛生一整包（實作中）
          C2 + C3 + C4
 
 →  v0.19  多 session 監控（不含 split）
@@ -223,9 +221,9 @@
 
 **驗收**
 
-- [ ] 可看出最大貢獻者
-- [ ] 不讀檔案全文進 UI（只 metadata／預覽既有邏輯）
-- [ ] 測試覆蓋排序穩定
+- [x] 可看出最大貢獻者
+- [x] 不讀檔案全文進 UI（只 metadata／預覽既有邏輯）
+- [x] 測試覆蓋排序穩定
 
 ### C3 Session 減肥清單（v0.18）
 
@@ -233,9 +231,9 @@
 
 **驗收**
 
-- [ ] 至少涵蓋：單次 tool_result 過肥；可選：同 path 反覆 Read
-- [ ] 建議動作具體（例如加 `limit`／`head`）
-- [ ] 範圍仍限 watch 已知 sessionIds
+- [x] 至少涵蓋：單次 tool_result 過肥；可選：同 path 反覆 Read
+- [x] 建議動作具體（例如加 `limit`／`head`）
+- [x] 範圍仍限 watch 已知 sessionIds
 
 ### C4 開場底子對照（v0.18）
 
@@ -243,9 +241,9 @@
 
 **驗收**
 
-- [ ] 開場 advice 出現時能看到對照摘要（同面板或一鍵跳轉策略在 design 定）
-- [ ] 無 inspect 資料時降級為純 advice 文案
-- [ ] 不自動改使用者的 CLAUDE.md
+- [x] 開場 advice 出現時能看到對照摘要（同面板或一鍵跳轉策略在 design 定）
+- [x] 無 inspect 資料時降級為純 advice 文案
+- [x] 不自動改使用者的 CLAUDE.md
 
 ---
 

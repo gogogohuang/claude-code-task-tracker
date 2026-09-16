@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Box, Text, useApp, useInput, useStdin } from "ink";
 import chokidar from "chokidar";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, statePathForSession } from "../store.js";
 import { TaskState } from "../schema.js";
@@ -25,6 +26,7 @@ import { ToolsPanel } from "./ToolsPanel.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { cachePanelLinesForSession } from "../cache-panel-lines.js";
 import { adviceForSession } from "../usage/advice-groups.js";
+import { attachHeavyBaselineHeat } from "../usage/advice-heat.js";
 import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
 import { formatToolInventoryLines, formatToolInventorySummary } from "../usage/tool-inventory.js";
 import { resolveTranscriptPath } from "../workflow/paths.js";
@@ -43,6 +45,9 @@ import {
 import { pushActivityToTimeline, type TimelineEntry } from "../activity-timeline.js";
 import { formatStuckLabel, isActivityStuck } from "../activity-stuck.js";
 import { formatEndedSummary, isSessionEnded } from "../session-ended.js";
+import { discoverInspectModel } from "../inspect/discover.js";
+import { heatSummaryLines } from "../inspect/heat.js";
+import { defaultManagedPolicyPath } from "../inspect/paths.js";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
   DELETE_SESSION_RUNNING_NOTICE,
@@ -130,7 +135,26 @@ export function App({
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | undefined>();
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const lastWaitingKey = useRef<string | undefined>(undefined);
+  const heatCacheRef = useRef<{ cwd: string; lines: string[] } | undefined>(undefined);
   const cwd = watchCwd ?? process.cwd();
+
+  const launchHeatLines = (targetCwd: string): string[] => {
+    if (heatCacheRef.current?.cwd === targetCwd) return heatCacheRef.current.lines;
+    try {
+      const model = discoverInspectModel({
+        cwd: targetCwd,
+        env: process.env,
+        home: homedir(),
+        managedPolicyPath: defaultManagedPolicyPath(),
+      });
+      const lines = heatSummaryLines(model.entries, 5);
+      heatCacheRef.current = { cwd: targetCwd, lines };
+      return lines;
+    } catch {
+      heatCacheRef.current = { cwd: targetCwd, lines: [] };
+      return [];
+    }
+  };
 
   const leaveSessionToList = () => {
     setSelectedSessionId(undefined);
@@ -415,6 +439,10 @@ export function App({
 
   if (view === "advice") {
     const filtered = adviceForSession(adviceList, selectedSessionId);
+    const enriched =
+      filtered.some((item) => item.kind === "heavy-baseline")
+        ? attachHeavyBaselineHeat(filtered, launchHeatLines(cwd))
+        : filtered;
     const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
     const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
     const uncoveredHint =
@@ -424,7 +452,7 @@ export function App({
     return withNotice(
       topNotice,
       <AdvicePanel
-        advice={filtered}
+        advice={enriched}
         shortId={shortId}
         emptyHint={emptyHint}
         uncoveredHint={uncoveredHint}

@@ -1,4 +1,5 @@
 import { Box, Text } from "ink";
+import { formatByteSize } from "../inspect/heat.js";
 import { previewDisplayLines } from "../inspect/preview-display.js";
 import { Preview } from "../inspect/preview.js";
 import { InspectEntry, InspectModel, InspectSection, InspectStatus } from "../inspect/types.js";
@@ -30,10 +31,12 @@ function EntryRow({
   showPath: boolean;
 }) {
   const suffix = STATUS_SUFFIX[entry.status];
+  const sizeLabel = entry.byteSize !== undefined ? formatByteSize(entry.byteSize) : undefined;
   return (
     <Text wrap="truncate-end" color={selected ? "cyan" : undefined}>
       {selected ? "› " : "  "}
       {entry.label}
+      {sizeLabel ? <Text dimColor>{`  ${sizeLabel}`}</Text> : null}
       {suffix ? `  ${suffix}` : ""}
       {showPath ? <Text dimColor>{`  ${entry.absolutePath}`}</Text> : null}
       {entry.detail ? <Text dimColor>{`  ${entry.detail}`}</Text> : null}

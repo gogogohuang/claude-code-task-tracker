@@ -23,7 +23,12 @@ export function accumulate(
     if (event.toolUseName) {
       const statsBefore = stats;
       const toolInventory = recordToolUse(stats.toolInventory ?? emptyToolInventory(), event.toolUseName);
-      stats = { ...stats, toolInventory };
+      let readPathCounts = stats.readPathCounts ?? {};
+      if (event.toolUseName === "Read" && event.toolUsePath) {
+        const path = event.toolUsePath;
+        readPathCounts = { ...readPathCounts, [path]: (readPathCounts[path] ?? 0) + 1 };
+      }
+      stats = { ...stats, toolInventory, readPathCounts };
       steps.push({ event, statsBefore, statsAfter: stats });
       continue;
     }

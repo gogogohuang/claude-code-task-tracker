@@ -30,6 +30,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function extractToolPath(input: unknown): string | undefined {
+  if (!isRecord(input)) return undefined;
+  const filePath = input.file_path;
+  if (typeof filePath === "string" && filePath.trim()) return filePath;
+  const path = input.path;
+  if (typeof path === "string" && path.trim()) return path;
+  return undefined;
+}
+
 function extractUsableUserText(content: unknown): string | undefined {
   let raw: string | undefined;
   if (typeof content === "string") {
@@ -130,8 +139,9 @@ export function parseNewContent(
       if (Array.isArray(content)) {
         for (const block of content) {
           if (!isRecord(block) || block.type !== "tool_use") continue;
+          const path = extractToolPath(block.input);
           if (typeof block.id === "string" && typeof block.name === "string") {
-            toolUseNameById.set(block.id, block.name);
+            toolUseNameById.set(block.id, { name: block.name, path });
           }
           if (typeof block.name === "string") {
             events.push({
@@ -141,6 +151,7 @@ export function parseNewContent(
               usage: undefined,
               toolResultChars: undefined,
               toolUseName: detailToolLabel(block.name, block.input),
+              toolUsePath: path,
             });
           }
         }
@@ -155,14 +166,16 @@ export function parseNewContent(
         for (const block of content) {
           if (!isRecord(block) || block.type !== "tool_result") continue;
           const toolUseId = typeof block.tool_use_id === "string" ? block.tool_use_id : undefined;
+          const ref = toolUseId ? toolUseNameById.get(toolUseId) : undefined;
           events.push({
             messageId: undefined,
             isSidechain,
             timestamp,
             usage: undefined,
             toolResultChars: {
-              toolName: toolUseId ? toolUseNameById.get(toolUseId) : undefined,
+              toolName: ref?.name,
               chars: toolResultTextLength(block.content),
+              path: ref?.path,
             },
           });
         }

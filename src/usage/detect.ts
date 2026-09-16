@@ -7,6 +7,7 @@ const CACHE_SPIKE_MULTIPLIER = 5;
 const CACHE_SPIKE_MIN_PRIOR_MSGS = 5;
 const FAT_TOOL_RESULT_CHARS = 30000;
 const HEAVY_BASELINE_TOKENS = 50000;
+const REPEATED_READ_THRESHOLD = 3;
 
 function minutesBetween(startIso: string, endIso: string): number {
   return (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000;
@@ -59,7 +60,7 @@ function checkHeavyBaseline(before: SessionUsageStats, step: AccumulateStep): Ad
       sessionId: before.sessionId,
       kind: "heavy-baseline",
       at: step.event.timestamp ?? new Date().toISOString(),
-      message: `執行 task-tracker inspect 檢查這個專案載入 prompt 的東西（這個 session 開場第一輪就吃了 ${usage.cacheCreation.toLocaleString("en-US")} token）。`,
+      message: `開場偏重（第一輪就吃了 ${usage.cacheCreation.toLocaleString("en-US")} token）；下方是可能來源，也可執行 task-tracker inspect 細看。`,
     },
   ];
 }
@@ -70,15 +71,40 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
   if (toolResultChars.chars <= FAT_TOOL_RESULT_CHARS) return [];
   const chars = toolResultChars.chars.toLocaleString("en-US");
   const isSubagent = toolResultChars.toolName === "Agent" || toolResultChars.toolName === "SubagentHandback";
-  const message = isSubagent
-    ? `下次派子 agent 只讓它交回結論與檔案路徑，不要把完整 diff/review 貼回主線（剛剛回傳了 ${chars} 字元）。`
-    : `重跑剛剛那個 ${toolResultChars.toolName ?? "工具"} 呼叫，加上 head/grep/limit 把輸出縮小（原本回傳了 ${chars} 字元）。`;
+  if (isSubagent) {
+    return [
+      {
+        sessionId: stats.sessionId,
+        kind: "fat-tool-result",
+        at: step.event.timestamp ?? new Date().toISOString(),
+        message: `下次派子 agent 只讓它交回結論與檔案路徑，不要把完整 diff/review 貼回主線（剛剛回傳了 ${chars} 字元）。`,
+      },
+    ];
+  }
+  const tool = toolResultChars.toolName ?? "工具";
+  const pathPart = toolResultChars.path ? `（${toolResultChars.path}）` : "";
   return [
     {
       sessionId: stats.sessionId,
       kind: "fat-tool-result",
       at: step.event.timestamp ?? new Date().toISOString(),
-      message,
+      message: `重跑剛剛那個 ${tool} 呼叫${pathPart}，加上 head/grep/limit 或 Read 的 offset/limit 把輸出縮小（原本回傳了 ${chars} 字元）。`,
+    },
+  ];
+}
+
+function checkRepeatedRead(before: SessionUsageStats, after: SessionUsageStats, step: AccumulateStep): Advice[] {
+  const path = step.event.toolUsePath;
+  if (!path || step.event.toolUseName !== "Read") return [];
+  const prev = before.readPathCounts?.[path] ?? 0;
+  const next = after.readPathCounts?.[path] ?? 0;
+  if (prev >= REPEATED_READ_THRESHOLD || next < REPEATED_READ_THRESHOLD) return [];
+  return [
+    {
+      sessionId: after.sessionId,
+      kind: "repeated-read",
+      at: step.event.timestamp ?? new Date().toISOString(),
+      message: `同一個檔案已 Read ${next} 次（${path}）；下次加 offset/limit，或先寫進 plan 再 /clear。`,
     },
   ];
 }
@@ -90,6 +116,7 @@ export function detect(_prev: SessionUsageStats, _next: SessionUsageStats, steps
     advice.push(...checkCacheSpike(step.statsBefore, step));
     advice.push(...checkHeavyBaseline(step.statsBefore, step));
     advice.push(...checkFatToolResult(step.statsAfter, step));
+    advice.push(...checkRepeatedRead(step.statsBefore, step.statsAfter, step));
   }
   return advice;
 }

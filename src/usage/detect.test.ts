@@ -100,11 +100,42 @@ test("detect：fat-tool-result 對 Agent 改叫只交結論與檔案路徑", () 
   assert.match(advice[0].message, /30,001/);
 });
 
-test("detect：fat-tool-result 對 SubagentHandback 同樣只交結論與檔案路徑", () => {
+test("detect：fat-tool-result 有 path 時文案帶路徑", () => {
   const stats0 = createSessionUsageStats("s1");
-  const { next, steps } = accumulate(stats0, [toolResultEvent("SubagentHandback", 30001, "t0")]);
+  const { next, steps } = accumulate(stats0, [
+    {
+      messageId: undefined,
+      isSidechain: false,
+      timestamp: "t0",
+      usage: undefined,
+      toolResultChars: { toolName: "Read", chars: 40000, path: "/proj/big.ts" },
+    },
+  ]);
   const advice = detect(stats0, next, steps);
   assert.equal(advice[0].kind, "fat-tool-result");
-  assert.match(advice[0].message, /結論與檔案路徑/);
-  assert.equal(/head\/grep\/limit/.test(advice[0].message), false);
+  assert.match(advice[0].message, /\/proj\/big\.ts/);
+  assert.match(advice[0].message, /offset|limit|head/);
+});
+
+test("detect：repeated-read 同 path 第 3 次才觸發一次", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const reads = (n: number): ParsedEvent[] =>
+    Array.from({ length: n }, () => ({
+      messageId: undefined,
+      isSidechain: false,
+      timestamp: "t",
+      usage: undefined,
+      toolResultChars: undefined,
+      toolUseName: "Read",
+      toolUsePath: "/proj/a.ts",
+    }));
+  const two = accumulate(stats0, reads(2));
+  assert.equal(detect(stats0, two.next, two.steps).filter((a) => a.kind === "repeated-read").length, 0);
+  const three = accumulate(two.next, reads(1));
+  const advice = detect(two.next, three.next, three.steps).filter((a) => a.kind === "repeated-read");
+  assert.equal(advice.length, 1);
+  assert.match(advice[0].message, /\/proj\/a\.ts/);
+  assert.match(advice[0].message, /offset\/limit/);
+  const four = accumulate(three.next, reads(1));
+  assert.equal(detect(three.next, four.next, four.steps).filter((a) => a.kind === "repeated-read").length, 0);
 });
