@@ -1,4 +1,5 @@
 import { ParsedEvent, TailState } from "./types.js";
+import { detailToolLabel } from "./tool-inventory.js";
 
 export function createTailState(): TailState {
   return { offset: 0, toolUseNameById: new Map(), danglingLine: "" };
@@ -139,7 +140,7 @@ export function parseNewContent(
               timestamp,
               usage: undefined,
               toolResultChars: undefined,
-              toolUseName: block.name,
+              toolUseName: detailToolLabel(block.name, block.input),
             });
           }
         }

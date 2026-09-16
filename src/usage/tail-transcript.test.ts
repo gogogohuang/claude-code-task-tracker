@@ -122,6 +122,32 @@ test("parseNewContent 對 tool_use block 另外發出 toolUseName 事件", () =>
   assert.deepEqual(names, ["Read", "mcp__playwright__browser_click"]);
 });
 
+test("parseNewContent Skill／Agent 的 toolUseName 帶上 input 細節", () => {
+  const state = createTailState();
+  const chunk =
+    assistantLine({
+      id: "m1",
+      cacheCreation: 100,
+      content: [
+        {
+          type: "tool_use",
+          id: "toolu_1",
+          name: "Skill",
+          input: { skill: "superpowers:writing-plans" },
+        },
+        {
+          type: "tool_use",
+          id: "toolu_2",
+          name: "Agent",
+          input: { subagent_type: "Explore" },
+        },
+      ],
+    }) + "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  const names = events.filter((e) => e.toolUseName).map((e) => e.toolUseName);
+  assert.deepEqual(names, ["Skill · superpowers:writing-plans", "Agent · Explore"]);
+});
+
 test("parseNewContent 對不到 tool_use id 時，toolName 是 undefined", () => {
   const state = createTailState();
   const chunk = toolResultLine({ toolUseId: "toolu_missing", text: "x".repeat(10) }) + "\n";

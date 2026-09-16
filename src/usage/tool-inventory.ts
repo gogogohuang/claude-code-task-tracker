@@ -18,6 +18,28 @@ export function parseMcpToolName(name: string): { server: string; tool: string }
   return { server, tool };
 }
 
+function pickString(input: Record<string, unknown>, key: string): string | undefined {
+  const value = input[key];
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/** 組出面板用的細節標籤；Skill／Agent 會帶上 input 細節，其餘回工具本名。 */
+export function detailToolLabel(toolName: string, toolInput: unknown): string {
+  if (!toolInput || typeof toolInput !== "object" || Array.isArray(toolInput)) return toolName;
+  const record = toolInput as Record<string, unknown>;
+  if (toolName === "Skill") {
+    const skill = pickString(record, "skill") ?? pickString(record, "skillName");
+    return skill ? `Skill · ${skill}` : toolName;
+  }
+  if (toolName === "Agent") {
+    const type = pickString(record, "subagent_type");
+    return type ? `Agent · ${type}` : toolName;
+  }
+  return toolName;
+}
+
 function bump(counts: Record<string, number>, key: string): Record<string, number> {
   return { ...counts, [key]: (counts[key] ?? 0) + 1 };
 }

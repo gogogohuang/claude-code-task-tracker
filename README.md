@@ -6,7 +6,7 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.14.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.14.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 ## 運作原理
 
 1. `task-tracker init` 會在 `~/.claude/settings.json` 註冊 `SessionStart`、
