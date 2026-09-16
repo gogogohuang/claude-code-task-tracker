@@ -5,8 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
+  DELETE_SESSION_RUNNING_NOTICE,
   armOrConfirmDelete,
   deleteSessionState,
+  isSessionBusy,
   shouldHandleDeleteKey,
 } from "./delete-session.js";
 
@@ -24,6 +26,17 @@ test("armOrConfirmDelete 第一次 arm，同一 session 第二次 confirm", () =
 
 test("DELETE_SESSION_CONFIRM_NOTICE 文案固定", () => {
   assert.equal(DELETE_SESSION_CONFIRM_NOTICE, "再按 d 刪除這個 session（按 b 取消）");
+});
+
+test("isSessionBusy 只在 activity.phase 為 running 時為 true", () => {
+  assert.equal(isSessionBusy({ phase: "running" }), true);
+  assert.equal(isSessionBusy({ phase: "done" }), false);
+  assert.equal(isSessionBusy(undefined), false);
+  assert.equal(isSessionBusy(null), false);
+});
+
+test("DELETE_SESSION_RUNNING_NOTICE 文案固定", () => {
+  assert.equal(DELETE_SESSION_RUNNING_NOTICE, "這個 session 正在執行中，無法刪除");
 });
 
 test("deleteSessionState 刪掉指定 json，不存在則回 false", () => {

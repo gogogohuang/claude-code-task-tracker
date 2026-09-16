@@ -29,7 +29,7 @@ test("文件沒列的工具不猜欄位，工具名原樣保留", () => {
       toolName: "Skill",
       toolInput: { skill: "commit", description: "Commit the change" },
     }),
-    "正在使用 Skill",
+    "正在使用技能：commit",
   );
   assert.equal(
     describe({ toolName: "mcp__playwright__browser_click", toolInput: { ref: "1" } }),

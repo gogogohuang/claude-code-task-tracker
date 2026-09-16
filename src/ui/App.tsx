@@ -25,14 +25,14 @@ import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
 import {
   formatLastTurnBreakdownLine,
   formatOccupiedTokensLine,
-  formatSnapshotActivityLine,
   lastTurnUsageFromStats,
 } from "../context-snapshot.js";
-import { taskRows } from "./task-rows.js";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
+  DELETE_SESSION_RUNNING_NOTICE,
   armOrConfirmDelete,
   deleteSessionState,
+  isSessionBusy,
   shouldHandleDeleteKey,
 } from "../delete-session.js";
 import { Advice } from "../usage/types.js";
@@ -70,7 +70,11 @@ function hintsFor(sessionIds: string[]): SessionHint[] {
         sessionId: state.sessionId,
         cwd: state.cwd,
         updatedAt: state.updatedAt,
-        activitySummary: state.activity?.summary,
+        activitySummary: state.activity
+          ? state.activity.summary
+            ? `${state.activity.toolName} · ${state.activity.summary}`
+            : state.activity.toolName
+          : undefined,
         title: usage?.title,
         firstPrompt: usage?.firstPrompt,
       },
@@ -125,6 +129,11 @@ export function App({
         return;
       }
       if (input === "d" && shouldHandleDeleteKey(view, selectedSessionId) && selectedSessionId) {
+        if (isSessionBusy(taskState?.activity)) {
+          setPendingDeleteSessionId(undefined);
+          setNotice(DELETE_SESSION_RUNNING_NOTICE);
+          return;
+        }
         const step = armOrConfirmDelete(pendingDeleteSessionId, selectedSessionId);
         if (step === "arm") {
           setPendingDeleteSessionId(selectedSessionId);
@@ -382,16 +391,9 @@ export function App({
   void usageRevision; // transcript 推進時 bump，確保 peek 後的 context 會重繪
   const usage = peek(taskState.sessionId);
   const lastTurn = lastTurnUsageFromStats(usage);
-  const rows = taskRows(taskState);
-  const done = rows.filter((row) => row.status === "completed").length;
   const contextSnapshot = {
     occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
     breakdownLine: formatLastTurnBreakdownLine(lastTurn),
-    activityLine: formatSnapshotActivityLine({
-      activity: taskState.activity,
-      done,
-      total: rows.length,
-    }),
   };
 
   return withNotice(
