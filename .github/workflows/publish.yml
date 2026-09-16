@@ -4,14 +4,21 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name }}
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -19,7 +26,34 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Sync version from release tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          BRANCH: ${{ github.event.release.target_commitish }}
+        run: |
+          if [ "$BRANCH" != "main" ]; then
+            echo "target_commitish must be main, got: $BRANCH"
+            exit 1
+          fi
+          pnpm exec tsx scripts/sync-release-version.ts "$TAG"
       - run: pnpm run typecheck
       - run: pnpm test
+      - name: Commit version bump and move tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          BRANCH: ${{ github.event.release.target_commitish }}
+        run: |
+          if git diff --quiet -- package.json README.md; then
+            echo "version already matches $TAG"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json README.md
+          VERSION="${TAG#v}"
+          git commit -m "chore: bump version to ${VERSION}"
+          git push origin "HEAD:refs/heads/${BRANCH}"
+          git tag -f "$TAG"
+          git push --force origin "refs/tags/${TAG}"
       # Trusted Publishing (OIDC): do not set NODE_AUTH_TOKEN / NPM_TOKEN
       - run: pnpm publish --no-git-checks --access public
