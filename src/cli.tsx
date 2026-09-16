@@ -6,6 +6,7 @@ import { render } from "ink";
 import { Command } from "commander";
 import { runClear } from "./commands/clear.js";
 import { runShow } from "./commands/show.js";
+import { runStatus } from "./commands/status.js";
 import { runInit } from "./commands/init.js";
 import { installTrackerHooks, resolveBundledHookPath } from "./install-hooks.js";
 import { defaultManagedPolicyPath } from "./inspect/paths.js";
@@ -55,6 +56,18 @@ program
       path: opts.path,
       compact: opts.json,
       raw: opts.raw,
+    });
+  });
+
+program
+  .command("status")
+  .description("一行摘要目前偏好 session 狀態（不啟動 TUI；給 tmux／腳本用）")
+  .option("--session <id>", "指定 session（可填短 id 前綴）")
+  .option("--json", "輸出 JSON 物件")
+  .action((opts: { session?: string; json?: boolean }) => {
+    process.exitCode = runStatus({
+      session: opts.session,
+      json: opts.json,
     });
   });
 

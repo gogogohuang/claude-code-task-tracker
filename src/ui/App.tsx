@@ -42,6 +42,7 @@ import {
 } from "../session-presence.js";
 import { pushActivityToTimeline, type TimelineEntry } from "../activity-timeline.js";
 import { formatStuckLabel, isActivityStuck } from "../activity-stuck.js";
+import { formatEndedSummary, isSessionEnded } from "../session-ended.js";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
   DELETE_SESSION_RUNNING_NOTICE,
@@ -400,6 +401,12 @@ export function App({
     return () => clearInterval(timer);
   }, [selectedSessionId, taskState?.activity?.phase, taskState?.activity?.toolName, taskState?.activity?.at]);
 
+  useEffect(() => {
+    if (!selectedSessionId) return;
+    const timer = setInterval(() => setClockRevision((n) => n + 1), 30_000);
+    return () => clearInterval(timer);
+  }, [selectedSessionId]);
+
   const waitingNotice =
     selectedSessionId && taskState?.activity && isWaitingForUser(taskState.activity)
       ? waitingBannerMessage(taskState.activity.toolName)
@@ -537,6 +544,9 @@ export function App({
     taskState.activity && isActivityStuck({ activity: taskState.activity })
       ? formatStuckLabel(taskState.activity.at)
       : undefined;
+  const endedSummary = isSessionEnded(taskState)
+    ? formatEndedSummary(taskState)
+    : undefined;
 
   return withNotice(
     topNotice,
@@ -546,6 +556,7 @@ export function App({
       contextSnapshot={contextSnapshot}
       toolInventorySummary={toolInventorySummary}
       stuckLabel={stuckLabel}
+      endedSummary={endedSummary}
     />,
   );
 }
