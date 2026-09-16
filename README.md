@@ -185,9 +185,9 @@ src/
 
 一般功能／修 bug 的 PR **不必**改版號。要發新版本時：
 
-1. 在 `main` 上把 `package.json` 的 `version` 與上方「目前版本」改成同一號（feature → minor，fix／docs → patch）
-2. 在 GitHub 建立 Release（tag 例如 `v0.14.0`）
-3. Actions workflow `publish.yml` 會用 npm Trusted Publishing（OIDC）自動 `pnpm publish`，不需要 `NPM_TOKEN`
+1. 合入 `main` 後，在 GitHub 建立 Release，target 選 `main`，tag 例如 `v0.17.0`（feature → minor，fix／docs → patch）
+2. Actions workflow `publish.yml` 會把該 tag 寫進 `package.json` 與上方「目前版本」，若有改檔就 commit 回 `main` 並把同一個 tag 移到新 commit，再用 npm Trusted Publishing（OIDC）自動 `pnpm publish`，不需要 `NPM_TOKEN`
+3. 若版號已經跟 tag 相同，workflow 會跳過 commit，只發 npm
 
 ## 之後可以擴充的方向
 

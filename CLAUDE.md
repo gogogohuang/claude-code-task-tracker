@@ -11,18 +11,18 @@ The account changes with `gh auth switch`; re-check it every time you create a b
 
 ## Releasing
 
-Do **not** bump the version on every feature/fix PR. Bump only when cutting a release:
+Do **not** bump the version on every feature/fix PR. To cut a release:
 
-1. Update `package.json` `version` and the README 「目前版本」 line to the same number
-   - New feature: minor (`0.7.1` → `0.8.0`)
-   - Fix or docs: patch (`0.7.1` → `0.7.2`)
+1. Merge to `main`, then create a GitHub Release targeting `main` with tag `vX.Y.Z` (e.g. `v0.17.0`)
+   - New feature: minor (`0.16.1` → `0.17.0`)
+   - Fix or docs: patch (`0.17.0` → `0.17.1`)
 2. Only update the README line "after upgrading to vX.Y.Z, run this again" if this change invalidates an existing hook
-3. Merge to `main`, then create a GitHub Release (tag matching the version, e.g. `v0.14.0`)
-4. `.github/workflows/publish.yml` publishes to npm via Trusted Publishing (OIDC) — no `NPM_TOKEN`
+3. `.github/workflows/publish.yml` writes that version into `package.json` and the README 「目前版本」 line, commits to `main` if they changed, force-moves the same tag to the new commit, then publishes to npm via Trusted Publishing (OIDC) — no `NPM_TOKEN`
+4. If `package.json` / README already match the tag, the workflow skips the commit and only publishes
 
 `task-tracker version` reads from `package.json`; no need to change the CLI for a version bump.
 
-The Trusted Publisher on npmjs.com must list workflow filename `publish.yml` (exact match).
+The Trusted Publisher on npmjs.com must list workflow filename `publish.yml` (exact match). Do not force-push `main`; the workflow force-pushes only the release tag.
 
 ## Keep the Main Thread Light
 
