@@ -1,13 +1,16 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { WorkflowRun } from "../schema.js";
 import { applyJournalToPhases, parseJournalEvents } from "./journal.js";
 import { parseWorkflowMeta } from "./parse-meta.js";
 
 const RUN_ID = /wf_[a-z0-9-]{6,}/i;
 
+/** Claude Code 把 workflow journal 放在 transcript 同名目錄下：`{project}/{sessionId}/subagents/workflows/...` */
 export function sessionDirFromTranscript(transcriptPath: string): string {
-  return dirname(transcriptPath);
+  const projectDir = dirname(transcriptPath);
+  const sessionId = basename(transcriptPath).replace(/\.jsonl$/i, "");
+  return join(projectDir, sessionId);
 }
 
 export function journalPathFor(transcriptPath: string, runId: string): string {
@@ -23,13 +26,45 @@ export function extractRunId(toolInput: unknown, toolResponse: unknown): string 
   return scriptPath.match(RUN_ID)?.[0];
 }
 
-export function hydrateWorkflowRun(run: WorkflowRun): WorkflowRun {
-  if (!existsSync(run.journalPath)) return run;
+/** 舊 state 可能把 journal 指到 project/subagents（少了 sessionId）；依候補路徑找真實檔案。 */
+export function resolveWorkflowJournalPath(
+  run: Pick<WorkflowRun, "runId" | "journalPath">,
+  opts: { claudeSessionDir?: string; sessionId?: string } = {},
+): string {
+  if (existsSync(run.journalPath)) return run.journalPath;
+  const candidates: string[] = [];
+  if (opts.claudeSessionDir && opts.sessionId) {
+    candidates.push(
+      join(opts.claudeSessionDir, opts.sessionId, "subagents", "workflows", run.runId, "journal.jsonl"),
+    );
+  }
+  if (opts.claudeSessionDir) {
+    candidates.push(join(opts.claudeSessionDir, "subagents", "workflows", run.runId, "journal.jsonl"));
+  }
+  for (const path of candidates) {
+    if (existsSync(path)) return path;
+  }
+  return run.journalPath;
+}
+
+export function hydrateWorkflowRun(
+  run: WorkflowRun,
+  opts: { claudeSessionDir?: string; sessionId?: string } = {},
+): WorkflowRun {
+  const journalPath = resolveWorkflowJournalPath(run, opts);
+  if (!existsSync(journalPath)) return { ...run, journalPath };
   try {
-    const events = parseJournalEvents(readFileSync(run.journalPath, "utf-8"));
-    return { ...run, phases: applyJournalToPhases(run.phases.map((phase) => phase.title), events) };
+    const events = parseJournalEvents(readFileSync(journalPath, "utf-8"));
+    return {
+      ...run,
+      journalPath,
+      phases: applyJournalToPhases(
+        run.phases.map((phase) => phase.title),
+        events,
+      ),
+    };
   } catch {
-    return run;
+    return { ...run, journalPath };
   }
 }
 
@@ -66,13 +101,24 @@ export function discoverWorkflowRun(sessionDir: string): WorkflowRun | undefined
 }
 
 export function liveWorkflow(state: {
+  sessionId?: string;
   workflow?: WorkflowRun;
   claudeSessionDir?: string;
 }): WorkflowRun | undefined {
-  const seeded = state.workflow ? hydrateWorkflowRun(state.workflow) : undefined;
-  if (seeded) return seeded;
-  if (!state.claudeSessionDir) return undefined;
-  return discoverWorkflowRun(state.claudeSessionDir);
+  const opts = { claudeSessionDir: state.claudeSessionDir, sessionId: state.sessionId };
+  const seeded = state.workflow ? hydrateWorkflowRun(state.workflow, opts) : undefined;
+  if (seeded && existsSync(seeded.journalPath)) return seeded;
+  // claudeSessionDir 可能是舊的 project root，或新的 session 工作目錄
+  if (state.claudeSessionDir && state.sessionId) {
+    const nested = join(state.claudeSessionDir, state.sessionId);
+    const fromNested = discoverWorkflowRun(nested);
+    if (fromNested) return fromNested;
+  }
+  if (state.claudeSessionDir) {
+    const fromDir = discoverWorkflowRun(state.claudeSessionDir);
+    if (fromDir) return fromDir;
+  }
+  return seeded;
 }
 
 function runIdFrom(value: unknown): string | undefined {

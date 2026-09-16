@@ -59,16 +59,14 @@ export function TaskList({
 }: {
   state: TaskState;
   current?: boolean;
-  contextSnapshot?: { occupiedLine: string; breakdownLine?: string; activityLine?: string };
+  contextSnapshot?: { occupiedLine: string; breakdownLine?: string };
 }) {
   const { isRawModeSupported } = useStdin();
   const rows = taskRows(state);
   const done = rows.filter((r) => r.status === "completed").length;
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
-  const snapshotExtraRows = contextSnapshot
-    ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) + (contextSnapshot.activityLine ? 1 : 0)
-    : 0;
+  const snapshotExtraRows = contextSnapshot ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) : 0;
   const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + snapshotExtraRows);
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
@@ -111,7 +109,6 @@ export function TaskList({
         <Box flexDirection="column" marginBottom={1}>
           <Text>{contextSnapshot.occupiedLine}</Text>
           {contextSnapshot.breakdownLine ? <Text dimColor>{contextSnapshot.breakdownLine}</Text> : null}
-          {contextSnapshot.activityLine ? <Text>{contextSnapshot.activityLine}</Text> : null}
         </Box>
       ) : null}
 
@@ -121,28 +118,27 @@ export function TaskList({
         </Box>
       ) : null}
 
-      <Box marginBottom={1}>
-        <ProgressBar done={done} total={rows.length} />
-      </Box>
-
-      {rows.length === 0 ? (
-        <Text dimColor>目前沒有 task。</Text>
-      ) : (
-        <Box flexDirection="column">
-          {start > 0 ? <Text dimColor>↑ 還有 {start} 行</Text> : null}
-          {visible.map((row) => (
-            <Text key={row.key} color={STATUS_COLOR[row.status]}>
-              {STATUS_ICON[row.status]} {row.label}
-              {row.suffix ? <Text dimColor>{row.suffix}</Text> : null}
-            </Text>
-          ))}
-          {hiddenBelow > 0 ? <Text dimColor>↓ 還有 {hiddenBelow} 行</Text> : null}
-        </Box>
-      )}
+      {rows.length > 0 ? (
+        <>
+          <Box marginBottom={1}>
+            <ProgressBar done={done} total={rows.length} />
+          </Box>
+          <Box flexDirection="column">
+            {start > 0 ? <Text dimColor>↑ 還有 {start} 行</Text> : null}
+            {visible.map((row) => (
+              <Text key={row.key} color={STATUS_COLOR[row.status]}>
+                {STATUS_ICON[row.status]} {row.label}
+                {row.suffix ? <Text dimColor>{row.suffix}</Text> : null}
+              </Text>
+            ))}
+            {hiddenBelow > 0 ? <Text dimColor>↓ 還有 {hiddenBelow} 行</Text> : null}
+          </Box>
+        </>
+      ) : null}
 
       <Box marginTop={1}>
         <Text dimColor>
-          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 b 回列表 — 按 d 刪除 session — 按 q 離開
+          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 b 回列表 — 按 c 清除暫存 — 按 d 刪除 session — 按 q 離開
         </Text>
       </Box>
     </Box>

@@ -55,6 +55,8 @@ function sentenceFor(
       return phase === "running" ? "正在讀取任務清單" : "已讀取任務清單";
     case "Workflow":
       return workflowSentence(toolInput, phase);
+    case "Skill":
+      return labeled(phase, "使用技能", pickFragment(toolInput, "skill") ?? pickFragment(toolInput, "skillName"));
     default:
       return undefined;
   }

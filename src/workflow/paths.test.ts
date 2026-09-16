@@ -3,14 +3,21 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { discoverWorkflowRun, extractRunId, journalPathFor, sessionDirFromTranscript } from "./paths.js";
+import {
+  discoverWorkflowRun,
+  extractRunId,
+  hydrateWorkflowRun,
+  journalPathFor,
+  liveWorkflow,
+  sessionDirFromTranscript,
+} from "./paths.js";
 
-test("sessionDirFromTranscript 與 journalPathFor 依 Claude Code 目錄慣例組路徑", () => {
+test("sessionDirFromTranscript 與 journalPathFor 指到 transcript 同名的 session 工作目錄", () => {
   const transcript = "/Users/me/.claude/projects/proj/abc.jsonl";
-  assert.equal(sessionDirFromTranscript(transcript), "/Users/me/.claude/projects/proj");
+  assert.equal(sessionDirFromTranscript(transcript), "/Users/me/.claude/projects/proj/abc");
   assert.equal(
     journalPathFor(transcript, "wf_27dc174c-59f"),
-    "/Users/me/.claude/projects/proj/subagents/workflows/wf_27dc174c-59f/journal.jsonl",
+    "/Users/me/.claude/projects/proj/abc/subagents/workflows/wf_27dc174c-59f/journal.jsonl",
   );
 });
 
@@ -43,4 +50,48 @@ test("discoverWorkflowRun 讀最新 journal 旁邊的 script meta", () => {
     ["Gate"],
   );
   assert.equal(run?.journalPath, join(root, "subagents", "workflows", runId, "journal.jsonl"));
+});
+
+test("liveWorkflow 在舊的錯誤 journalPath 時，改從 project/sessionId 找 journal 並更新進度", () => {
+  const project = mkdtempSync(join(tmpdir(), "wf-live-"));
+  const sessionId = "sess-1";
+  const runId = "wf_abc123";
+  const nestedJournal = join(project, sessionId, "subagents", "workflows", runId, "journal.jsonl");
+  mkdirSync(join(project, sessionId, "subagents", "workflows", runId), { recursive: true });
+  writeFileSync(
+    nestedJournal,
+    [
+      '{"type":"started","key":"a","phase":"Fetch Ticket + Write Plan"}',
+      '{"type":"result","key":"a"}',
+      '{"type":"started","key":"b","phase":"Self-Grill"}',
+    ].join("\n") + "\n",
+  );
+  const wrongPath = join(project, "subagents", "workflows", runId, "journal.jsonl");
+  const live = liveWorkflow({
+    sessionId,
+    claudeSessionDir: project,
+    workflow: {
+      runId,
+      journalPath: wrongPath,
+      phases: [
+        { title: "Fetch Ticket + Write Plan", status: "pending" },
+        { title: "Self-Grill", status: "pending" },
+        { title: "Execute Plan", status: "pending" },
+      ],
+    },
+  });
+  assert.equal(live?.journalPath, nestedJournal);
+  assert.deepEqual(
+    live?.phases.map((phase) => `${phase.title}:${phase.status}`),
+    ["Fetch Ticket + Write Plan:completed", "Self-Grill:in_progress", "Execute Plan:pending"],
+  );
+});
+
+test("hydrateWorkflowRun 找不到 journal 時維持原 phases", () => {
+  const run = hydrateWorkflowRun({
+    runId: "wf_x",
+    journalPath: "/tmp/does-not-exist-journal.jsonl",
+    phases: [{ title: "Gate", status: "pending" }],
+  });
+  assert.deepEqual(run.phases, [{ title: "Gate", status: "pending" }]);
 });

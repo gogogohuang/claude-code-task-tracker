@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Box, Text, useApp, useInput, useStdin } from "ink";
+import SelectInput from "ink-select-input";
 import chokidar from "chokidar";
 import { join } from "node:path";
-import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState } from "../store.js";
+import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, writeTaskState } from "../store.js";
 import { TaskState } from "../schema.js";
 import {
   addedSessionIds,
@@ -25,17 +26,29 @@ import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
 import {
   formatLastTurnBreakdownLine,
   formatOccupiedTokensLine,
-  formatSnapshotActivityLine,
   lastTurnUsageFromStats,
 } from "../context-snapshot.js";
-import { taskRows } from "./task-rows.js";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
+  DELETE_SESSION_RUNNING_NOTICE,
   armOrConfirmDelete,
   deleteSessionState,
+  isSessionBusy,
   shouldHandleDeleteKey,
 } from "../delete-session.js";
+import {
+  PURGE_DONE_NOTICE,
+  type PurgeIntensity,
+  purgeSessionState,
+  shouldOpenPurgeMenu,
+  withoutSessionAdvice,
+} from "../purge-session.js";
 import { Advice } from "../usage/types.js";
+
+const PURGE_MENU_ITEMS: { label: string; value: PurgeIntensity }[] = [
+  { label: "1 · 輕清 — 建議 + 已完成任務", value: "light" },
+  { label: "2 · 重清 — 建議 + 全部任務清單", value: "heavy" },
+];
 
 function withNotice(notice: string | undefined, child: ReactNode) {
   if (!notice) return child;
@@ -70,7 +83,11 @@ function hintsFor(sessionIds: string[]): SessionHint[] {
         sessionId: state.sessionId,
         cwd: state.cwd,
         updatedAt: state.updatedAt,
-        activitySummary: state.activity?.summary,
+        activitySummary: state.activity
+          ? state.activity.summary
+            ? `${state.activity.toolName} · ${state.activity.summary}`
+            : state.activity.toolName
+          : undefined,
         title: usage?.title,
         firstPrompt: usage?.firstPrompt,
       },
@@ -95,7 +112,7 @@ export function App({
   const [browsing, setBrowsing] = useState(false);
   const [taskState, setTaskState] = useState<TaskState | null>(null);
   const [notice, setNotice] = useState<string | undefined>();
-  const [view, setView] = useState<"main" | "advice">("main");
+  const [view, setView] = useState<"main" | "advice" | "purge">("main");
   const [adviceList, setAdviceList] = useState<Advice[]>([]);
   const adviceWatchers = useRef<Map<string, ReturnType<typeof chokidar.watch>>>(new Map());
   const knownSessionIds = useRef<string[] | null>(null);
@@ -113,6 +130,17 @@ export function App({
     setBrowsing(true);
     setNotice(undefined);
     setPendingDeleteSessionId(undefined);
+    setView("main");
+  };
+
+  const applyPurge = (intensity: PurgeIntensity) => {
+    if (!selectedSessionId || !taskState) return;
+    const next = purgeSessionState(taskState, intensity);
+    writeTaskState(next);
+    setTaskState(withLiveWorkflow(next));
+    setAdviceList((prev) => withoutSessionAdvice(prev, selectedSessionId));
+    setNotice(PURGE_DONE_NOTICE[intensity]);
+    setView("main");
   };
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
@@ -124,7 +152,28 @@ export function App({
         exit();
         return;
       }
+      if (view === "purge") {
+        if (input === "1") {
+          applyPurge("light");
+          return;
+        }
+        if (input === "2") {
+          applyPurge("heavy");
+          return;
+        }
+        if (input === "b" || key.escape) {
+          setView("main");
+          setNotice(undefined);
+          return;
+        }
+        return;
+      }
       if (input === "d" && shouldHandleDeleteKey(view, selectedSessionId) && selectedSessionId) {
+        if (isSessionBusy(taskState?.activity)) {
+          setPendingDeleteSessionId(undefined);
+          setNotice(DELETE_SESSION_RUNNING_NOTICE);
+          return;
+        }
         const step = armOrConfirmDelete(pendingDeleteSessionId, selectedSessionId);
         if (step === "arm") {
           setPendingDeleteSessionId(selectedSessionId);
@@ -140,6 +189,12 @@ export function App({
         forget(selectedSessionId);
         setAdviceList((prev) => prev.filter((advice) => advice.sessionId !== selectedSessionId));
         leaveSessionToList();
+        return;
+      }
+      if (input === "c" && shouldOpenPurgeMenu(view, selectedSessionId)) {
+        setPendingDeleteSessionId(undefined);
+        setNotice(undefined);
+        setView("purge");
         return;
       }
       if (input === "a" && view === "main") {
@@ -326,6 +381,24 @@ export function App({
     );
   }
 
+  if (view === "purge") {
+    return withNotice(
+      notice,
+      <Box flexDirection="column">
+        <Box marginBottom={1}>
+          <Text>清除暫存 · 選強度</Text>
+        </Box>
+        <SelectInput
+          items={PURGE_MENU_ITEMS}
+          onSelect={(item) => applyPurge(item.value)}
+        />
+        <Box marginTop={1}>
+          <Text dimColor>↑↓ 或 1/2 選擇 · Enter 執行 · 按 b 取消</Text>
+        </Box>
+      </Box>,
+    );
+  }
+
   if (!selectedSessionId) {
     if (sessionIds.length === 0) {
       return withNotice(
@@ -382,16 +455,9 @@ export function App({
   void usageRevision; // transcript 推進時 bump，確保 peek 後的 context 會重繪
   const usage = peek(taskState.sessionId);
   const lastTurn = lastTurnUsageFromStats(usage);
-  const rows = taskRows(taskState);
-  const done = rows.filter((row) => row.status === "completed").length;
   const contextSnapshot = {
     occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
     breakdownLine: formatLastTurnBreakdownLine(lastTurn),
-    activityLine: formatSnapshotActivityLine({
-      activity: taskState.activity,
-      done,
-      total: rows.length,
-    }),
   };
 
   return withNotice(

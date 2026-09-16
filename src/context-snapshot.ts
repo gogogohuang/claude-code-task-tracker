@@ -46,7 +46,8 @@ export function activityLineLabel(activity: Activity): string {
   const body =
     activity.summary ??
     (activity.phase === "running" ? `正在使用 ${activity.toolName}` : `已使用 ${activity.toolName}`);
-  return activity.phase === "running" ? `◐ ${body}` : body;
+  const withTool = `${activity.toolName} · ${body}`;
+  return activity.phase === "running" ? `◐ ${withTool}` : withTool;
 }
 
 export function formatSnapshotActivityLine(input: {

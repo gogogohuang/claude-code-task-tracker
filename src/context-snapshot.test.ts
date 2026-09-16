@@ -48,21 +48,21 @@ const running: Activity = {
   at: "2026-09-15T00:00:00.000Z",
 };
 
-test("activityLineLabel running 前置 ◐", () => {
-  assert.equal(activityLineLabel(running), "◐ 正在讀取 src/schema.ts");
+test("activityLineLabel running 前置 ◐ 與 tool 名", () => {
+  assert.equal(activityLineLabel(running), "◐ Read · 正在讀取 src/schema.ts");
 });
 
 test("activityLineLabel 沒有 summary 時用工具名 fallback", () => {
   assert.equal(
     activityLineLabel({ toolName: "Bash", phase: "done", at: "t" }),
-    "已使用 Bash",
+    "Bash · 已使用 Bash",
   );
 });
 
 test("formatSnapshotActivityLine 組活動句與任務數", () => {
   assert.equal(
     formatSnapshotActivityLine({ activity: running, done: 3, total: 10 }),
-    "◐ 正在讀取 src/schema.ts · 任務 3/10",
+    "◐ Read · 正在讀取 src/schema.ts · 任務 3/10",
   );
 });
 
