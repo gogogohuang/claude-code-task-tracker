@@ -21,9 +21,11 @@ import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
 import { AdvicePanel } from "./AdvicePanel.js";
 import { CachePanel } from "./CachePanel.js";
+import { ToolsPanel } from "./ToolsPanel.js";
 import { cachePanelLinesForSession } from "../cache-panel-lines.js";
 import { adviceForSession } from "../usage/advice-groups.js";
 import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
+import { formatToolInventoryLines, formatToolInventorySummary } from "../usage/tool-inventory.js";
 import { resolveTranscriptPath } from "../workflow/paths.js";
 import {
   formatLastTurnBreakdownLine,
@@ -166,9 +168,14 @@ export function App({
         setView("cache");
         return;
       }
+      if (input === "t" && view === "main" && selectedSessionId) {
+        setPendingDeleteSessionId(undefined);
+        setView("tools");
+        return;
+      }
       if (input !== "b" && !key.escape) return;
       setPendingDeleteSessionId(undefined);
-      if (view === "advice" || view === "cache") {
+      if (view === "advice" || view === "cache" || view === "tools") {
         setView("main");
         setNotice(undefined);
         return;
@@ -352,6 +359,20 @@ export function App({
     return withNotice(notice, <CachePanel lines={lines} shortId={shortId} />);
   }
 
+  if (view === "tools" && selectedSessionId) {
+    const shortId = shortSessionId(selectedSessionId);
+    const inventory = peek(selectedSessionId)?.toolInventory;
+    const lines = inventory ? formatToolInventoryLines(inventory) : [];
+    const uncoveredHint =
+      !readTaskState(selectedSessionId)?.claudeSessionDir
+        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+        : undefined;
+    return withNotice(
+      notice,
+      <ToolsPanel lines={lines} shortId={shortId} emptyHint={uncoveredHint} />,
+    );
+  }
+
   if (!selectedSessionId) {
     if (sessionIds.length === 0) {
       return withNotice(
@@ -427,6 +448,9 @@ export function App({
     occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
     breakdownLine: formatLastTurnBreakdownLine(lastTurn),
   };
+  const toolInventorySummary = usage?.toolInventory
+    ? formatToolInventorySummary(usage.toolInventory)
+    : undefined;
 
   return withNotice(
     notice,
@@ -434,6 +458,7 @@ export function App({
       state={taskState}
       current={sameCwd(taskState.cwd, cwd)}
       contextSnapshot={contextSnapshot}
+      toolInventorySummary={toolInventorySummary}
     />,
   );
 }

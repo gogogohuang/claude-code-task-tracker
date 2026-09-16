@@ -157,3 +157,31 @@ test("accumulate 沒有主線 usage 時 lastOccupiedTokens 仍是 undefined", ()
   assert.equal(next.lastCacheRead, undefined);
   assert.equal(next.lastCacheCreation, undefined);
 });
+
+function toolUseEvent(toolUseName: string, isSidechain = false): ParsedEvent {
+  return {
+    messageId: undefined,
+    isSidechain,
+    timestamp: "2026-09-15T00:00:00.000Z",
+    usage: undefined,
+    toolResultChars: undefined,
+    toolUseName,
+  };
+}
+
+test("accumulate 主線 toolUseName 寫入 toolInventory", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next } = accumulate(stats0, [
+    toolUseEvent("Read"),
+    toolUseEvent("Read"),
+    toolUseEvent("mcp__playwright__browser_click"),
+  ]);
+  assert.deepEqual(next.toolInventory?.tools, { Read: 2 });
+  assert.deepEqual(next.toolInventory?.mcpTools, { "playwright/browser_click": 1 });
+});
+
+test("accumulate 忽略 sidechain 的 toolUseName", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next } = accumulate(stats0, [toolUseEvent("Bash", true), toolUseEvent("Read")]);
+  assert.deepEqual(next.toolInventory?.tools, { Read: 1 });
+});

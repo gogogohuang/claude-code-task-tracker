@@ -1,3 +1,5 @@
+import type { ToolInventory } from "./tool-inventory.js";
+
 export interface ParsedUsage {
   cacheCreation: number;
   cacheRead: number;
@@ -17,6 +19,7 @@ export interface ParsedEvent {
   timestamp: string | undefined;
   usage: ParsedUsage | undefined;
   toolResultChars: ToolResultChars | undefined;
+  toolUseName?: string;
   title?: string;
   userText?: string;
 }
@@ -41,6 +44,7 @@ export interface SessionUsageStats {
   lastCacheRead?: number;
   lastCacheCreation?: number;
   lastInput?: number;
+  toolInventory?: ToolInventory;
 }
 
 export function createSessionUsageStats(sessionId: string): SessionUsageStats {

@@ -132,6 +132,16 @@ export function parseNewContent(
           if (typeof block.id === "string" && typeof block.name === "string") {
             toolUseNameById.set(block.id, block.name);
           }
+          if (typeof block.name === "string") {
+            events.push({
+              messageId: undefined,
+              isSidechain,
+              timestamp,
+              usage: undefined,
+              toolResultChars: undefined,
+              toolUseName: block.name,
+            });
+          }
         }
       }
       continue;

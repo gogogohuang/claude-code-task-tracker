@@ -106,6 +106,22 @@ test("parseNewContent 用稍早看到的 tool_use id 換回工具名稱（tool_u
   assert.equal(toolResultEvent?.toolResultChars?.chars, 50);
 });
 
+test("parseNewContent 對 tool_use block 另外發出 toolUseName 事件", () => {
+  const state = createTailState();
+  const chunk =
+    assistantLine({
+      id: "m1",
+      cacheCreation: 100,
+      content: [
+        { type: "tool_use", id: "toolu_1", name: "Read", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "mcp__playwright__browser_click", input: {} },
+      ],
+    }) + "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  const names = events.filter((e) => e.toolUseName).map((e) => e.toolUseName);
+  assert.deepEqual(names, ["Read", "mcp__playwright__browser_click"]);
+});
+
 test("parseNewContent 對不到 tool_use id 時，toolName 是 undefined", () => {
   const state = createTailState();
   const chunk = toolResultLine({ toolUseId: "toolu_missing", text: "x".repeat(10) }) + "\n";
