@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  detailToolLabel,
   emptyToolInventory,
   formatToolInventoryLines,
   formatToolInventorySummary,
@@ -80,4 +81,20 @@ test("formatToolInventoryLines 分兩區並依次數由高到低", () => {
     "  playwright / browser_click × 2",
     "  github / list_issues × 1",
   ]);
+});
+
+test("detailToolLabel Skill 用 skill／skillName，Agent 用 subagent_type", () => {
+  assert.equal(
+    detailToolLabel("Skill", { skill: "superpowers:writing-plans" }),
+    "Skill · superpowers:writing-plans",
+  );
+  assert.equal(detailToolLabel("Skill", { skillName: "commit" }), "Skill · commit");
+  assert.equal(detailToolLabel("Agent", { subagent_type: "Explore" }), "Agent · Explore");
+});
+
+test("detailToolLabel 抽不到細節或非 Skill／Agent 時回工具本名", () => {
+  assert.equal(detailToolLabel("Skill", {}), "Skill");
+  assert.equal(detailToolLabel("Skill", null), "Skill");
+  assert.equal(detailToolLabel("Read", { file_path: "a.ts" }), "Read");
+  assert.equal(detailToolLabel("mcp__playwright__browser_click", {}), "mcp__playwright__browser_click");
 });
