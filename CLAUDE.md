@@ -9,14 +9,20 @@ When creating a new branch, use the **currently logged-in GitHub account name** 
 
 The account changes with `gh auth switch`; re-check it every time you create a branch instead of reusing a prefix from an older conversation.
 
-## PR Versioning
+## Releasing
 
-Every PR must bump the version before it's ready. Done means the `version` in `package.json` differs from the PR's base branch, and the README's "Current version" is updated to the same number.
+Do **not** bump the version on every feature/fix PR. Bump only when cutting a release:
 
-- New feature: minor (`0.7.1` → `0.8.0`)
-- Fix or docs: patch (`0.7.1` → `0.7.2`)
-- `task-tracker version` reads from `package.json`; no need to change the CLI
-- Only update the README line "after upgrading to vX.Y.Z, run this again" if this change invalidates an existing hook
+1. Update `package.json` `version` and the README 「目前版本」 line to the same number
+   - New feature: minor (`0.7.1` → `0.8.0`)
+   - Fix or docs: patch (`0.7.1` → `0.7.2`)
+2. Only update the README line "after upgrading to vX.Y.Z, run this again" if this change invalidates an existing hook
+3. Merge to `main`, then create a GitHub Release (tag matching the version, e.g. `v0.14.0`)
+4. `.github/workflows/publish.yml` publishes to npm via Trusted Publishing (OIDC) — no `NPM_TOKEN`
+
+`task-tracker version` reads from `package.json`; no need to change the CLI for a version bump.
+
+The Trusted Publisher on npmjs.com must list workflow filename `publish.yml` (exact match).
 
 ## Keep the Main Thread Light
 

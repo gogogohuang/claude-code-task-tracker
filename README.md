@@ -167,6 +167,14 @@ src/
     └── InspectView.tsx       # inspect 的排版
 ```
 
+## 發佈到 npm
+
+一般功能／修 bug 的 PR **不必**改版號。要發新版本時：
+
+1. 在 `main` 上把 `package.json` 的 `version` 與上方「目前版本」改成同一號（feature → minor，fix／docs → patch）
+2. 在 GitHub 建立 Release（tag 例如 `v0.14.0`）
+3. Actions workflow `publish.yml` 會用 npm Trusted Publishing（OIDC）自動 `pnpm publish`，不需要 `NPM_TOKEN`
+
 ## 之後可以擴充的方向
 
 - 歷史紀錄（每個 session 結束後保留一份完成率統計）
