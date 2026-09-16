@@ -28,10 +28,17 @@ import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
 import { formatToolInventoryLines, formatToolInventorySummary } from "../usage/tool-inventory.js";
 import { resolveTranscriptPath } from "../workflow/paths.js";
 import {
+  formatContextGaugeBar,
   formatLastTurnBreakdownLine,
   formatOccupiedTokensLine,
   lastTurnUsageFromStats,
 } from "../context-snapshot.js";
+import {
+  isWaitingForUser,
+  shouldRingWaitingBell,
+  waitingBannerMessage,
+  waitingEdgeKey,
+} from "../session-presence.js";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
   DELETE_SESSION_RUNNING_NOTICE,
@@ -81,6 +88,8 @@ function hintsFor(sessionIds: string[]): SessionHint[] {
             ? `${state.activity.toolName} · ${state.activity.summary}`
             : state.activity.toolName
           : undefined,
+        activityToolName: state.activity?.toolName,
+        activityPhase: state.activity?.phase,
         title: usage?.title,
         firstPrompt: usage?.firstPrompt,
       },
@@ -114,6 +123,7 @@ export function App({
   // transcript refresh 常不產生 advice；這個 revision 讓 peek 驅動的 context 仍能重繪。
   const [usageRevision, setUsageRevision] = useState(0);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | undefined>();
+  const lastWaitingKey = useRef<string | undefined>(undefined);
   const cwd = watchCwd ?? process.cwd();
 
   const leaveSessionToList = () => {
@@ -124,6 +134,7 @@ export function App({
     setNotice(undefined);
     setPendingDeleteSessionId(undefined);
     setView("main");
+    lastWaitingKey.current = undefined;
   };
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
@@ -333,6 +344,33 @@ export function App({
     };
   }, [selectedSessionId, taskState?.workflow?.journalPath, taskState?.claudeSessionDir]);
 
+  useEffect(() => {
+    if (!selectedSessionId || !taskState?.activity || !isWaitingForUser(taskState.activity)) {
+      if (!isWaitingForUser(taskState?.activity)) {
+        lastWaitingKey.current = undefined;
+      }
+      return;
+    }
+    const nextKey = waitingEdgeKey(selectedSessionId, {
+      toolName: taskState.activity.toolName,
+      at: taskState.activity.at,
+    });
+    if (shouldRingWaitingBell(lastWaitingKey.current, nextKey)) {
+      try {
+        process.stdout.write("\x07");
+      } catch {
+        // 終端機不支援鈴就略過
+      }
+    }
+    lastWaitingKey.current = nextKey;
+  }, [selectedSessionId, taskState?.activity?.toolName, taskState?.activity?.phase, taskState?.activity?.at]);
+
+  const waitingNotice =
+    selectedSessionId && taskState?.activity && isWaitingForUser(taskState.activity)
+      ? waitingBannerMessage(taskState.activity.toolName)
+      : undefined;
+  const topNotice = waitingNotice ?? notice;
+
   if (view === "advice") {
     const filtered = adviceForSession(adviceList, selectedSessionId);
     const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
@@ -342,7 +380,7 @@ export function App({
         ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
         : undefined;
     return withNotice(
-      notice,
+      topNotice,
       <AdvicePanel
         advice={filtered}
         shortId={shortId}
@@ -356,7 +394,7 @@ export function App({
     const shortId = shortSessionId(selectedSessionId);
     const latest = readTaskState(selectedSessionId) ?? taskState;
     const lines = cachePanelLinesForSession(selectedSessionId, statePathForSession(selectedSessionId), latest);
-    return withNotice(notice, <CachePanel lines={lines} shortId={shortId} />);
+    return withNotice(topNotice, <CachePanel lines={lines} shortId={shortId} />);
   }
 
   if (view === "tools" && selectedSessionId) {
@@ -368,7 +406,7 @@ export function App({
         ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
         : undefined;
     return withNotice(
-      notice,
+      topNotice,
       <ToolsPanel lines={lines} shortId={shortId} emptyHint={uncoveredHint} />,
     );
   }
@@ -427,7 +465,7 @@ export function App({
     }
     const group = groups.find((item) => item.key === projectKey);
     return withNotice(
-      notice,
+      topNotice,
       <SessionPicker
         heading={`選擇 session · ${group?.label ?? "專案"}`}
         hint="按 b 回專案列表"
@@ -438,7 +476,7 @@ export function App({
   }
 
   if (!taskState) {
-    return withNotice(notice, <Text dimColor>讀取 session {selectedSessionId} 資料中…</Text>);
+    return withNotice(topNotice, <Text dimColor>讀取 session {selectedSessionId} 資料中…</Text>);
   }
 
   void usageRevision; // transcript 推進時 bump，確保 peek 後的 context 會重繪
@@ -447,6 +485,7 @@ export function App({
   const contextSnapshot = {
     occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
     breakdownLine: formatLastTurnBreakdownLine(lastTurn),
+    gauge: formatContextGaugeBar(usage?.lastOccupiedTokens),
   };
   const toolInventorySummary = usage?.toolInventory
     ? formatToolInventorySummary(usage.toolInventory)

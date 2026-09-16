@@ -9,9 +9,26 @@ export interface LastTurnUsage {
   input: number;
 }
 
+const GAUGE_WIDTH = 24;
+
+export function contextOccupancyPct(lastOccupiedTokens: number): number {
+  return Math.round((lastOccupiedTokens / CONTEXT_WINDOW_TOKENS) * 100);
+}
+
+export function formatContextGaugeBar(
+  lastOccupiedTokens: number | undefined,
+): { bar: string; color: "green" | "yellow" | "red" } | undefined {
+  if (lastOccupiedTokens === undefined) return undefined;
+  const pct = contextOccupancyPct(lastOccupiedTokens);
+  const filled = Math.min(GAUGE_WIDTH, Math.max(0, Math.round((pct / 100) * GAUGE_WIDTH)));
+  const bar = `${"█".repeat(filled)}${"░".repeat(GAUGE_WIDTH - filled)}`;
+  const color = pct >= 95 ? "red" : pct >= 80 ? "yellow" : "green";
+  return { bar, color };
+}
+
 export function formatOccupiedTokensLine(lastOccupiedTokens: number | undefined): string {
   if (lastOccupiedTokens === undefined) return "還沒有用量資料";
-  const pct = Math.round((lastOccupiedTokens / CONTEXT_WINDOW_TOKENS) * 100);
+  const pct = contextOccupancyPct(lastOccupiedTokens);
   return `窗口約 ${lastOccupiedTokens.toLocaleString("en-US")} token（約 ${pct}%）`;
 }
 

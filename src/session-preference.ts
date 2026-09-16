@@ -1,5 +1,11 @@
 import { basename, resolve } from "node:path";
 import { formatRelativeAge } from "./format-relative-age.js";
+import {
+  aggregatePresence,
+  classifyPresence,
+  presenceLabelPrefix,
+  type SessionPresence,
+} from "./session-presence.js";
 
 export interface SessionHint {
   sessionId: string;
@@ -9,6 +15,8 @@ export interface SessionHint {
   firstPrompt?: string;
   /** 該 session 目前的活動摘要（TaskState.activity.summary），只有用量建議面板需要顯示時才會帶。 */
   activitySummary?: string;
+  activityToolName?: string;
+  activityPhase?: string;
 }
 
 export interface SessionChoice {
@@ -64,6 +72,14 @@ function clipLabelPart(value: string): string {
   return value.length > LABEL_PART_LIMIT ? `${value.slice(0, LABEL_PART_LIMIT)}…` : value;
 }
 
+function presenceForHint(session: SessionHint, now: number): SessionPresence {
+  const activity =
+    session.activityToolName && session.activityPhase
+      ? { toolName: session.activityToolName, phase: session.activityPhase }
+      : undefined;
+  return classifyPresence({ activity, updatedAt: session.updatedAt, now });
+}
+
 function formatSessionLabel(session: SessionHint, marker: "current" | "recent" | undefined, now: number): string {
   const id = shortSessionId(session.sessionId);
   const head = marker === "current" ? `${id}  (目前)` : marker === "recent" ? `${id}  (最近)` : id;
@@ -73,7 +89,7 @@ function formatSessionLabel(session: SessionHint, marker: "current" | "recent" |
   if (session.activitySummary) parts.push(clipLabelPart(session.activitySummary));
   const age = formatRelativeAge(session.updatedAt, now);
   if (age) parts.push(age);
-  return parts.join(" · ");
+  return `${presenceLabelPrefix(presenceForHint(session, now))}${parts.join(" · ")}`;
 }
 
 export function sessionChoices(sessions: SessionHint[], watchCwd: string, now: number = Date.now()): SessionChoice[] {
@@ -122,12 +138,16 @@ export function groupSessionsByProject(sessions: SessionHint[], watchCwd: string
   });
 }
 
-export function projectChoices(sessions: SessionHint[], watchCwd: string): SessionChoice[] {
+export function projectChoices(sessions: SessionHint[], watchCwd: string, now: number = Date.now()): SessionChoice[] {
   return groupSessionsByProject(sessions, watchCwd).map((group) => {
     const current = sameCwd(group.cwd, watchCwd);
     const count = group.sessions.length;
     const suffix = current ? `${count} · 目前` : `${count}`;
-    return { value: group.key, label: `${group.label}  (${suffix})` };
+    const presence = aggregatePresence(group.sessions.map((session) => presenceForHint(session, now)));
+    return {
+      value: group.key,
+      label: `${presenceLabelPrefix(presence)}${group.label}  (${suffix})`,
+    };
   });
 }
 

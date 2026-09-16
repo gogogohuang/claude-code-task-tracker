@@ -60,7 +60,11 @@ export function TaskList({
 }: {
   state: TaskState;
   current?: boolean;
-  contextSnapshot?: { occupiedLine: string; breakdownLine?: string };
+  contextSnapshot?: {
+    occupiedLine: string;
+    breakdownLine?: string;
+    gauge?: { bar: string; color: "green" | "yellow" | "red" };
+  };
   toolInventorySummary?: string;
 }) {
   const { isRawModeSupported } = useStdin();
@@ -69,7 +73,9 @@ export function TaskList({
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
   const snapshotExtraRows =
-    (contextSnapshot ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) : 0) + (toolInventorySummary ? 1 : 0);
+    (contextSnapshot
+      ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) + (contextSnapshot.gauge ? 1 : 0)
+      : 0) + (toolInventorySummary ? 1 : 0);
   const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + snapshotExtraRows);
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
@@ -110,6 +116,9 @@ export function TaskList({
 
       {contextSnapshot ? (
         <Box flexDirection="column" marginBottom={1}>
+          {contextSnapshot.gauge ? (
+            <Text color={contextSnapshot.gauge.color}>{contextSnapshot.gauge.bar}</Text>
+          ) : null}
           <Text>{contextSnapshot.occupiedLine}</Text>
           {contextSnapshot.breakdownLine ? <Text dimColor>{contextSnapshot.breakdownLine}</Text> : null}
         </Box>

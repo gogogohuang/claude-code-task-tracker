@@ -46,15 +46,15 @@ test("sessionChoices 把當下 session 放第一列並標 目前", () => {
   const now = Date.parse("2026-09-15T03:00:00.000Z");
   const items = sessionChoices(sessions, "/proj/b", now);
   assert.equal(items[0].value, "current");
-  assert.equal(items[0].label, "current  (目前) · 1 小時前");
-  assert.ok(items.some((item) => item.value === "newer-other" && item.label === "newer-ot · 剛剛"));
+  assert.equal(items[0].label, "○ current  (目前) · 1 小時前");
+  assert.ok(items.some((item) => item.value === "newer-other" && item.label === "○ newer-ot · 剛剛"));
 });
 
 test("sessionChoices 沒有 cwd 對得上時，最新的標 最近", () => {
   const now = Date.parse("2026-09-15T03:00:00.000Z");
   const items = sessionChoices(sessions, "/elsewhere", now);
   assert.equal(items[0].value, "newer-other");
-  assert.equal(items[0].label, "newer-ot  (最近) · 剛剛");
+  assert.equal(items[0].label, "○ newer-ot  (最近) · 剛剛");
 });
 
 test("groupSessionsByProject 依 cwd 分組，當下專案排第一，略過沒有 cwd 的 session", () => {
@@ -83,9 +83,66 @@ test("projectChoices 不列出沒有 cwd 的未知專案", () => {
 
 test("projectChoices 標出目前專案與 session 數", () => {
   const items = projectChoices(sessions, "/proj/b");
-  assert.equal(items[0].label, "b  (1 · 目前)");
+  assert.equal(items[0].label, "○ b  (1 · 目前)");
   assert.equal(items[0].value, "/proj/b");
-  assert.ok(items.some((item) => item.label === "c  (1)"));
+  assert.ok(items.some((item) => item.label === "○ c  (1)"));
+});
+
+test("session／專案 label 前綴反映 presence（! 等你、● 忙碌、○ 閒置）", () => {
+  const now = Date.parse("2026-09-16T12:00:00.000Z");
+  const waiting = sessionChoicesInProject(
+    [
+      {
+        sessionId: "wait-1",
+        cwd: "/proj/b",
+        updatedAt: "2026-09-16T11:59:00.000Z",
+        activityToolName: "AskUserQuestion",
+        activityPhase: "running",
+      },
+    ],
+    "/proj/b",
+    "/proj/b",
+    now,
+  );
+  assert.ok(waiting[0].label.startsWith("! "));
+
+  const busy = sessionChoicesInProject(
+    [
+      {
+        sessionId: "busy-1",
+        cwd: "/proj/b",
+        updatedAt: "2026-09-16T11:59:00.000Z",
+        activityToolName: "Read",
+        activityPhase: "running",
+      },
+    ],
+    "/proj/b",
+    "/proj/b",
+    now,
+  );
+  assert.ok(busy[0].label.startsWith("● "));
+
+  const project = projectChoices(
+    [
+      {
+        sessionId: "idle-1",
+        cwd: "/proj/b",
+        updatedAt: "2026-09-16T11:00:00.000Z",
+        activityToolName: "Read",
+        activityPhase: "done",
+      },
+      {
+        sessionId: "wait-2",
+        cwd: "/proj/b",
+        updatedAt: "2026-09-16T11:59:00.000Z",
+        activityToolName: "ExitPlanMode",
+        activityPhase: "running",
+      },
+    ],
+    "/proj/b",
+    now,
+  );
+  assert.ok(project[0].label.startsWith("! "));
 });
 
 test("pickPreferredSession 與 shouldAutoSelectSession 略過沒有 cwd 的 session", () => {
@@ -110,8 +167,8 @@ test("sessionChoicesInProject 只列出該專案，不再重複專案名", () =>
     now,
   );
   assert.equal(items[0].value, "newer-b");
-  assert.equal(items[0].label, "newer-b  (目前) · 剛剛");
-  assert.equal(items[1].label, "older-b · 3 小時前");
+  assert.equal(items[0].label, "○ newer-b  (目前) · 剛剛");
+  assert.equal(items[1].label, "○ older-b · 3 小時前");
 });
 
 test("sessionChoicesInProject 短 ID、標題、活動、缺欄省略、32 字截斷", () => {
@@ -140,9 +197,9 @@ test("sessionChoicesInProject 短 ID、標題、活動、缺欄省略、32 字�
   );
   assert.equal(
     items[0].label,
-    "e9efe088  (目前) · 修用量面板 · 正在讀取 src/schema.ts · 3 分鐘前",
+    "○ e9efe088  (目前) · 修用量面板 · 正在讀取 src/schema.ts · 3 分鐘前",
   );
-  assert.equal(items[1].label, `aaaaaaaa · ${longTitle.slice(0, 32)}… · 1 小時前`);
+  assert.equal(items[1].label, `○ aaaaaaaa · ${longTitle.slice(0, 32)}… · 1 小時前`);
 });
 
 test("sessionChoicesInProject 沒有標題時只顯示短 ID、活動與時間", () => {
@@ -160,7 +217,7 @@ test("sessionChoicesInProject 沒有標題時只顯示短 ID、活動與時間",
     "/proj/b",
     now,
   );
-  assert.equal(items[0].label, "plain-id  (目前) · 正在讀取 src/schema.ts · 剛剛");
+  assert.equal(items[0].label, "○ plain-id  (目前) · 正在讀取 src/schema.ts · 剛剛");
 });
 
 test("addedSessionIds 只回新出現的 id，刪除不算新增", () => {
