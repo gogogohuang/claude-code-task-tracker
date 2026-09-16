@@ -212,7 +212,7 @@ test("任何 hook 都會記下 transcript 所在的 session 目錄", () => {
     },
     deps,
   );
-  assert.equal(written[0].claudeSessionDir, "/Users/me/.claude/projects/proj");
+  assert.equal(written[0].claudeSessionDir, "/Users/me/.claude/projects/proj/abc");
 });
 
 test("PostToolUse Workflow 從 script 種入 phase 清單與 journal 路徑", () => {
@@ -233,7 +233,7 @@ test("PostToolUse Workflow 從 script 種入 phase 清單與 journal 路徑", ()
   assert.equal(workflow?.name, "linego-feature-workflow");
   assert.equal(
     workflow?.journalPath,
-    "/Users/me/.claude/projects/proj/subagents/workflows/wf_27dc174c-59f/journal.jsonl",
+    "/Users/me/.claude/projects/proj/abc/subagents/workflows/wf_27dc174c-59f/journal.jsonl",
   );
   assert.deepEqual(
     workflow?.phases.map((phase) => phase.title),
