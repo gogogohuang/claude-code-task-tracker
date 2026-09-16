@@ -1,7 +1,7 @@
 # TUI 功能總 Roadmap
 
 日期：2026-09-16  
-狀態：草案（待審核；本文件**不**含實作）  
+狀態：進行中（v0.15 P1–P3 已完成）  
 基準版本：v0.14.1  
 
 ## 問題／目標
@@ -49,9 +49,9 @@
 
 | ID | 靈感 | 線 | 建議 release | 依賴 |
 |----|------|----|--------------|------|
-| P1 | 等待高亮 | 感知 | v0.15 | 活動句 |
-| P2 | Context 血條 | 感知 | v0.15 | usage tail |
-| P3 | Picker 忙碌色點 | 感知 | v0.15 | 活動句／閒置推論 |
+| P1 | 等待高亮 | 感知 | v0.15 ✅ | 活動句 |
+| P2 | Context 血條 | 感知 | v0.15 ✅ | usage tail |
+| P3 | Picker 忙碌色點 | 感知 | v0.15 ✅ | 活動句／閒置推論 |
 | P4 | 活動 timeline | 感知 | v0.16 | 狀態檔或 ring buffer |
 | P5 | 卡住計時 | 感知 | v0.16 | 活動句時間戳 |
 | T1 | Phase 進度條 | 進度板 | v0.17 | workflow |
@@ -81,11 +81,11 @@
 
 **驗收**
 
-- [ ] `AskUserQuestion` PreToolUse → banner 出現且響鈴
-- [ ] `ExitPlanMode` running → 同樣行為
-- [ ] PostToolUse／活動離開等待態 → banner 消失
-- [ ] 同一等待期間不重複響鈴；新的一次等待可再響
-- [ ] 非 TTY／不支援鈴時不崩潰
+- [x] `AskUserQuestion` PreToolUse → banner 出現且響鈴
+- [x] `ExitPlanMode` running → 同樣行為
+- [x] PostToolUse／活動離開等待態 → banner 消失
+- [x] 同一等待期間不重複響鈴；新的一次等待可再響
+- [x] 非 TTY／不支援鈴時不崩潰
 
 ### P2 Context 血條（v0.15）
 
@@ -93,9 +93,9 @@
 
 **驗收**
 
-- [ ] 有 usage 資料的 session 顯示血條；無資料時隱藏或 dim「尚無用量」
-- [ ] 數值隨 transcript tail 更新
-- [ ] 不引入可調設定 UI；閾值若需要則寫死並在 design 註明
+- [x] 有 usage 資料的 session 顯示血條；無資料時隱藏或 dim「尚無用量」
+- [x] 數值隨 transcript tail 更新
+- [x] 不引入可調設定 UI；閾值若需要則寫死並在 design 註明
 
 ### P3 Picker 忙碌色點（v0.15）
 
@@ -103,9 +103,9 @@
 
 **驗收**
 
-- [ ] 列表可見三態（或文件定義的等價集合）
-- [ ] 等你態與 P1 一致
-- [ ] 選到 session 進主畫面後色點定義不變（同源狀態機）
+- [x] 列表可見三態（或文件定義的等價集合）
+- [x] 等你態與 P1 一致
+- [x] 選到 session 進主畫面後色點定義不變（同源狀態機）
 
 ### P4 活動 timeline（v0.16）
 
@@ -309,7 +309,7 @@
 ## 建議實作順序（全要，但分批）
 
 ```text
-v0.15  P1 + P2 + P3
+v0.15  P1 + P2 + P3 ✅（`cursor/v0.15-presence`）
 v0.16  P4 + P5
 v0.17  T1 + T2
 v0.18  T3 + T4
