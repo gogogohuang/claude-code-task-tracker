@@ -138,7 +138,7 @@ export function TaskList({
 
       <Box marginTop={1}>
         <Text dimColor>
-          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 b 回列表 — 按 d 刪除 session — 按 q 離開
+          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 b 回列表 — 按 c 清除暫存 — 按 d 刪除 session — 按 q 離開
         </Text>
       </Box>
     </Box>

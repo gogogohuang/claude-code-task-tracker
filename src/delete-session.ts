@@ -5,7 +5,7 @@ export const DELETE_SESSION_CONFIRM_NOTICE = "再按 d 刪除這個 session（�
 export const DELETE_SESSION_RUNNING_NOTICE = "這個 session 正在執行中，無法刪除";
 
 export function shouldHandleDeleteKey(
-  view: "main" | "advice",
+  view: "main" | "advice" | "purge",
   selectedSessionId: string | undefined,
 ): boolean {
   return view === "main" && selectedSessionId !== undefined;

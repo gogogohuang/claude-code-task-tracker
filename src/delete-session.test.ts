@@ -15,6 +15,7 @@ import {
 test("shouldHandleDeleteKey 只在 main 且已選 session 時為 true", () => {
   assert.equal(shouldHandleDeleteKey("main", "s1"), true);
   assert.equal(shouldHandleDeleteKey("advice", "s1"), false);
+  assert.equal(shouldHandleDeleteKey("purge", "s1"), false);
   assert.equal(shouldHandleDeleteKey("main", undefined), false);
 });
 
