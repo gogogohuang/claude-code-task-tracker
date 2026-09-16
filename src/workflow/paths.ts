@@ -4,6 +4,22 @@ import { WorkflowRun } from "../schema.js";
 import { applyJournalToPhases, parseJournalEvents } from "./journal.js";
 import { parseWorkflowMeta } from "./parse-meta.js";
 
+/** Claude Code 主線 transcript 在 project 目錄：`{project}/{sessionId}.jsonl` */
+export function transcriptPathCandidates(claudeSessionDir: string, sessionId: string): string[] {
+  const sessionDirName = basename(claudeSessionDir);
+  if (sessionDirName === sessionId) {
+    return [join(dirname(claudeSessionDir), `${sessionId}.jsonl`), join(claudeSessionDir, `${sessionId}.jsonl`)];
+  }
+  return [join(claudeSessionDir, `${sessionId}.jsonl`), join(claudeSessionDir, sessionId, `${sessionId}.jsonl`)];
+}
+
+export function resolveTranscriptPath(claudeSessionDir: string, sessionId: string): string {
+  for (const candidate of transcriptPathCandidates(claudeSessionDir, sessionId)) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return transcriptPathCandidates(claudeSessionDir, sessionId)[0];
+}
+
 const RUN_ID = /wf_[a-z0-9-]{6,}/i;
 
 /** Claude Code 把 workflow journal 放在 transcript 同名目錄下：`{project}/{sessionId}/subagents/workflows/...` */

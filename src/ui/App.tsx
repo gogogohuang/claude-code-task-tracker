@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Box, Text, useApp, useInput, useStdin } from "ink";
 import chokidar from "chokidar";
 import { join } from "node:path";
-import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState } from "../store.js";
+import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, statePathForSession } from "../store.js";
 import { TaskState } from "../schema.js";
 import {
   addedSessionIds,
@@ -20,8 +20,11 @@ import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
 import { AdvicePanel } from "./AdvicePanel.js";
+import { CachePanel } from "./CachePanel.js";
+import { cachePanelLinesForSession } from "../cache-panel-lines.js";
 import { adviceForSession } from "../usage/advice-groups.js";
 import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
+import { resolveTranscriptPath } from "../workflow/paths.js";
 import {
   formatLastTurnBreakdownLine,
   formatOccupiedTokensLine,
@@ -34,6 +37,7 @@ import {
   deleteSessionState,
   isSessionBusy,
   shouldHandleDeleteKey,
+  type WatchView,
 } from "../delete-session.js";
 import { Advice } from "../usage/types.js";
 
@@ -99,7 +103,7 @@ export function App({
   const [browsing, setBrowsing] = useState(false);
   const [taskState, setTaskState] = useState<TaskState | null>(null);
   const [notice, setNotice] = useState<string | undefined>();
-  const [view, setView] = useState<"main" | "advice">("main");
+  const [view, setView] = useState<WatchView>("main");
   const [adviceList, setAdviceList] = useState<Advice[]>([]);
   const adviceWatchers = useRef<Map<string, ReturnType<typeof chokidar.watch>>>(new Map());
   const knownSessionIds = useRef<string[] | null>(null);
@@ -152,14 +156,19 @@ export function App({
         leaveSessionToList();
         return;
       }
-      if (input === "a" && view === "main") {
+      if (input === "a" && view === "main" && selectedSessionId) {
         setPendingDeleteSessionId(undefined);
         setView("advice");
         return;
       }
+      if (input === "s" && view === "main" && selectedSessionId) {
+        setPendingDeleteSessionId(undefined);
+        setView("cache");
+        return;
+      }
       if (input !== "b" && !key.escape) return;
       setPendingDeleteSessionId(undefined);
-      if (view === "advice") {
+      if (view === "advice" || view === "cache") {
         setView("main");
         setNotice(undefined);
         return;
@@ -231,7 +240,7 @@ export function App({
       if (watchers.has(sessionId)) continue;
       const state = readTaskState(sessionId);
       if (!state?.claudeSessionDir) continue;
-      const transcriptPath = join(state.claudeSessionDir, `${sessionId}.jsonl`);
+      const transcriptPath = resolveTranscriptPath(state.claudeSessionDir, sessionId);
 
       try {
         applyAdvice(prime(sessionId, transcriptPath).advice);
@@ -334,6 +343,13 @@ export function App({
         uncoveredHint={uncoveredHint}
       />,
     );
+  }
+
+  if (view === "cache" && selectedSessionId) {
+    const shortId = shortSessionId(selectedSessionId);
+    const latest = readTaskState(selectedSessionId) ?? taskState;
+    const lines = cachePanelLinesForSession(selectedSessionId, statePathForSession(selectedSessionId), latest);
+    return withNotice(notice, <CachePanel lines={lines} shortId={shortId} />);
   }
 
   if (!selectedSessionId) {

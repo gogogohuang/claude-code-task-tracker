@@ -1,13 +1,13 @@
 import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
-export const DELETE_SESSION_CONFIRM_NOTICE = "再按 d 刪除這個 session（按 b 取消）";
-export const DELETE_SESSION_RUNNING_NOTICE = "這個 session 正在執行中，無法刪除";
+export const DELETE_SESSION_CONFIRM_NOTICE =
+  "再按 d 清除此 session 暫存（不影響 Claude context；按 b 取消）";
+export const DELETE_SESSION_RUNNING_NOTICE = "這個 session 正在執行中，無法清除暫存";
 
-export function shouldHandleDeleteKey(
-  view: "main" | "advice",
-  selectedSessionId: string | undefined,
-): boolean {
+export type WatchView = "main" | "advice" | "cache";
+
+export function shouldHandleDeleteKey(view: WatchView, selectedSessionId: string | undefined): boolean {
   return view === "main" && selectedSessionId !== undefined;
 }
 
