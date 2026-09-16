@@ -22,6 +22,7 @@ import { SessionPicker } from "./SessionPicker.js";
 import { AdvicePanel } from "./AdvicePanel.js";
 import { CachePanel } from "./CachePanel.js";
 import { ToolsPanel } from "./ToolsPanel.js";
+import { HistoryPanel } from "./HistoryPanel.js";
 import { cachePanelLinesForSession } from "../cache-panel-lines.js";
 import { adviceForSession } from "../usage/advice-groups.js";
 import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
@@ -39,6 +40,8 @@ import {
   waitingBannerMessage,
   waitingEdgeKey,
 } from "../session-presence.js";
+import { pushActivityToTimeline, type TimelineEntry } from "../activity-timeline.js";
+import { formatStuckLabel, isActivityStuck } from "../activity-stuck.js";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
   DELETE_SESSION_RUNNING_NOTICE,
@@ -122,7 +125,9 @@ export function App({
   selectedSessionIdRef.current = selectedSessionId;
   // transcript refresh 常不產生 advice；這個 revision 讓 peek 驅動的 context 仍能重繪。
   const [usageRevision, setUsageRevision] = useState(0);
+  const [clockRevision, setClockRevision] = useState(0);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | undefined>();
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const lastWaitingKey = useRef<string | undefined>(undefined);
   const cwd = watchCwd ?? process.cwd();
 
@@ -135,6 +140,7 @@ export function App({
     setPendingDeleteSessionId(undefined);
     setView("main");
     lastWaitingKey.current = undefined;
+    setTimeline([]);
   };
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
@@ -184,9 +190,14 @@ export function App({
         setView("tools");
         return;
       }
+      if (input === "h" && view === "main" && selectedSessionId) {
+        setPendingDeleteSessionId(undefined);
+        setView("history");
+        return;
+      }
       if (input !== "b" && !key.escape) return;
       setPendingDeleteSessionId(undefined);
-      if (view === "advice" || view === "cache" || view === "tools") {
+      if (view === "advice" || view === "cache" || view === "tools" || view === "history") {
         setView("main");
         setNotice(undefined);
         return;
@@ -365,6 +376,30 @@ export function App({
     lastWaitingKey.current = nextKey;
   }, [selectedSessionId, taskState?.activity?.toolName, taskState?.activity?.phase, taskState?.activity?.at]);
 
+  useEffect(() => {
+    setTimeline([]);
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    const activity = taskState?.activity;
+    if (!selectedSessionId || !activity) return;
+    setTimeline((prev) =>
+      pushActivityToTimeline(prev, {
+        at: activity.at,
+        toolName: activity.toolName,
+        phase: activity.phase,
+        summary: activity.summary,
+      }),
+    );
+  }, [selectedSessionId, taskState?.activity?.at, taskState?.activity?.phase, taskState?.activity?.toolName, taskState?.activity?.summary]);
+
+  useEffect(() => {
+    if (!selectedSessionId || taskState?.activity?.phase !== "running") return;
+    if (isWaitingForUser(taskState.activity)) return;
+    const timer = setInterval(() => setClockRevision((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [selectedSessionId, taskState?.activity?.phase, taskState?.activity?.toolName, taskState?.activity?.at]);
+
   const waitingNotice =
     selectedSessionId && taskState?.activity && isWaitingForUser(taskState.activity)
       ? waitingBannerMessage(taskState.activity.toolName)
@@ -408,6 +443,13 @@ export function App({
     return withNotice(
       topNotice,
       <ToolsPanel lines={lines} shortId={shortId} emptyHint={uncoveredHint} />,
+    );
+  }
+
+  if (view === "history" && selectedSessionId) {
+    return withNotice(
+      topNotice,
+      <HistoryPanel entries={timeline} shortId={shortSessionId(selectedSessionId)} />,
     );
   }
 
@@ -480,6 +522,7 @@ export function App({
   }
 
   void usageRevision; // transcript 推進時 bump，確保 peek 後的 context 會重繪
+  void clockRevision; // running 時每秒 bump，重算卡住標籤
   const usage = peek(taskState.sessionId);
   const lastTurn = lastTurnUsageFromStats(usage);
   const contextSnapshot = {
@@ -490,14 +533,19 @@ export function App({
   const toolInventorySummary = usage?.toolInventory
     ? formatToolInventorySummary(usage.toolInventory)
     : undefined;
+  const stuckLabel =
+    taskState.activity && isActivityStuck({ activity: taskState.activity })
+      ? formatStuckLabel(taskState.activity.at)
+      : undefined;
 
   return withNotice(
-    notice,
+    topNotice,
     <TaskList
       state={taskState}
       current={sameCwd(taskState.cwd, cwd)}
       contextSnapshot={contextSnapshot}
       toolInventorySummary={toolInventorySummary}
+      stuckLabel={stuckLabel}
     />,
   );
 }
