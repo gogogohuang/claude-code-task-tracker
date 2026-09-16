@@ -57,6 +57,7 @@ export function TaskList({
   current,
   contextSnapshot,
   toolInventorySummary,
+  stuckLabel,
 }: {
   state: TaskState;
   current?: boolean;
@@ -66,6 +67,7 @@ export function TaskList({
     gauge?: { bar: string; color: "green" | "yellow" | "red" };
   };
   toolInventorySummary?: string;
+  stuckLabel?: string;
 }) {
   const { isRawModeSupported } = useStdin();
   const rows = taskRows(state);
@@ -75,7 +77,9 @@ export function TaskList({
   const snapshotExtraRows =
     (contextSnapshot
       ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) + (contextSnapshot.gauge ? 1 : 0)
-      : 0) + (toolInventorySummary ? 1 : 0);
+      : 0) +
+    (toolInventorySummary ? 1 : 0) +
+    (stuckLabel ? 1 : 0);
   const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + snapshotExtraRows);
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
@@ -125,8 +129,9 @@ export function TaskList({
       ) : null}
 
       {state.activity ? (
-        <Box marginBottom={1}>
+        <Box marginBottom={1} flexDirection="column">
           <ActivityLine activity={state.activity} />
+          {stuckLabel ? <Text color="yellow">⚠ {stuckLabel}</Text> : null}
         </Box>
       ) : null}
 
@@ -158,7 +163,7 @@ export function TaskList({
 
       <Box marginTop={1}>
         <Text dimColor>
-          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 s 暫存 — 按 a 用量 — 按 t 工具 — 按 b 回列表 — 按 d 清除暫存 — 按 q 離開
+          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 s 暫存 — 按 a 用量 — 按 t 工具 — 按 h 活動紀錄 — 按 b 回列表 — 按 d 清除暫存 — 按 q 離開
         </Text>
       </Box>
     </Box>

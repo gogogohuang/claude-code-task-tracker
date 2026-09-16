@@ -102,11 +102,11 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回專案列表、按 `s` 檢視目前 session 的 task-tracker 暫存 JSON、按 `d` 清除目前 session 暫存（需再按一次確認；不影響 Claude context；正在執行工具時無法清除）、按 `a` 查看用量建議、↑↓ 在清單裡捲動（一次一頁視窗，不會整份往下刷）。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回專案列表、按 `s` 檢視目前 session 的 task-tracker 暫存 JSON、按 `d` 清除目前 session 暫存（需再按一次確認；不影響 Claude context；正在執行工具時無法清除）、按 `a` 查看用量建議、按 `h` 查看本 session 活動紀錄（僅記憶體，最多約 40 筆；重啟或換 session 會清空）、↑↓ 在清單裡捲動（一次一頁視窗，不會整份往下刷）。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對 1M 窗口的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
-`AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。專案／session 列表前綴：`!` 等你、
+`AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。專案／session 列表前綴：`!` 等你、
 `●` 忙碌、`○` 閒置。
 
 想看這個專案會進 prompt 的東西：
@@ -168,6 +168,7 @@ src/
     ├── SessionPicker.tsx     # 多 session 時的選單
     ├── TaskList.tsx          # task 清單、活動句與進度條
     ├── AdvicePanel.tsx       # 用量建議面板
+    ├── HistoryPanel.tsx      # 活動 timeline（按 h）
     ├── InspectApp.tsx        # inspect 的互動
     └── InspectView.tsx       # inspect 的排版
 ```
