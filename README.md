@@ -82,6 +82,14 @@ task-tracker watch --session <session_id>
 task-tracker version
 ```
 
+一行摘要目前偏好 session（不啟動 TUI；給 tmux／腳本用）。無 session 時印 `none`：
+
+```bash
+task-tracker status                 # idle · e9efe088 · ○ 3/5 · 正在讀取 …
+task-tracker status --session <id>
+task-tracker status --json
+```
+
 要列出或檢視 **task-tracker session 暫存**（`~/.claude-task-tracker/<id>.json`），預設只列目前專案。**不會**動 Claude Code 的 transcript，也**不會**反映或改變 context window。
 
 ```bash
@@ -106,7 +114,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對 1M 窗口的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
-`AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。專案／session 列表前綴：`!` 等你、
+`AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。有 workflow 時會多一條 Phase 進度條；活動列下方可顯示「下一個」pending 任務。若約 5 分鐘無更新且沒有進行中的工作，會提示「Session 似乎已結束」。專案／session 列表前綴：`!` 等你、
 `●` 忙碌、`○` 閒置。
 
 想看這個專案會進 prompt 的東西：
