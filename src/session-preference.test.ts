@@ -57,7 +57,7 @@ test("sessionChoices 沒有 cwd 對得上時，最新的標 最近", () => {
   assert.equal(items[0].label, "newer-ot  (最近) · 剛剛");
 });
 
-test("groupSessionsByProject 依 cwd 分組，當下專案排第一", () => {
+test("groupSessionsByProject 依 cwd 分組，當下專案排第一，略過沒有 cwd 的 session", () => {
   const groups = groupSessionsByProject(
     [
       ...sessions,
@@ -68,8 +68,17 @@ test("groupSessionsByProject 依 cwd 分組，當下專案排第一", () => {
   );
   assert.deepEqual(
     groups.map((group) => `${group.label}:${group.sessions.map((s) => s.sessionId).join(",")}`),
-    ["b:current,b2", "c:newer-other", "a:old", "未知專案:orphan"],
+    ["b:current,b2", "c:newer-other", "a:old"],
   );
+});
+
+test("projectChoices 不列出沒有 cwd 的未知專案", () => {
+  const items = projectChoices(
+    [...sessions, { sessionId: "orphan", updatedAt: "2026-09-15T00:00:00.000Z" }],
+    "/proj/b",
+  );
+  assert.equal(items.every((item) => !item.label.includes("未知專案")), true);
+  assert.equal(items.some((item) => item.value === ""), false);
 });
 
 test("projectChoices 標出目前專案與 session 數", () => {
@@ -77,6 +86,16 @@ test("projectChoices 標出目前專案與 session 數", () => {
   assert.equal(items[0].label, "b  (1 · 目前)");
   assert.equal(items[0].value, "/proj/b");
   assert.ok(items.some((item) => item.label === "c  (1)"));
+});
+
+test("pickPreferredSession 與 shouldAutoSelectSession 略過沒有 cwd 的 session", () => {
+  const withOrphan = [
+    { sessionId: "orphan", updatedAt: "2026-09-15T09:00:00.000Z" },
+    ...sessions,
+  ];
+  assert.equal(pickPreferredSession(withOrphan, "/elsewhere"), "newer-other");
+  assert.equal(pickPreferredSession([{ sessionId: "orphan", updatedAt: "t" }], "/proj/a"), undefined);
+  assert.equal(shouldAutoSelectSession([{ sessionId: "orphan", updatedAt: "t" }], "/proj/a"), false);
 });
 
 test("sessionChoicesInProject 只列出該專案，不再重複專案名", () => {

@@ -24,7 +24,6 @@ export interface ProjectGroup {
 }
 
 const UNKNOWN_PROJECT_KEY = "";
-const UNKNOWN_PROJECT_LABEL = "未知專案";
 
 export function projectKeyFor(cwd?: string): string {
   return cwd ? resolve(cwd) : UNKNOWN_PROJECT_KEY;
@@ -39,16 +38,24 @@ function newestFirst(left: SessionHint, right: SessionHint): number {
   return right.updatedAt.localeCompare(left.updatedAt);
 }
 
+/** 沒有 cwd 的狀態檔（常來自其他工具）不進專案列表、也不自動選。 */
+function sessionsWithCwd(sessions: SessionHint[]): Array<SessionHint & { cwd: string }> {
+  return sessions.filter((session): session is SessionHint & { cwd: string } => Boolean(session.cwd));
+}
+
 export function pickPreferredSession(sessions: SessionHint[], watchCwd: string): string | undefined {
-  if (sessions.length === 0) return undefined;
-  const matching = sessions.filter((session) => sameCwd(session.cwd, watchCwd));
-  const pool = matching.length > 0 ? matching : sessions;
+  const known = sessionsWithCwd(sessions);
+  if (known.length === 0) return undefined;
+  const matching = known.filter((session) => sameCwd(session.cwd, watchCwd));
+  const pool = matching.length > 0 ? matching : known;
   return [...pool].sort(newestFirst)[0]?.sessionId;
 }
 
 export function shouldAutoSelectSession(sessions: SessionHint[], watchCwd: string): boolean {
-  if (sessions.length <= 1) return true;
-  return sessions.some((session) => sameCwd(session.cwd, watchCwd));
+  const known = sessionsWithCwd(sessions);
+  if (known.length === 0) return false;
+  if (known.length <= 1) return true;
+  return known.some((session) => sameCwd(session.cwd, watchCwd));
 }
 
 const LABEL_PART_LIMIT = 32;
@@ -90,7 +97,7 @@ export function sessionChoices(sessions: SessionHint[], watchCwd: string, now: n
 
 export function groupSessionsByProject(sessions: SessionHint[], watchCwd: string): ProjectGroup[] {
   const groups = new Map<string, ProjectGroup>();
-  for (const session of sessions) {
+  for (const session of sessionsWithCwd(sessions)) {
     const key = projectKeyFor(session.cwd);
     const existing = groups.get(key);
     if (existing) {
@@ -99,7 +106,7 @@ export function groupSessionsByProject(sessions: SessionHint[], watchCwd: string
     }
     groups.set(key, {
       key,
-      label: session.cwd ? basename(session.cwd) : UNKNOWN_PROJECT_LABEL,
+      label: basename(session.cwd),
       cwd: session.cwd,
       sessions: [session],
     });
@@ -111,7 +118,6 @@ export function groupSessionsByProject(sessions: SessionHint[], watchCwd: string
     const leftCurrent = sameCwd(left.cwd, watchCwd);
     const rightCurrent = sameCwd(right.cwd, watchCwd);
     if (leftCurrent !== rightCurrent) return leftCurrent ? -1 : 1;
-    if (!left.cwd !== !right.cwd) return left.cwd ? -1 : 1;
     return newestFirst(left.sessions[0], right.sessions[0]);
   });
 }

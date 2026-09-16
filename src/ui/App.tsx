@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Box, Text, useApp, useInput, useStdin } from "ink";
-import SelectInput from "ink-select-input";
 import chokidar from "chokidar";
 import { join } from "node:path";
-import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, writeTaskState } from "../store.js";
+import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState } from "../store.js";
 import { TaskState } from "../schema.js";
 import {
   addedSessionIds,
@@ -36,19 +35,7 @@ import {
   isSessionBusy,
   shouldHandleDeleteKey,
 } from "../delete-session.js";
-import {
-  PURGE_DONE_NOTICE,
-  type PurgeIntensity,
-  purgeSessionState,
-  shouldOpenPurgeMenu,
-  withoutSessionAdvice,
-} from "../purge-session.js";
 import { Advice } from "../usage/types.js";
-
-const PURGE_MENU_ITEMS: { label: string; value: PurgeIntensity }[] = [
-  { label: "1 · 輕清 — 建議 + 已完成任務", value: "light" },
-  { label: "2 · 重清 — 建議 + 全部任務清單", value: "heavy" },
-];
 
 function withNotice(notice: string | undefined, child: ReactNode) {
   if (!notice) return child;
@@ -112,7 +99,7 @@ export function App({
   const [browsing, setBrowsing] = useState(false);
   const [taskState, setTaskState] = useState<TaskState | null>(null);
   const [notice, setNotice] = useState<string | undefined>();
-  const [view, setView] = useState<"main" | "advice" | "purge">("main");
+  const [view, setView] = useState<"main" | "advice">("main");
   const [adviceList, setAdviceList] = useState<Advice[]>([]);
   const adviceWatchers = useRef<Map<string, ReturnType<typeof chokidar.watch>>>(new Map());
   const knownSessionIds = useRef<string[] | null>(null);
@@ -133,16 +120,6 @@ export function App({
     setView("main");
   };
 
-  const applyPurge = (intensity: PurgeIntensity) => {
-    if (!selectedSessionId || !taskState) return;
-    const next = purgeSessionState(taskState, intensity);
-    writeTaskState(next);
-    setTaskState(withLiveWorkflow(next));
-    setAdviceList((prev) => withoutSessionAdvice(prev, selectedSessionId));
-    setNotice(PURGE_DONE_NOTICE[intensity]);
-    setView("main");
-  };
-
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
   // 注意：isRawModeSupported 在非 TTY 時是 undefined 而非 false，Ink 內部用
   // `=== false` 判斷，所以這裡一定要強制轉成布林值。
@@ -150,22 +127,6 @@ export function App({
     (input, key) => {
       if (input === "q") {
         exit();
-        return;
-      }
-      if (view === "purge") {
-        if (input === "1") {
-          applyPurge("light");
-          return;
-        }
-        if (input === "2") {
-          applyPurge("heavy");
-          return;
-        }
-        if (input === "b" || key.escape) {
-          setView("main");
-          setNotice(undefined);
-          return;
-        }
         return;
       }
       if (input === "d" && shouldHandleDeleteKey(view, selectedSessionId) && selectedSessionId) {
@@ -189,12 +150,6 @@ export function App({
         forget(selectedSessionId);
         setAdviceList((prev) => prev.filter((advice) => advice.sessionId !== selectedSessionId));
         leaveSessionToList();
-        return;
-      }
-      if (input === "c" && shouldOpenPurgeMenu(view, selectedSessionId)) {
-        setPendingDeleteSessionId(undefined);
-        setNotice(undefined);
-        setView("purge");
         return;
       }
       if (input === "a" && view === "main") {
@@ -381,24 +336,6 @@ export function App({
     );
   }
 
-  if (view === "purge") {
-    return withNotice(
-      notice,
-      <Box flexDirection="column">
-        <Box marginBottom={1}>
-          <Text>清除暫存 · 選強度</Text>
-        </Box>
-        <SelectInput
-          items={PURGE_MENU_ITEMS}
-          onSelect={(item) => applyPurge(item.value)}
-        />
-        <Box marginTop={1}>
-          <Text dimColor>↑↓ 或 1/2 選擇 · Enter 執行 · 按 b 取消</Text>
-        </Box>
-      </Box>,
-    );
-  }
-
   if (!selectedSessionId) {
     if (sessionIds.length === 0) {
       return withNotice(
@@ -417,6 +354,21 @@ export function App({
     }
     const hints = hintsFor(sessionIds);
     const groups = groupSessionsByProject(hints, cwd);
+    if (groups.length === 0) {
+      return withNotice(
+        notice,
+        <Box flexDirection="column">
+          <Text dimColor>還沒有偵測到任何 session 資料。</Text>
+          {(emptyHint ?? [
+            "請確認已執行「task-tracker init」，且 Claude Code 正在執行中。",
+          ]).map((line) => (
+            <Text key={line} dimColor>
+              {line}
+            </Text>
+          ))}
+        </Box>,
+      );
+    }
     if (!projectKey) {
       return withNotice(
         notice,
