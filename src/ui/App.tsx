@@ -354,6 +354,21 @@ export function App({
     }
     const hints = hintsFor(sessionIds);
     const groups = groupSessionsByProject(hints, cwd);
+    if (groups.length === 0) {
+      return withNotice(
+        notice,
+        <Box flexDirection="column">
+          <Text dimColor>還沒有偵測到任何 session 資料。</Text>
+          {(emptyHint ?? [
+            "請確認已執行「task-tracker init」，且 Claude Code 正在執行中。",
+          ]).map((line) => (
+            <Text key={line} dimColor>
+              {line}
+            </Text>
+          ))}
+        </Box>,
+      );
+    }
     if (!projectKey) {
       return withNotice(
         notice,
