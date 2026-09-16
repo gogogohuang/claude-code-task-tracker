@@ -56,17 +56,20 @@ export function TaskList({
   state,
   current,
   contextSnapshot,
+  toolInventorySummary,
 }: {
   state: TaskState;
   current?: boolean;
   contextSnapshot?: { occupiedLine: string; breakdownLine?: string };
+  toolInventorySummary?: string;
 }) {
   const { isRawModeSupported } = useStdin();
   const rows = taskRows(state);
   const done = rows.filter((r) => r.status === "completed").length;
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
-  const snapshotExtraRows = contextSnapshot ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) : 0;
+  const snapshotExtraRows =
+    (contextSnapshot ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) : 0) + (toolInventorySummary ? 1 : 0);
   const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + snapshotExtraRows);
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
@@ -118,6 +121,14 @@ export function TaskList({
         </Box>
       ) : null}
 
+      {toolInventorySummary ? (
+        <Box marginBottom={1}>
+          <Text dimColor>
+            {toolInventorySummary} — 按 t 查看
+          </Text>
+        </Box>
+      ) : null}
+
       {rows.length > 0 ? (
         <>
           <Box marginBottom={1}>
@@ -138,7 +149,7 @@ export function TaskList({
 
       <Box marginTop={1}>
         <Text dimColor>
-          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 s 暫存 — 按 a 用量 — 按 b 回列表 — 按 d 清除暫存 — 按 q 離開
+          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 s 暫存 — 按 a 用量 — 按 t 工具 — 按 b 回列表 — 按 d 清除暫存 — 按 q 離開
         </Text>
       </Box>
     </Box>

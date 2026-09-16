@@ -1,4 +1,5 @@
 import { AccumulateStep, ParsedEvent, SessionUsageStats } from "./types.js";
+import { emptyToolInventory, recordToolUse } from "./tool-inventory.js";
 
 const RECENT_MESSAGE_ID_LIMIT = 30;
 
@@ -17,6 +18,14 @@ export function accumulate(
 
     if (event.userText !== undefined && stats.firstPrompt === undefined) {
       stats = { ...stats, firstPrompt: event.userText };
+    }
+
+    if (event.toolUseName) {
+      const statsBefore = stats;
+      const toolInventory = recordToolUse(stats.toolInventory ?? emptyToolInventory(), event.toolUseName);
+      stats = { ...stats, toolInventory };
+      steps.push({ event, statsBefore, statsAfter: stats });
+      continue;
     }
 
     if (event.toolResultChars) {
