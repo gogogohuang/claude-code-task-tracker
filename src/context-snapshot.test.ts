@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   activityLineLabel,
+  contextOccupancyPct,
+  formatContextGaugeBar,
   formatLastTurnBreakdownLine,
   formatOccupiedTokensLine,
   formatSnapshotActivityLine,
@@ -11,6 +13,20 @@ import { Activity } from "./schema.js";
 
 test("formatOccupiedTokensLine 用 1,000,000 當分母並標「約」", () => {
   assert.equal(formatOccupiedTokensLine(686300), "窗口約 686,300 token（約 69%）");
+});
+
+test("formatContextGaugeBar 沒有用量時不畫", () => {
+  assert.equal(formatContextGaugeBar(undefined), undefined);
+});
+
+test("formatContextGaugeBar 依佔用比例上色與填滿", () => {
+  assert.equal(contextOccupancyPct(500_000), 50);
+  assert.deepEqual(formatContextGaugeBar(500_000), {
+    bar: `${"█".repeat(12)}${"░".repeat(12)}`,
+    color: "green",
+  });
+  assert.equal(formatContextGaugeBar(800_000)?.color, "yellow");
+  assert.equal(formatContextGaugeBar(950_000)?.color, "red");
 });
 
 test("formatOccupiedTokensLine 沒有用量資料", () => {
