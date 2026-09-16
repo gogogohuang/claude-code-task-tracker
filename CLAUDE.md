@@ -1,5 +1,14 @@
 # claude-code-task-tracker
 
+## 開分支
+
+開新分支時，前綴用**目前登入的 GitHub account name**，不要寫死 `cursor/` 或其他固定字串。
+
+1. 先查帳號：`gh api user -q .login`（或 `gh auth status` 看 Active account）
+2. 分支名：`<login>/<簡短描述>`，例如 `gogogohuang/session-cache-show`
+
+帳號會隨 `gh auth switch` 改變；每次開分支都重新查，不要沿用舊對話裡的前綴。
+
 ## PR 發版
 
 每個要開的 PR 都先升版，完成條件是 `package.json` 的 `version` 與 PR 的 base branch 不同，且 README 的「目前版本」寫成同一個號碼。

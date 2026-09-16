@@ -15,6 +15,7 @@ import {
 test("shouldHandleDeleteKey 只在 main 且已選 session 時為 true", () => {
   assert.equal(shouldHandleDeleteKey("main", "s1"), true);
   assert.equal(shouldHandleDeleteKey("advice", "s1"), false);
+  assert.equal(shouldHandleDeleteKey("cache", "s1"), false);
   assert.equal(shouldHandleDeleteKey("main", undefined), false);
 });
 
@@ -25,7 +26,10 @@ test("armOrConfirmDelete 第一次 arm，同一 session 第二次 confirm", () =
 });
 
 test("DELETE_SESSION_CONFIRM_NOTICE 文案固定", () => {
-  assert.equal(DELETE_SESSION_CONFIRM_NOTICE, "再按 d 刪除這個 session（按 b 取消）");
+  assert.equal(
+    DELETE_SESSION_CONFIRM_NOTICE,
+    "再按 d 清除此 session 暫存（不影響 Claude context；按 b 取消）",
+  );
 });
 
 test("isSessionBusy 只在 activity.phase 為 running 時為 true", () => {
@@ -36,7 +40,7 @@ test("isSessionBusy 只在 activity.phase 為 running 時為 true", () => {
 });
 
 test("DELETE_SESSION_RUNNING_NOTICE 文案固定", () => {
-  assert.equal(DELETE_SESSION_RUNNING_NOTICE, "這個 session 正在執行中，無法刪除");
+  assert.equal(DELETE_SESSION_RUNNING_NOTICE, "這個 session 正在執行中，無法清除暫存");
 });
 
 test("deleteSessionState 刪掉指定 json，不存在則回 false", () => {

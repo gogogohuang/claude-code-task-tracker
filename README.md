@@ -6,7 +6,7 @@
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
 目前在做什麼，例如「正在讀取 src/schema.ts」。
 
-目前版本：**v0.12.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.13.2**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 ## 運作原理
 
 1. `task-tracker init` 會在 `~/.claude/settings.json` 註冊 `SessionStart`、
@@ -81,17 +81,27 @@ task-tracker watch --session <session_id>
 task-tracker version
 ```
 
-要清掉本機累積的 session 暫存（`~/.claude-task-tracker/<id>.json`），預設只清目前專案：
+要列出或檢視 **task-tracker session 暫存**（`~/.claude-task-tracker/<id>.json`），預設只列目前專案。**不會**動 Claude Code 的 transcript，也**不會**反映或改變 context window。
 
 ```bash
-task-tracker clear              # 只清 cwd 對得上的 session
-task-tracker clear --all        # 清全部專案的 session 狀態
+task-tracker show                           # 列出目前專案的 session 暫存
+task-tracker show --all                     # 列出全部專案
+task-tracker show --session <id>            # 檢視內容（pretty JSON）
+task-tracker show --session <id> --path     # 只印檔案路徑
+task-tracker show --session <id> --raw      # 略過解析，印原始檔
+```
+
+要清掉暫存（同樣不影響 Claude context）：
+
+```bash
+task-tracker clear              # 只清 cwd 對得上的 session 暫存
+task-tracker clear --all        # 清全部專案的 session 暫存
 task-tracker clear --log        # 一併清 hook-debug.log
 ```
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回專案列表、按 `d` 刪除目前 session（需再按一次確認；正在執行時無法刪除）、按 `a` 查看用量建議、↑↓ 在清單裡捲動（一次一頁視窗，不會整份往下刷）。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回專案列表、按 `s` 檢視目前 session 的 task-tracker 暫存 JSON、按 `d` 清除目前 session 暫存（需再按一次確認；不影響 Claude context；正在執行工具時無法清除）、按 `a` 查看用量建議、↑↓ 在清單裡捲動（一次一頁視窗，不會整份往下刷）。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。
 
 想看這個專案會進 prompt 的東西：

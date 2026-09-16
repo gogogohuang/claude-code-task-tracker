@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { render } from "ink";
 import { Command } from "commander";
 import { runClear } from "./commands/clear.js";
+import { runShow } from "./commands/show.js";
 import { runInit } from "./commands/init.js";
 import { installTrackerHooks, resolveBundledHookPath } from "./install-hooks.js";
 import { defaultManagedPolicyPath } from "./inspect/paths.js";
@@ -40,9 +41,27 @@ program
   });
 
 program
+  .command("show")
+  .description("列出或檢視 session 暫存狀態檔（~/.claude-task-tracker；不影響 Claude context）")
+  .option("--session <id>", "要檢視的 session（可填短 id 前綴）")
+  .option("--all", "列出時包含全部專案的 session")
+  .option("--path", "只印暫存檔路徑")
+  .option("--json", "單行 JSON（預設為 pretty JSON）")
+  .option("--raw", "略過解析，直接印磁碟上的原始內容")
+  .action((opts: { session?: string; all?: boolean; path?: boolean; json?: boolean; raw?: boolean }) => {
+    process.exitCode = runShow({
+      session: opts.session,
+      all: opts.all,
+      path: opts.path,
+      compact: opts.json,
+      raw: opts.raw,
+    });
+  });
+
+program
   .command("clear")
-  .description("清除 session 暫存狀態檔（預設只清目前專案）")
-  .option("--all", "清除全部專案的 session 狀態檔")
+  .description("清除 task-tracker session 暫存（不影響 Claude context；預設只清目前專案）")
+  .option("--all", "清除全部專案的 session 暫存")
   .option("--log", "一併清除 hook-debug.log")
   .action((opts: { all?: boolean; log?: boolean }) => {
     runClear({ all: opts.all, log: opts.log });
