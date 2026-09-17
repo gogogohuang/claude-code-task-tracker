@@ -26,8 +26,9 @@
    `install-hooks.ts` 的 `writeSettingsFile` 與 `store.ts` 的 `writeTaskState` 都改用它。
 5. ~~**taskDoneTotal 誤算 deleted task**~~（`src/session-ended.ts:24-31`）
    ✅ 已修：`taskDoneTotal` 過濾掉 `status === "deleted"` 的 task，不計入分子也不計入分母。
-6. **settings.json 缺 schema 驗證**（`src/install-hooks.ts:61-68`, `91-98`）
-   對讀出的既有設定做形狀檢查，不合法時走既有的友善錯誤路徑而不是讓 `TypeError` 冒出。
+6. ~~**settings.json 缺 schema 驗證**~~（`src/install-hooks.ts:61-68`, `91-98`）
+   ✅ 已修：新增 zod 的 `ClaudeSettingsSchema`（只驗證 `stripTrackerHooks` 實際會走訪的已知
+   hook 事件形狀，其餘欄位放行），`readSettingsFile` 在 `safeParse` 失敗時走既有的友善錯誤路徑。
 7. **activity-timeline dedup 鍵不完整**（`src/activity-timeline.ts:16-19`）
    dedup key 加上 `toolName`。
 

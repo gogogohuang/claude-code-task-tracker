@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { writeFileAtomic } from "./fs-atomic.js";
 
 export const HOOK_MATCHER = "*";
@@ -32,6 +33,28 @@ export type HookScope = "user" | "project";
 
 const MATCHER_EVENTS = ["PreToolUse", "PostToolUse", "SessionStart"] as const;
 const BARE_EVENTS = ["TaskCreated", "TaskCompleted"] as const;
+
+const ClaudeHookEntrySchema = z
+  .object({ type: z.string(), command: z.string(), timeout: z.number().optional() })
+  .passthrough();
+const ClaudeHookGroupSchema = z
+  .object({ matcher: z.string().optional(), hooks: z.array(ClaudeHookEntrySchema) })
+  .passthrough();
+/** 只驗證 stripTrackerHooks 實際會走訪的已知 hook 事件；其他任意欄位放行。 */
+const ClaudeSettingsSchema = z
+  .object({
+    hooks: z
+      .object({
+        PreToolUse: z.array(ClaudeHookGroupSchema).optional(),
+        PostToolUse: z.array(ClaudeHookGroupSchema).optional(),
+        SessionStart: z.array(ClaudeHookGroupSchema).optional(),
+        TaskCreated: z.array(ClaudeHookGroupSchema).optional(),
+        TaskCompleted: z.array(ClaudeHookGroupSchema).optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
 
 export function isTrackerHookCommand(command: string): boolean {
   return command.includes("task-tracker-hook");
@@ -91,11 +114,16 @@ export function mergeTrackerHooks(settings: ClaudeSettings, hookCommand: string)
 
 export function readSettingsFile(settingsPath: string): { ok: true; settings: ClaudeSettings } | { ok: false; error: string } {
   if (!existsSync(settingsPath)) return { ok: true, settings: {} };
+  const parseError = { ok: false as const, error: `無法解析既有的 ${settingsPath}，請手動檢查後再執行 init。` };
+  let parsed: unknown;
   try {
-    return { ok: true, settings: JSON.parse(readFileSync(settingsPath, "utf-8")) as ClaudeSettings };
+    parsed = JSON.parse(readFileSync(settingsPath, "utf-8"));
   } catch {
-    return { ok: false, error: `無法解析既有的 ${settingsPath}，請手動檢查後再執行 init。` };
+    return parseError;
   }
+  const result = ClaudeSettingsSchema.safeParse(parsed);
+  if (!result.success) return parseError;
+  return { ok: true, settings: result.data as ClaudeSettings };
 }
 
 export function writeSettingsFile(settingsPath: string, settings: ClaudeSettings): void {

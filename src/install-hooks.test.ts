@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildHookCommand,
   isTrackerHookCommand,
   mergeTrackerHooks,
+  readSettingsFile,
   writeSettingsFile,
 } from "./install-hooks.js";
 
@@ -112,6 +113,38 @@ test("writeSettingsFile 寫完只留下最終檔案，內容正確", () => {
 
     const entries = readdirSync(join(dir, ".claude"));
     assert.deepEqual(entries, ["settings.json"], `不該留下 tmp 檔: ${entries.join(",")}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readSettingsFile 偵測合法 JSON 但形狀不對的 hooks，回友善錯誤而不是留給呼叫端丟例外", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tt-settings-schema-"));
+  try {
+    const settingsPath = join(dir, "settings.json");
+    writeFileSync(settingsPath, JSON.stringify({ hooks: { PreToolUse: { not: "an array" } } }));
+
+    const result = readSettingsFile(settingsPath);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /手動檢查/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readSettingsFile 形狀正確的既有設定仍正常讀入", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tt-settings-schema-ok-"));
+  try {
+    const settingsPath = join(dir, "settings.json");
+    const settings = {
+      theme: "dark",
+      hooks: { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "x" }] }] },
+    };
+    writeFileSync(settingsPath, JSON.stringify(settings));
+
+    const result = readSettingsFile(settingsPath);
+    assert.equal(result.ok, true);
+    if (result.ok) assert.deepEqual(result.settings, settings);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
