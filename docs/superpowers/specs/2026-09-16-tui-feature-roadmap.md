@@ -1,8 +1,8 @@
 # TUI 功能總 Roadmap
 
 日期：2026-09-16（切片重評後再整合）  
-狀態：進行中（感知 P1–P5 ✅；v0.17 進度／status ✅；v0.18 Context 衛生 ✅；v0.19 多 session 實作中；C1 ❌）  
-基準版本：v0.17.1（功能合入後再依 release 規則 bump）  
+狀態：進行中（感知～v0.19 ✅；v0.20 split design 已核准；C1 ❌）  
+基準版本：v0.19.0（功能合入後再依 release 規則 bump）  
 
 ## 問題／目標
 
@@ -61,11 +61,11 @@
 | C2 | `inspect` 熱力 | Context | ✅ v0.18 | |
 | C3 | Session 減肥清單 | Context | ✅ v0.18 | |
 | C4 | 開場底子對照 | Context | ✅ v0.18 | |
-| M1 | Picker 資訊密度 | 多 session | **v0.19** | 實作中 |
-| M3 | 釘選 session | 多 session | **v0.19** | 實作中 |
-| M2 | 跨 session 鈴彙總 | 多 session | **v0.19** | 實作中 |
-| E2 | 桌面通知（可選） | CLI | **v0.19** | 實作中 |
-| M4 | 雙欄 split | 多 session | **v0.20** | 單獨一版（最重） |
+| M1 | Picker 資訊密度 | 多 session | ✅ v0.19 | |
+| M3 | 釘選 session | 多 session | ✅ v0.19 | |
+| M2 | 跨 session 鈴彙總 | 多 session | ✅ v0.19 | |
+| E2 | 桌面通知（可選） | CLI | ✅ v0.19 | |
+| M4 | 雙欄 split | 多 session | **v0.20** | 實作中 |
 | T3 | Task 依賴圖 | 進度板 | **v0.21／暫緩** | blocks 不穩；可跳過 |
 | E3 | 活動句語系 | CLI | **v0.21** | 可提早插 patch |
 | E4 | 複製 id／路徑 | CLI | **v0.21** | 可提早插 patch |
@@ -77,12 +77,9 @@
 ✅ v0.17        進度板 + status（E1 + T1 + T2 + T4）
 ❌ C1
 ✅ v0.18        Context 衛生（C2 + C3 + C4）
+✅ v0.19        多 session 監控（M1 + M2 + M3 + E2）
 
-→  v0.19  多 session 監控（不含 split）· design 已核准
-         M1 + M2 + M3 + E2
-
-→  v0.20  雙欄 split
-         M4
+→  v0.20  雙欄 split（M4）· design 已核准
 
 →  v0.21  收尾／可選
          T3（可暫緩）+ E3 + E4

@@ -5,10 +5,10 @@ export const DELETE_SESSION_CONFIRM_NOTICE =
   "再按 d 清除此 session 暫存（不影響 Claude context；按 b 取消）";
 export const DELETE_SESSION_RUNNING_NOTICE = "這個 session 正在執行中，無法清除暫存";
 
-export type WatchView = "main" | "advice" | "cache" | "tools" | "history";
+export type WatchView = "main" | "advice" | "cache" | "tools" | "history" | "split";
 
 export function shouldHandleDeleteKey(view: WatchView, selectedSessionId: string | undefined): boolean {
-  return view === "main" && selectedSessionId !== undefined;
+  return (view === "main" || view === "split") && selectedSessionId !== undefined;
 }
 
 export function isSessionBusy(activity: { phase: string } | undefined | null): boolean {
