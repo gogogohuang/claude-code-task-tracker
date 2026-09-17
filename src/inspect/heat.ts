@@ -39,9 +39,13 @@ export function sortEntriesByHeat(entries: InspectEntry[]): InspectEntry[] {
 }
 
 export function heatSummaryLines(entries: InspectEntry[], topN: number = 5): string[] {
-  const launch = entries
-    .filter((e) => e.section === "launch" && e.byteSize !== undefined)
+  // 開場偏重常來自 skills／workflows（inspect 歸 onDemand），不只 launch。
+  const ranked = entries
+    .filter(
+      (e) =>
+        (e.section === "launch" || e.section === "onDemand") && e.byteSize !== undefined,
+    )
     .sort((a, b) => (b.byteSize ?? 0) - (a.byteSize ?? 0))
     .slice(0, topN);
-  return launch.map((e) => `${e.label} · ${formatByteSize(e.byteSize!)}`);
+  return ranked.map((e) => `${e.label} · ${formatByteSize(e.byteSize!)}`);
 }

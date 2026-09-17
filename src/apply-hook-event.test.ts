@@ -43,6 +43,23 @@ test("SessionStart 沒有 tool_name 也會建立 session 狀態檔", () => {
   assert.equal(written[0].activity?.phase, "done");
 });
 
+test("空字串 cwd 正規化後改用 process.cwd()", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "empty-cwd",
+      cwd: "   ",
+      hook_event_name: "SessionStart",
+      tool_input: undefined,
+    },
+    deps,
+  );
+  assert.equal(written.length, 1);
+  assert.notEqual(written[0].cwd, "");
+  assert.ok(written[0].cwd);
+  assert.equal(written[0].cwd, process.cwd());
+});
+
 test("SessionStart 在工具執行中不覆蓋進行中的活動", () => {
   const { written, deps } = capture();
   deps.writeTaskState({

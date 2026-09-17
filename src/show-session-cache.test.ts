@@ -5,6 +5,7 @@ import {
   formatSessionListLine,
   resolveSessionId,
   serializeSessionCache,
+  sessionHintFromState,
 } from "./show-session-cache.js";
 import { SessionHint } from "./session-preference.js";
 
@@ -45,4 +46,16 @@ test("serializeSessionCache 輸出 pretty JSON", () => {
   const json = serializeSessionCache({ sessionId: "s1", updatedAt: "2026-01-01T00:00:00.000Z" });
   assert.match(json, /"sessionId": "s1"/);
   assert.match(json, /\n/);
+});
+
+test("sessionHintFromState 帶 activity 相位與工具名；空 cwd 正規化成 undefined", () => {
+  const hint = sessionHintFromState({
+    sessionId: "s1",
+    cwd: "  ",
+    updatedAt: "t",
+    activity: { toolName: "AskUserQuestion", phase: "running", at: "t" },
+  });
+  assert.equal(hint.cwd, undefined);
+  assert.equal(hint.activityToolName, "AskUserQuestion");
+  assert.equal(hint.activityPhase, "running");
 });

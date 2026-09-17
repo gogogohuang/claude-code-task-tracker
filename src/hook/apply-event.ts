@@ -13,6 +13,7 @@ import {
   WorkflowRun,
 } from "../schema.js";
 import { TaskState } from "../schema.js";
+import { normalizeOptionalCwd } from "../session-preference.js";
 import { extractRunId, journalPathFor, sessionDirFromTranscript } from "../workflow/paths.js";
 import { parseWorkflowMeta } from "../workflow/parse-meta.js";
 
@@ -137,9 +138,13 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
 
   const persist = (todos?: TodoItem[], tasks?: Record<string, TaskItem>, activity?: Activity) => {
     try {
+      const cwd =
+        normalizeOptionalCwd(payload.cwd) ??
+        normalizeOptionalCwd(existing?.cwd) ??
+        normalizeOptionalCwd(process.cwd());
       deps.writeTaskState({
         sessionId: payload.session_id,
-        cwd: payload.cwd ?? existing?.cwd,
+        cwd,
         claudeSessionDir: payload.transcript_path
           ? sessionDirFromTranscript(payload.transcript_path)
           : existing?.claudeSessionDir,
