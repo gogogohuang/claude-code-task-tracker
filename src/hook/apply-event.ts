@@ -177,7 +177,9 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
       deps.appendDebugLog(`${payload.hook_event_name} 缺少 task_id，略過這次更新`);
       return;
     }
-    const status: TaskStatus = payload.hook_event_name === "TaskCompleted" ? "completed" : "in_progress";
+    const alreadyCompleted = existing?.tasks?.[id]?.status === "completed";
+    const status: TaskStatus =
+      payload.hook_event_name === "TaskCompleted" || alreadyCompleted ? "completed" : "in_progress";
     persist(
       undefined,
       upsertTask(existing?.tasks, id, {

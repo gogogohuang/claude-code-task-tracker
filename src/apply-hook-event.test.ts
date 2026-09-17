@@ -137,6 +137,23 @@ test("TaskCompleted 把對應 task 標成完成", () => {
   assert.equal(written.at(-1)?.tasks?.["task-001"]?.status, "completed");
 });
 
+test("TaskCreated 事件晚到不會把已完成的 task 打回 in_progress", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    { session_id: "abc", hook_event_name: "TaskCreated", task_id: "task-001", task_subject: "實作登入" },
+    deps,
+  );
+  applyHookEvent(
+    { session_id: "abc", hook_event_name: "TaskCompleted", task_id: "task-001", task_subject: "實作登入" },
+    deps,
+  );
+  applyHookEvent(
+    { session_id: "abc", hook_event_name: "TaskCreated", task_id: "task-001", task_subject: "實作登入" },
+    deps,
+  );
+  assert.equal(written.at(-1)?.tasks?.["task-001"]?.status, "completed");
+});
+
 test("TaskCreate 沒給 status 時視為進行中，不是 pending", () => {
   const { written, deps } = capture();
   applyHookEvent(
