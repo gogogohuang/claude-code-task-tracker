@@ -1,4 +1,4 @@
-import { classifyPresence, type SessionPresence } from "../session-presence.js";
+import { classifyPresence, presenceColor, presenceLabelPrefix, type SessionPresence } from "../session-presence.js";
 import { pickPreferredSession, shortSessionId } from "../session-preference.js";
 import type { TaskState } from "../schema.js";
 import { resolveSessionId, sessionHintFromState } from "../show-session-cache.js";
@@ -13,9 +13,12 @@ export interface StatusPayload {
   cwd?: string;
 }
 
+export type StatusFormat = "plain" | "json" | "tmux";
+
 export interface RunStatusOptions {
   session?: string;
   json?: boolean;
+  format?: StatusFormat;
   cwd?: string;
   now?: number;
 }
@@ -72,9 +75,24 @@ export function formatStatusLine(payload: StatusPayload): string {
   return parts.join(" · ");
 }
 
+/** tmux status-right 用：presence 徽章包 tmux 色碼（`#[fg=...]`/`#[default]`），其餘沿用 plain 格式。 */
+export function formatTmuxStatusLine(payload: StatusPayload): string {
+  if (payload.sessionId === null) return "none";
+  const presence = payload.presence ?? "idle";
+  const badge = presenceLabelPrefix(presence).trim();
+  const color = presenceColor(presence);
+  const parts = [shortSessionId(payload.sessionId)];
+  if (payload.total !== undefined && payload.done !== undefined) {
+    parts.push(`○ ${payload.done}/${payload.total}`);
+  }
+  if (payload.activitySummary) parts.push(payload.activitySummary);
+  return `#[fg=${color}]${badge}#[default] ${parts.join(" · ")}`;
+}
+
 export function runStatus(opts: RunStatusOptions = {}, deps: StatusDeps = defaultDeps): number {
   const cwd = opts.cwd ?? process.cwd();
   const now = opts.now ?? Date.now();
+  const format: StatusFormat = opts.format ?? (opts.json ? "json" : "plain");
   const sessionIds = deps.listSessionIds();
 
   let sessionId: string | undefined;
@@ -95,7 +113,7 @@ export function runStatus(opts: RunStatusOptions = {}, deps: StatusDeps = defaul
   }
 
   if (!sessionId) {
-    if (opts.json) {
+    if (format === "json") {
       deps.log(JSON.stringify({ sessionId: null }));
     } else {
       deps.log("none");
@@ -105,7 +123,7 @@ export function runStatus(opts: RunStatusOptions = {}, deps: StatusDeps = defaul
 
   const state = deps.readTaskState(sessionId);
   if (!state) {
-    if (opts.json) {
+    if (format === "json") {
       deps.log(JSON.stringify({ sessionId: null }));
     } else {
       deps.log("none");
@@ -114,8 +132,10 @@ export function runStatus(opts: RunStatusOptions = {}, deps: StatusDeps = defaul
   }
 
   const payload = statusFromState(state, now);
-  if (opts.json) {
+  if (format === "json") {
     deps.log(JSON.stringify(payload));
+  } else if (format === "tmux") {
+    deps.log(formatTmuxStatusLine(payload));
   } else {
     deps.log(formatStatusLine(payload));
   }

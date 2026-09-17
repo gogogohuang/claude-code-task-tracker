@@ -63,11 +63,18 @@ program
   .command("status")
   .description("一行摘要目前偏好 session 狀態（不啟動 TUI；給 tmux／腳本用）")
   .option("--session <id>", "指定 session（可填短 id 前綴）")
-  .option("--json", "輸出 JSON 物件")
-  .action((opts: { session?: string; json?: boolean }) => {
+  .option("--json", "輸出 JSON 物件（等同 --format json）")
+  .option("--format <format>", "輸出格式：plain（預設）｜json｜tmux（含 tmux 色碼，供 status-right 用）")
+  .action((opts: { session?: string; json?: boolean; format?: string }) => {
+    if (opts.format && !["plain", "json", "tmux"].includes(opts.format)) {
+      console.error(`不支援的 --format：${opts.format}（可用值：plain、json、tmux）`);
+      process.exitCode = 1;
+      return;
+    }
     process.exitCode = runStatus({
       session: opts.session,
       json: opts.json,
+      format: opts.format as "plain" | "json" | "tmux" | undefined,
     });
   });
 

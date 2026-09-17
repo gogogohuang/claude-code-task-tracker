@@ -70,16 +70,20 @@ test("detect：heavy-baseline 剛好等於 50000 不觸發，超過才觸發", (
   assert.equal(detect(stats0, exact.next, exact.steps).filter((a) => a.kind === "heavy-baseline").length, 0);
 });
 
-test("detect：fat-tool-result 剛好等於 30000 字元不觸發，超過才觸發", () => {
+test("detect：fat-tool-result 估算 token 剛好等於門檻（8000）不觸發，超過才觸發", () => {
   const stats0 = createSessionUsageStats("s1");
-  const exact = accumulate(stats0, [toolResultEvent("Bash", 30000, "t0")]);
+  // 32000 字元 / 4 = 8000 token，剛好等於門檻
+  const exact = accumulate(stats0, [toolResultEvent("Bash", 32000, "t0")]);
   assert.equal(detect(stats0, exact.next, exact.steps).length, 0);
 
-  const over = accumulate(stats0, [toolResultEvent("Bash", 30001, "t0")]);
+  // 32004 字元 / 4 = 8001 token，超過門檻
+  const over = accumulate(stats0, [toolResultEvent("Bash", 32004, "t0")]);
   const overAdvice = detect(stats0, over.next, over.steps);
   assert.equal(overAdvice.length, 1);
   assert.equal(overAdvice[0].kind, "fat-tool-result");
   assert.match(overAdvice[0].message, /Bash/);
+  assert.match(overAdvice[0].message, /8,001 token/);
+  assert.match(overAdvice[0].message, /context window/);
 });
 
 test("detect：fat-tool-result 對不到工具名稱時顯示「工具」", () => {
@@ -91,13 +95,13 @@ test("detect：fat-tool-result 對不到工具名稱時顯示「工具」", () =
 
 test("detect：fat-tool-result 對 Agent 改叫只交結論與檔案路徑", () => {
   const stats0 = createSessionUsageStats("s1");
-  const { next, steps } = accumulate(stats0, [toolResultEvent("Agent", 30001, "t0")]);
+  const { next, steps } = accumulate(stats0, [toolResultEvent("Agent", 40000, "t0")]);
   const advice = detect(stats0, next, steps);
   assert.equal(advice.length, 1);
   assert.equal(advice[0].kind, "fat-tool-result");
   assert.match(advice[0].message, /結論與檔案路徑/);
   assert.equal(/head\/grep\/limit/.test(advice[0].message), false);
-  assert.match(advice[0].message, /30,001/);
+  assert.match(advice[0].message, /10,000 token/);
 });
 
 test("detect：fat-tool-result 有 path 時文案帶路徑", () => {
