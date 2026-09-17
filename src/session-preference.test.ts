@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addedSessionIds,
+  filterListableSessionIds,
   formatNewSessionNotice,
   groupSessionsByProject,
   normalizeOptionalCwd,
@@ -80,7 +81,7 @@ test("sessionChoices 沒有 cwd 對得上時，最新的標 最近", () => {
   assert.equal(items[0].label, "○ newer-ot  (最近) · 剛剛");
 });
 
-test("groupSessionsByProject 依 cwd 分組，當下專案排第一；無 cwd 進未知專案", () => {
+test("groupSessionsByProject 依 cwd 分組，當下專案排第一；無 cwd 不進列表", () => {
   const groups = groupSessionsByProject(
     [
       ...sessions,
@@ -91,16 +92,17 @@ test("groupSessionsByProject 依 cwd 分組，當下專案排第一；無 cwd �
   );
   assert.deepEqual(
     groups.map((group) => `${group.label}:${group.sessions.map((s) => s.sessionId).join(",")}`),
-    ["b:current,b2", "c:newer-other", "a:old", "未知專案:orphan"],
+    ["b:current,b2", "c:newer-other", "a:old"],
   );
+  assert.ok(!groups.some((group) => group.label === "未知專案"));
 });
 
-test("projectChoices 列出沒有 cwd 的未知專案", () => {
+test("projectChoices 不列出沒有 cwd 的未知專案", () => {
   const items = projectChoices(
     [...sessions, { sessionId: "orphan", updatedAt: "2026-09-15T00:00:00.000Z" }],
     "/proj/b",
   );
-  assert.ok(items.some((item) => item.label.includes("未知專案") && item.value === ""));
+  assert.ok(!items.some((item) => item.label.includes("未知專案") || item.value === ""));
 });
 
 test("projectChoices 標出目前專案與 session 數", () => {
@@ -180,7 +182,19 @@ test("pickPreferredSession 與 shouldAutoSelectSession 略過沒有 cwd 的 sess
   assert.equal(shouldAutoSelectSession([{ sessionId: "orphan", updatedAt: "t" }], "/proj/a"), false);
 });
 
-test("空字串 cwd 視同沒有 cwd；無 cwd session 進未知專案", () => {
+test("filterListableSessionIds 略過無 cwd 與空白 cwd", () => {
+  const cwdById: Record<string, string | undefined> = {
+    ok: "/proj/a",
+    orphan: undefined,
+    blank: "  ",
+  };
+  assert.deepEqual(
+    filterListableSessionIds(["ok", "orphan", "blank", "missing"], (id) => cwdById[id]),
+    ["ok"],
+  );
+});
+
+test("空字串 cwd 視同沒有 cwd；無 cwd session 不進專案列表", () => {
   assert.equal(normalizeOptionalCwd(""), undefined);
   assert.equal(normalizeOptionalCwd("  "), undefined);
   assert.equal(normalizeOptionalCwd("/proj"), "/proj");
@@ -195,9 +209,7 @@ test("空字串 cwd 視同沒有 cwd；無 cwd session 進未知專案", () => {
     [{ sessionId: "orphan", cwd: "", updatedAt: "2026-09-15T09:00:00.000Z" }],
     "/proj/a",
   );
-  assert.equal(groups.length, 1);
-  assert.equal(groups[0].label, "未知專案");
-  assert.equal(groups[0].sessions[0].sessionId, "orphan");
+  assert.deepEqual(groups, []);
 });
 
 test("sessionChoicesInProject 只列出該專案，不再重複專案名", () => {

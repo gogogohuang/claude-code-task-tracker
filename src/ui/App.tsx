@@ -7,6 +7,7 @@ import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, statePathForS
 import { TaskState } from "../schema.js";
 import {
   addedSessionIds,
+  filterListableSessionIds,
   formatNewSessionNotice,
   groupSessionsByProject,
   pickPreferredSession,
@@ -443,10 +444,12 @@ export function App({
   );
 
   // 監控 state 目錄：抓新出現/消失的 session 檔案。第一次列出的當基線，之後才通知。
+  // 無 cwd 的狀態檔不進可見池（不進列表、不響新 session 鈴、不掛跨 session 警示）。
   useEffect(() => {
     const apply = (next: string[], initial: boolean) => {
+      const listable = filterListableSessionIds(next, (sessionId) => readTaskState(sessionId)?.cwd);
       if (!initial && knownSessionIds.current) {
-        const added = addedSessionIds(knownSessionIds.current, next);
+        const added = addedSessionIds(knownSessionIds.current, listable);
         if (added.length > 0) {
           const hints = hintsFor(added);
           setNotice(formatNewSessionNotice(hints.length > 0 ? hints : added.map((sessionId) => ({ sessionId }))));
@@ -457,8 +460,8 @@ export function App({
           }
         }
       }
-      knownSessionIds.current = next;
-      setSessionIds(next);
+      knownSessionIds.current = listable;
+      setSessionIds(listable);
       if (!initial) setStateRevision((n) => n + 1);
     };
     ensureStateDir();
@@ -468,6 +471,7 @@ export function App({
     // 也要聽 change：某個既有 session 的 state 檔內容變了（例如稍後才補上 claudeSessionDir），
     // 即使 sessionIds 的值沒變，重新拿一份新陣列還是會讓下面依賴 sessionIds 的 effect 重新跑一次，
     // 讓原本沒有 claudeSessionDir、掛不上 watcher 的 session 有機會補掛上去。
+    // 同樣：舊檔稍後寫入 cwd 時會從不可見變成可見。
     watcher.on("add", refresh).on("unlink", refresh).on("change", refresh);
     return () => {
       void watcher.close();
