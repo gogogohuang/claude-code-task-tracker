@@ -88,6 +88,29 @@ task-tracker version
 task-tracker status                 # idle · e9efe088 · ○ 3/5 · 正在讀取 …
 task-tracker status --session <id>
 task-tracker status --json
+task-tracker status --format tmux   # 徽章帶 tmux 色碼（#[fg=...]），給 status-right 用
+```
+
+### 終端機整合
+
+`--format tmux` 把 presence 徽章包成 tmux 認得的色碼（等你＝紅、忙碌＝黃、閒置＝綠），可以直接接進 `status-right`：
+
+```tmux
+# ~/.tmux.conf
+set -g status-right '#(task-tracker status --format tmux) | %H:%M'
+set -g status-interval 5
+```
+
+Starship 不需要額外的 format，預設的 plain 輸出就是 custom module 吃得下的純文字，顏色交給 starship 自己的 style 設定：
+
+```toml
+# ~/.config/starship.toml
+[custom.claude]
+command = "task-tracker status"
+when = true
+shell = ["sh", "-c"]
+style = "bold green"
+format = "[$output]($style) "
 ```
 
 要列出或檢視 **task-tracker session 暫存**（`~/.claude-task-tracker/<id>.json`），預設只列目前專案。**不會**動 Claude Code 的 transcript，也**不會**反映或改變 context window。

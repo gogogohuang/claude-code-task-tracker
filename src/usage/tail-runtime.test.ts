@@ -127,8 +127,8 @@ test("refresh 讀取失敗時 offset 不會往前推進，恢復可讀之後能�
     writeFileSync(path, assistantLine("m0", 10) + "\n");
     prime(sessionId, path);
 
-    // 附加一行大到會觸發 fat-tool-result 的 tool_result；readSync 失敗時這段內容還沒被消化。
-    appendFileSync(path, fatToolResultLine("x".repeat(30001)) + "\n");
+    // 附加一行大到會觸發 fat-tool-result 的 tool_result（估算 token 數需超過門檻）；readSync 失敗時這段內容還沒被消化。
+    appendFileSync(path, fatToolResultLine("x".repeat(40000)) + "\n");
 
     chmodSync(path, 0o000);
     // openSync 應該會失敗，fail open 回傳空陣列；如果這時候 offset 被錯誤地推進到目前檔案大小

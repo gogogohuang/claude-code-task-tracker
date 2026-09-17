@@ -3,6 +3,7 @@ import test from "node:test";
 import type { TaskState } from "../schema.js";
 import {
   formatStatusLine,
+  formatTmuxStatusLine,
   runStatus,
   statusFromState,
   type StatusDeps,
@@ -63,6 +64,58 @@ test("busy 當 activity running", () => {
   });
   assert.equal(payload.presence, "busy");
   assert.match(formatStatusLine(payload), /^busy ·/);
+});
+
+test("formatTmuxStatusLine：idle 用綠色徽章，不重複列 presence 文字", () => {
+  assert.equal(
+    formatTmuxStatusLine(statusFromState(state)),
+    "#[fg=green]○#[default] e9efe088 · ○ 3/5 · 正在讀取 src/schema.ts",
+  );
+});
+
+test("formatTmuxStatusLine：waiting 用紅色徽章", () => {
+  const payload = statusFromState({
+    ...state,
+    activity: { toolName: "AskUserQuestion", phase: "running", at: "t" },
+  });
+  assert.equal(payload.presence, "waiting");
+  assert.match(formatTmuxStatusLine(payload), /^#\[fg=red\]!#\[default\] /);
+});
+
+test("formatTmuxStatusLine：busy 用黃色徽章", () => {
+  const payload = statusFromState({
+    ...state,
+    activity: { toolName: "Bash", phase: "running", at: "t" },
+  });
+  assert.match(formatTmuxStatusLine(payload), /^#\[fg=yellow\]●#\[default\] /);
+});
+
+test("formatTmuxStatusLine：無 session 回 none", () => {
+  assert.equal(formatTmuxStatusLine({ sessionId: null }), "none");
+});
+
+test("runStatus --format tmux 輸出 tmux 色碼", () => {
+  const lines: string[] = [];
+  const deps: StatusDeps = {
+    listSessionIds: () => [state.sessionId],
+    readTaskState: () => state,
+    log: (line) => lines.push(line),
+    error: () => {},
+  };
+  assert.equal(runStatus({ format: "tmux", cwd: "/proj/a" }, deps), 0);
+  assert.match(lines[0]!, /^#\[fg=green\]○#\[default\] /);
+});
+
+test("runStatus --json 仍等同 --format json（相容旗標）", () => {
+  const lines: string[] = [];
+  const deps: StatusDeps = {
+    listSessionIds: () => [state.sessionId],
+    readTaskState: () => state,
+    log: (line) => lines.push(line),
+    error: () => {},
+  };
+  assert.equal(runStatus({ json: true, cwd: "/proj/a" }, deps), 0);
+  assert.equal(JSON.parse(lines[0]!).sessionId, state.sessionId);
 });
 
 test("runStatus 無 session → none exit 0", () => {

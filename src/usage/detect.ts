@@ -1,3 +1,4 @@
+import { contextOccupancyPct } from "../context-snapshot.js";
 import { AccumulateStep, Advice, SessionUsageStats } from "./types.js";
 
 const LONG_SESSION_MSG_THRESHOLD = 200;
@@ -5,9 +6,15 @@ const LONG_SESSION_MINUTES_THRESHOLD = 90;
 const CACHE_SPIKE_FLOOR = 20000;
 const CACHE_SPIKE_MULTIPLIER = 5;
 const CACHE_SPIKE_MIN_PRIOR_MSGS = 5;
-const FAT_TOOL_RESULT_CHARS = 30000;
+/** tool_result 沒有 API 算好的 token 數，只能用字元數粗估；中英文混合實際比例會有出入。 */
+const CHARS_PER_TOKEN_ESTIMATE = 4;
+const FAT_TOOL_RESULT_TOKENS = 8000;
 const HEAVY_BASELINE_TOKENS = 50000;
 const REPEATED_READ_THRESHOLD = 3;
+
+function estimateTokensFromChars(chars: number): number {
+  return Math.round(chars / CHARS_PER_TOKEN_ESTIMATE);
+}
 
 function minutesBetween(startIso: string, endIso: string): number {
   return (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000;
@@ -68,8 +75,10 @@ function checkHeavyBaseline(before: SessionUsageStats, step: AccumulateStep): Ad
 function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Advice[] {
   const toolResultChars = step.event.toolResultChars;
   if (!toolResultChars) return [];
-  if (toolResultChars.chars <= FAT_TOOL_RESULT_CHARS) return [];
-  const chars = toolResultChars.chars.toLocaleString("en-US");
+  const estTokens = estimateTokensFromChars(toolResultChars.chars);
+  if (estTokens <= FAT_TOOL_RESULT_TOKENS) return [];
+  const tokens = estTokens.toLocaleString("en-US");
+  const pct = contextOccupancyPct(estTokens);
   const isSubagent = toolResultChars.toolName === "Agent" || toolResultChars.toolName === "SubagentHandback";
   if (isSubagent) {
     return [
@@ -77,7 +86,7 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
         sessionId: stats.sessionId,
         kind: "fat-tool-result",
         at: step.event.timestamp ?? new Date().toISOString(),
-        message: `下次派子 agent 只讓它交回結論與檔案路徑，不要把完整 diff/review 貼回主線（剛剛回傳了 ${chars} 字元）。`,
+        message: `下次派子 agent 只讓它交回結論與檔案路徑，不要把完整 diff/review 貼回主線（剛剛回傳約 ${tokens} token，約占 context window ${pct}%）。`,
       },
     ];
   }
@@ -88,7 +97,7 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
       sessionId: stats.sessionId,
       kind: "fat-tool-result",
       at: step.event.timestamp ?? new Date().toISOString(),
-      message: `重跑剛剛那個 ${tool} 呼叫${pathPart}，加上 head/grep/limit 或 Read 的 offset/limit 把輸出縮小（原本回傳了 ${chars} 字元）。`,
+      message: `重跑剛剛那個 ${tool} 呼叫${pathPart}，加上 head/grep/limit 或 Read 的 offset/limit 把輸出縮小（原本回傳約 ${tokens} token，約占 context window ${pct}%）。`,
     },
   ];
 }
