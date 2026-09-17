@@ -29,8 +29,8 @@
 6. ~~**settings.json 缺 schema 驗證**~~（`src/install-hooks.ts:61-68`, `91-98`）
    ✅ 已修：新增 zod 的 `ClaudeSettingsSchema`（只驗證 `stripTrackerHooks` 實際會走訪的已知
    hook 事件形狀，其餘欄位放行），`readSettingsFile` 在 `safeParse` 失敗時走既有的友善錯誤路徑。
-7. **activity-timeline dedup 鍵不完整**（`src/activity-timeline.ts:16-19`）
-   dedup key 加上 `toolName`。
+7. ~~**activity-timeline dedup 鍵不完整**~~（`src/activity-timeline.ts:16-19`）
+   ✅ 已修：dedup 判斷加上 `toolName` 一起比對。
 
 ### P2 — Low / Low-Medium
 

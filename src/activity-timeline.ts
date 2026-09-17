@@ -14,7 +14,7 @@ export function pushActivityToTimeline(
 ): TimelineEntry[] {
   if (!activity) return prev;
   const last = prev.at(-1);
-  if (last && last.at === activity.at && last.phase === activity.phase) {
+  if (last && last.at === activity.at && last.phase === activity.phase && last.toolName === activity.toolName) {
     return prev;
   }
   let next: TimelineEntry[];
