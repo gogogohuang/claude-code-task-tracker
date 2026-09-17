@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Box, Text, useApp, useInput, useStdin } from "ink";
 import chokidar from "chokidar";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, statePathForSession } from "../store.js";
 import { TaskState } from "../schema.js";
 import {
@@ -106,6 +106,10 @@ function hintsFor(sessionIds: string[]): SessionHint[] {
   });
 }
 
+function isStateFileForSession(filePath: string, sessionId: string): boolean {
+  return basename(filePath) === `${sessionId}.json`;
+}
+
 export function App({
   initialSessionId,
   emptyHint,
@@ -132,6 +136,8 @@ export function App({
   // transcript refresh 常不產生 advice；這個 revision 讓 peek 驅動的 context 仍能重繪。
   const [usageRevision, setUsageRevision] = useState(0);
   const [clockRevision, setClockRevision] = useState(0);
+  // state 檔內容變更時 sessionIds 可能不變；用 revision 強制列表重讀 hints。
+  const [stateRevision, setStateRevision] = useState(0);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | undefined>();
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const lastWaitingKey = useRef<string | undefined>(undefined);
@@ -253,6 +259,7 @@ export function App({
       }
       knownSessionIds.current = next;
       setSessionIds(next);
+      if (!initial) setStateRevision((n) => n + 1);
     };
     ensureStateDir();
     apply(listSessionIds(), true);
@@ -345,7 +352,9 @@ export function App({
     if (preferred) setSelectedSessionId(preferred);
   }, [sessionIds, selectedSessionId, cwd, browsing]);
 
-  // 監控被選中 session 的檔案內容變化
+  // 監控被選中 session 的檔案內容變化。
+  // 寫入是 write-then-rename：直接 watch 最終路徑常會在 inode 換掉後漏事件，
+  // 改 watch STATE_DIR 再依 basename 過濾，並聽 unlink（rename 替換時常見）。
   useEffect(() => {
     if (!selectedSessionId) return;
     const refresh = () => {
@@ -353,9 +362,11 @@ export function App({
       setTaskState(latest ? withLiveWorkflow(latest) : null);
     };
     refresh();
-    const filePath = join(STATE_DIR, `${selectedSessionId}.json`);
-    const watcher = chokidar.watch(filePath, { ignoreInitial: true });
-    watcher.on("add", refresh).on("change", refresh);
+    const watcher = chokidar.watch(STATE_DIR, { ignoreInitial: true, depth: 0 });
+    const onFsEvent = (filePath: string) => {
+      if (isStateFileForSession(filePath, selectedSessionId)) refresh();
+    };
+    watcher.on("add", onFsEvent).on("change", onFsEvent).on("unlink", onFsEvent);
     return () => {
       void watcher.close();
     };
@@ -426,10 +437,10 @@ export function App({
   }, [selectedSessionId, taskState?.activity?.phase, taskState?.activity?.toolName, taskState?.activity?.at]);
 
   useEffect(() => {
-    if (!selectedSessionId) return;
+    // 列表與 session 內都要讓 presence 隨時間老化（waiting → idle）
     const timer = setInterval(() => setClockRevision((n) => n + 1), 30_000);
     return () => clearInterval(timer);
-  }, [selectedSessionId]);
+  }, []);
 
   const waitingNotice =
     selectedSessionId && taskState?.activity && isWaitingForUser(taskState.activity)
@@ -439,9 +450,13 @@ export function App({
 
   if (view === "advice") {
     const filtered = adviceForSession(adviceList, selectedSessionId);
+    const heatCwd =
+      (selectedSessionId ? readTaskState(selectedSessionId)?.cwd : undefined) ??
+      taskState?.cwd ??
+      cwd;
     const enriched =
       filtered.some((item) => item.kind === "heavy-baseline")
-        ? attachHeavyBaselineHeat(filtered, launchHeatLines(cwd))
+        ? attachHeavyBaselineHeat(filtered, launchHeatLines(heatCwd))
         : filtered;
     const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
     const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
@@ -505,6 +520,7 @@ export function App({
       );
     }
     const hints = hintsFor(sessionIds);
+    void stateRevision;
     const groups = groupSessionsByProject(hints, cwd);
     if (groups.length === 0) {
       return withNotice(
@@ -558,6 +574,7 @@ export function App({
 
   void usageRevision; // transcript 推進時 bump，確保 peek 後的 context 會重繪
   void clockRevision; // running 時每秒 bump，重算卡住標籤
+  void stateRevision;
   const usage = peek(taskState.sessionId);
   const lastTurn = lastTurnUsageFromStats(usage);
   const contextSnapshot = {
