@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyJournalToPhases, parseJournalEvents } from "./journal.js";
+import { applyJournalToPhases, parseJournalEvents, summarizeJournalResult } from "./journal.js";
 
 const PHASES = ["Fetch Ticket + Write Plan", "Self-Grill", "Execute Plan", "Gate", "Push & Open PR"];
 
@@ -9,13 +9,54 @@ test("parseJournalEvents 略過壞行，只收 started 與 result", () => {
     [
       '{"type":"launched"}',
       "not json",
-      '{"type":"started","key":"k1","phase":"Self-Grill"}',
-      '{"type":"result","key":"k1","phase":"Self-Grill"}',
+      '{"type":"started","key":"k1","phase":"Self-Grill","label":"self-grill"}',
+      '{"type":"result","key":"k1","phase":"Self-Grill","result":{"summary":"ok plan"}}',
     ].join("\n"),
   );
   assert.deepEqual(events, [
-    { type: "started", key: "k1", phase: "Self-Grill" },
-    { type: "result", key: "k1", phase: "Self-Grill" },
+    { type: "started", key: "k1", phase: "Self-Grill", label: "self-grill" },
+    {
+      type: "result",
+      key: "k1",
+      phase: "Self-Grill",
+      result: { summary: "ok plan" },
+    },
+  ]);
+});
+
+test("summarizeJournalResult 取字串第一行或物件 summary，超過 48 字截斷", () => {
+  assert.equal(summarizeJournalResult("第一行\n第二行"), "第一行");
+  assert.equal(summarizeJournalResult({ summary: "短摘要" }), "短摘要");
+  assert.equal(summarizeJournalResult({ status: "DONE" }), "DONE");
+  assert.equal(summarizeJournalResult({ error: "boom" }), "boom");
+  const long = "x".repeat(60);
+  assert.equal(summarizeJournalResult(long), `${"x".repeat(48)}…`);
+  assert.equal(summarizeJournalResult(null), undefined);
+});
+
+test("applyJournalToPhases 在 phase 下列出 step label 與短摘要", () => {
+  const phases = applyJournalToPhases(PHASES, [
+    { type: "started", key: "a", phase: "Fetch Ticket + Write Plan", label: "write-plan" },
+    {
+      type: "result",
+      key: "a",
+      phase: "Fetch Ticket + Write Plan",
+      result: { summary: "Drafted a single-task plan to fix timezone" },
+    },
+    { type: "started", key: "b", phase: "Self-Grill", label: "self-grill" },
+  ]);
+  const fetch = phases.find((row) => row.title === "Fetch Ticket + Write Plan");
+  assert.deepEqual(fetch?.steps, [
+    {
+      key: "a",
+      label: "write-plan",
+      status: "completed",
+      summary: "Drafted a single-task plan to fix timezone",
+    },
+  ]);
+  const grill = phases.find((row) => row.title === "Self-Grill");
+  assert.deepEqual(grill?.steps, [
+    { key: "b", label: "self-grill", status: "in_progress" },
   ]);
 });
 

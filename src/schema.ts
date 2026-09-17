@@ -120,9 +120,18 @@ export const ActivitySchema = z.object({
 });
 export type Activity = z.infer<typeof ActivitySchema>;
 
+export const WorkflowStepSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  status: z.enum(["pending", "in_progress", "completed"]),
+  summary: z.string().optional(),
+});
+export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
+
 export const WorkflowPhaseSchema = z.object({
   title: z.string(),
   status: z.enum(["pending", "in_progress", "completed"]),
+  steps: z.array(WorkflowStepSchema).optional(),
 });
 export type WorkflowPhase = z.infer<typeof WorkflowPhaseSchema>;
 

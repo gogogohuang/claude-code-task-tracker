@@ -6,7 +6,7 @@ import { Activity, TaskState } from "../schema.js";
 import { classifyPresence, presenceColor } from "../session-presence.js";
 import { phaseProgress } from "../workflow/phase-progress.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
-import { RowStatus, taskRows } from "./task-rows.js";
+import { RowStatus, taskRows, workItemRows } from "./task-rows.js";
 
 const STATUS_ICON: Record<RowStatus, string> = {
   pending: "○",
@@ -87,7 +87,8 @@ export function TaskList({
 }) {
   const { isRawModeSupported } = useStdin();
   const rows = taskRows(state);
-  const done = rows.filter((r) => r.status === "completed").length;
+  const workItems = workItemRows(state);
+  const done = workItems.filter((r) => r.status === "completed").length;
   const phases = phaseProgress(state.workflow);
   const next = pickNextTask(state);
   const presence = classifyPresence({
@@ -105,6 +106,7 @@ export function TaskList({
     (stuckLabel ? 1 : 0) +
     (endedSummary ? 1 : 0) +
     (phases ? 1 : 0) +
+    (workItems.length > 0 ? 1 : 0) +
     (next ? 1 : 0);
   const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + snapshotExtraRows);
   const start = clampScrollOffset(offset, rows.length, pageSize);
@@ -193,7 +195,7 @@ export function TaskList({
         <>
           <Box marginBottom={1} flexDirection="column">
             {phases ? <ProgressBar done={phases.done} total={phases.total} label="Phase" /> : null}
-            {rows.length > 0 ? <ProgressBar done={done} total={rows.length} /> : null}
+            {workItems.length > 0 ? <ProgressBar done={done} total={workItems.length} /> : null}
           </Box>
           {rows.length > 0 ? (
             <Box flexDirection="column">
