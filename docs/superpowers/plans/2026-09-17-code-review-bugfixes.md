@@ -10,14 +10,14 @@
 
 ### P0 — High（資料遺失 / crash）
 
-1. **hook read-modify-write race**（`src/hook/apply-event.ts:136-161` + `src/store.ts:26-48`）
-   同一 `session_id` 的並行 hook subprocess 沒有鎖，並行寫入會遺失更新。
-   加檔案鎖或 per-session 寫入序列化（例如 lockfile / 單一 writer queue）。
-2. **TaskCreated/TaskCompleted 亂序回退**（`src/hook/apply-event.ts:174-191`）
-   跟 #1 同根因；狀態轉換要保序，或至少不允許 `TaskCreated` 覆蓋已存在的 `completed` 狀態。
-   建議跟 #1 一起修（鎖住寫入後亂序問題多半自然消失，但轉換規則仍該補防呆）。
-3. **TUI waitingNotice 讀檔 race 導致 crash**（`src/ui/App.tsx:676-685`）
-   把三次 `readTaskState` 併成一次讀取結果重複使用；移除 `!` 強制解包，缺 `.activity` 時要有 fallback 而不是丟例外。
+1. ~~**hook read-modify-write race**~~（`src/hook/apply-event.ts:136-161` + `src/store.ts:26-48`）
+   ✅ 已修（commit `6516601`）：`store.ts` 新增 `withSessionLock`，`task-tracker-hook.ts` 接上。
+2. ~~**TaskCreated/TaskCompleted 亂序回退**~~（`src/hook/apply-event.ts:174-191`）
+   ✅ 已修（commit `6516601`，跟 #1 一起）：已 `completed` 的 task 不會被晚到的 `TaskCreated` 打回 `in_progress`。
+3. ~~**TUI waitingNotice 讀檔 race 導致 crash**~~（`src/ui/App.tsx:676-685`）
+   ✅ 已修：抽出 `session-presence.ts` 的 `waitingNoticeForActivity`（純函式，內建 null 檢查），
+   App.tsx 只讀一次 `readTaskState`／`taskState.activity` 存成 `actionActivity` 重複使用，
+   移除三次讀檔與 `!` 強制解包。
 
 ### P1 — Medium / Medium-High
 
