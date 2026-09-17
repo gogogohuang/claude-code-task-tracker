@@ -5,6 +5,7 @@ import {
   aggregatePresence,
   classifyPresence,
   isWaitingForUser,
+  presenceColor,
   presenceLabelPrefix,
   shouldRingWaitingBell,
   waitingBannerMessage,
@@ -75,6 +76,12 @@ test("presenceLabelPrefix 三態符號", () => {
   assert.equal(presenceLabelPrefix("waiting"), "! ");
   assert.equal(presenceLabelPrefix("busy"), "● ");
   assert.equal(presenceLabelPrefix("idle"), "○ ");
+});
+
+test("presenceColor：waiting 紅、busy 黃、idle 綠", () => {
+  assert.equal(presenceColor("waiting"), "red");
+  assert.equal(presenceColor("busy"), "yellow");
+  assert.equal(presenceColor("idle"), "green");
 });
 
 test("waitingBannerMessage 依 toolName", () => {

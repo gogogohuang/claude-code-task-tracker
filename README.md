@@ -115,7 +115,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對 1M 窗口的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
 `AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。有 workflow 時會多一條 Phase 進度條；活動列下方可顯示「下一個」pending 任務。若約 5 分鐘無更新且沒有進行中的工作，會提示「Session 似乎已結束」。專案／session 列表前綴：`!` 等你、
-`●` 忙碌、`○` 閒置。
+`●` 忙碌、`○` 閒置；整列文字上色（紅＝等你、黃＝進行中、綠＝就緒），進入 session 後標題列同色。
 
 想看這個專案會進 prompt 的東西：
 

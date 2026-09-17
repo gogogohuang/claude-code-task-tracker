@@ -22,6 +22,7 @@ export interface SessionHint {
 export interface SessionChoice {
   label: string;
   value: string;
+  presence: SessionPresence;
 }
 
 export interface ProjectGroup {
@@ -108,6 +109,7 @@ export function sessionChoices(sessions: SessionHint[], watchCwd: string, now: n
         session.sessionId !== preferred ? undefined : cwdMatched ? "current" : "recent",
         now,
       ),
+      presence: presenceForHint(session, now),
     }));
 }
 
@@ -147,6 +149,7 @@ export function projectChoices(sessions: SessionHint[], watchCwd: string, now: n
     return {
       value: group.key,
       label: `${presenceLabelPrefix(presence)}${group.label}  (${suffix})`,
+      presence,
     };
   });
 }
@@ -176,6 +179,7 @@ export function sessionChoicesInProject(
         session.sessionId !== preferred ? undefined : cwdMatched ? "current" : "recent",
         now,
       ),
+      presence: presenceForHint(session, now),
     }));
 }
 

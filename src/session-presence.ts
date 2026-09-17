@@ -31,6 +31,13 @@ export function presenceLabelPrefix(presence: SessionPresence): string {
   return "○ ";
 }
 
+/** Ink Text color for session presence（整行標籤／標題用）。 */
+export function presenceColor(presence: SessionPresence): "red" | "yellow" | "green" {
+  if (presence === "waiting") return "red";
+  if (presence === "busy") return "yellow";
+  return "green";
+}
+
 export function waitingBannerMessage(toolName: string): string | undefined {
   if (toolName === "AskUserQuestion") return "正在等待你的回答 — 回到 Claude Code 視窗";
   if (toolName === "ExitPlanMode") return "正在等待你核准計畫 — 回到 Claude Code 視窗";

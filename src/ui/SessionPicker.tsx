@@ -1,10 +1,27 @@
 import { useEffect, useState } from "react";
 import { Box, Text } from "ink";
 import SelectInput from "ink-select-input";
+import { presenceColor, type SessionPresence } from "../session-presence.js";
 import { SessionChoice } from "../session-preference.js";
 import { pageSizeFromTerminal } from "./scroll-window.js";
 
 const PICKER_CHROME_ROWS = 6;
+
+function PresenceItem({
+  isSelected = false,
+  label,
+  presence = "idle",
+}: {
+  isSelected?: boolean;
+  label: string;
+  presence?: SessionPresence;
+}) {
+  return (
+    <Text color={presenceColor(presence)} bold={isSelected}>
+      {label}
+    </Text>
+  );
+}
 
 export function SessionPicker({
   heading,
@@ -34,6 +51,7 @@ export function SessionPicker({
       </Box>
       <SelectInput
         items={items}
+        itemComponent={PresenceItem}
         limit={pageSizeFromTerminal(termRows, PICKER_CHROME_ROWS)}
         onSelect={(item) => onSelect(item.value)}
       />
