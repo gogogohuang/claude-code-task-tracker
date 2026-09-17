@@ -130,7 +130,7 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 
 畫面先顯示可捲動的清單（`↑↓` / `j` `k`），同一分組內依檔案大小（byte）由大到小排，並列出體積；按 Enter 進預覽、`b` 回清單、`q` 離開。
 
-用量建議（watch 按 `a`）會列出過肥 tool 回傳、同路徑反覆 Read 等可執行的減肥項；若開場底子偏重，同一則建議下方會嵌 launch 熱力 Top-5 摘要（無資料則只留原文）。
+用量建議（watch 按 `a`）會列出過肥 tool 回傳、同路徑反覆 Read 等可執行的減肥項；若開場底子偏重，同一則建議下方會嵌該 **session 專案** 的 launch／onDemand 熱力 Top-5（找不到大檔時會提示改跑 `inspect`）。
 
 ## 重要注意事項
 

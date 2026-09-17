@@ -38,18 +38,19 @@ test("sortEntriesByHeat：section 順序固定，同 section 內 byte 降序，�
   );
 });
 
-test("heatSummaryLines：launch Top-N 有 size 者", () => {
+test("heatSummaryLines：launch＋onDemand Top-N（開場偏重常見來源在 onDemand）", () => {
   const lines = heatSummaryLines(
     [
       entry({ section: "launch", label: "A", absolutePath: "/a", byteSize: 3000 }),
       entry({ section: "launch", label: "B", absolutePath: "/b", byteSize: 1000 }),
       entry({ section: "launch", label: "C", absolutePath: "/c", byteSize: 2000 }),
       entry({ section: "onDemand", label: "D", absolutePath: "/d", byteSize: 99999 }),
+      entry({ section: "outOfSession", label: "X", absolutePath: "/x", byteSize: 9_000_000 }),
       entry({ section: "launch", label: "E", absolutePath: "/e" }),
     ],
     2,
   );
-  assert.deepEqual(lines, ["A · 2.9 KB", "C · 2.0 KB"]);
+  assert.deepEqual(lines, ["D · 97.7 KB", "A · 2.9 KB"]);
 });
 
 test("heatSummaryLines：無資料 → 空陣列", () => {
