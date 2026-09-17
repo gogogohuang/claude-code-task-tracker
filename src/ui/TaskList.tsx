@@ -71,6 +71,7 @@ export function TaskList({
   toolInventorySummary,
   stuckLabel,
   endedSummary,
+  pinned,
 }: {
   state: TaskState;
   current?: boolean;
@@ -82,6 +83,7 @@ export function TaskList({
   toolInventorySummary?: string;
   stuckLabel?: string;
   endedSummary?: string;
+  pinned?: boolean;
 }) {
   const { isRawModeSupported } = useStdin();
   const rows = taskRows(state);
@@ -141,6 +143,7 @@ export function TaskList({
         </Text>
         <Text color={headerColor}>{state.sessionId}</Text>
         {current ? <Text color="green">  目前</Text> : null}
+        {pinned ? <Text color="cyan">  已釘選</Text> : null}
         {state.cwd ? <Text dimColor> ({state.cwd})</Text> : null}
       </Box>
 

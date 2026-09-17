@@ -17,6 +17,10 @@ import {
   shouldAutoSelectSession,
   type SessionHint,
 } from "../session-preference.js";
+import {
+  clearPinOnLeave,
+  shouldBlockAutoSelect,
+} from "../session-pin.js";
 import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
 import { SessionPicker } from "./SessionPicker.js";
@@ -45,6 +49,18 @@ import {
 import { pushActivityToTimeline, type TimelineEntry } from "../activity-timeline.js";
 import { formatStuckLabel, isActivityStuck } from "../activity-stuck.js";
 import { formatEndedSummary, isSessionEnded } from "../session-ended.js";
+import {
+  collectAlertEvents,
+  formatAlertBanner,
+  nextJumpTarget,
+  shouldRingAlertBell,
+  type AlertSessionSnapshot,
+} from "../session-alerts.js";
+import {
+  isNotifyEnabled,
+  notifyAlert,
+  shouldSendDesktopNotify,
+} from "../desktop-notify.js";
 import { discoverInspectModel } from "../inspect/discover.js";
 import { heatSummaryLines } from "../inspect/heat.js";
 import { defaultManagedPolicyPath } from "../inspect/paths.js";
@@ -138,9 +154,12 @@ export function App({
   const [clockRevision, setClockRevision] = useState(0);
   // state 檔內容變更時 sessionIds 可能不變；用 revision 強制列表重讀 hints。
   const [stateRevision, setStateRevision] = useState(0);
+  const [pinned, setPinned] = useState(false);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | undefined>();
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const lastWaitingKey = useRef<string | undefined>(undefined);
+  const lastAlertEdgeKey = useRef<string | undefined>(undefined);
+  const lastSeenAdviceAtBySession = useRef<Map<string, string>>(new Map());
   const heatCacheRef = useRef<{ cwd: string; lines: string[] } | undefined>(undefined);
   const cwd = watchCwd ?? process.cwd();
 
@@ -162,6 +181,32 @@ export function App({
     }
   };
 
+  const markAdviceSeen = (sessionId: string) => {
+    const latest = adviceList
+      .filter((item) => item.sessionId === sessionId)
+      .sort((left, right) => right.at.localeCompare(left.at))[0];
+    if (latest) lastSeenAdviceAtBySession.current.set(sessionId, latest.at);
+  };
+
+  const alertSnapshots = (): AlertSessionSnapshot[] =>
+    sessionIds.map((sessionId) => {
+      const state = readTaskState(sessionId);
+      const latest = adviceList
+        .filter((item) => item.sessionId === sessionId)
+        .sort((left, right) => right.at.localeCompare(left.at))[0];
+      const seen = lastSeenAdviceAtBySession.current.get(sessionId);
+      const latestUnreadAdviceAt =
+        latest && (!seen || latest.at.localeCompare(seen) > 0) ? latest.at : undefined;
+      return {
+        sessionId,
+        activity: state?.activity,
+        latestUnreadAdviceAt,
+      };
+    });
+
+  const currentAlertEvents = () =>
+    collectAlertEvents({ sessions: alertSnapshots(), selectedSessionId });
+
   const leaveSessionToList = () => {
     setSelectedSessionId(undefined);
     setProjectKey(undefined);
@@ -172,6 +217,7 @@ export function App({
     setView("main");
     lastWaitingKey.current = undefined;
     setTimeline([]);
+    setPinned(clearPinOnLeave());
   };
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
@@ -208,7 +254,22 @@ export function App({
       }
       if (input === "a" && view === "main" && selectedSessionId) {
         setPendingDeleteSessionId(undefined);
+        markAdviceSeen(selectedSessionId);
         setView("advice");
+        return;
+      }
+      if (input === "n") {
+        const target = nextJumpTarget(currentAlertEvents());
+        if (!target) return;
+        setPendingDeleteSessionId(undefined);
+        setSelectedSessionId(target.sessionId);
+        setBrowsing(false);
+        if (target.kind === "advice") {
+          markAdviceSeen(target.sessionId);
+          setView("advice");
+        } else {
+          setView("main");
+        }
         return;
       }
       if (input === "s" && view === "main" && selectedSessionId) {
@@ -224,6 +285,11 @@ export function App({
       if (input === "h" && view === "main" && selectedSessionId) {
         setPendingDeleteSessionId(undefined);
         setView("history");
+        return;
+      }
+      if (input === "p" && view === "main" && selectedSessionId) {
+        setPendingDeleteSessionId(undefined);
+        setPinned((value) => !value);
         return;
       }
       if (input !== "b" && !key.escape) return;
@@ -346,11 +412,12 @@ export function App({
   // 使用者按 b 回到列表後不再自動跳回去。
   useEffect(() => {
     if (browsing || selectedSessionId || sessionIds.length === 0) return;
+    if (shouldBlockAutoSelect(pinned)) return;
     const hints = hintsFor(sessionIds);
     if (!shouldAutoSelectSession(hints, cwd)) return;
     const preferred = pickPreferredSession(hints, cwd);
     if (preferred) setSelectedSessionId(preferred);
-  }, [sessionIds, selectedSessionId, cwd, browsing]);
+  }, [sessionIds, selectedSessionId, cwd, browsing, pinned]);
 
   // 監控被選中 session 的檔案內容變化。
   // 寫入是 write-then-rename：直接 watch 最終路徑常會在 inode 換掉後漏事件，
@@ -413,6 +480,31 @@ export function App({
   }, [selectedSessionId, taskState?.activity?.toolName, taskState?.activity?.phase, taskState?.activity?.at]);
 
   useEffect(() => {
+    const events = currentAlertEvents();
+    const nextEdge = events[0]?.edgeKey;
+    const ring = shouldRingAlertBell(lastAlertEdgeKey.current, nextEdge);
+    if (ring) {
+      try {
+        process.stdout.write("\x07");
+      } catch {
+        // 終端機不支援鈴就略過
+      }
+    }
+    const enabled = isNotifyEnabled(process.env);
+    if (shouldSendDesktopNotify(lastAlertEdgeKey.current, nextEdge, enabled) && events[0]) {
+      const first = events[0];
+      const state = readTaskState(first.sessionId);
+      notifyAlert({
+        sessionId: first.sessionId,
+        kind: first.kind,
+        shortId: shortSessionId(first.sessionId),
+        projectLabel: state?.cwd ? basename(state.cwd) : undefined,
+      });
+    }
+    lastAlertEdgeKey.current = nextEdge;
+  }, [sessionIds, selectedSessionId, adviceList, stateRevision, taskState?.updatedAt]);
+
+  useEffect(() => {
     setTimeline([]);
   }, [selectedSessionId]);
 
@@ -446,7 +538,8 @@ export function App({
     selectedSessionId && taskState?.activity && isWaitingForUser(taskState.activity)
       ? waitingBannerMessage(taskState.activity.toolName)
       : undefined;
-  const topNotice = waitingNotice ?? notice;
+  const alertBanner = formatAlertBanner(currentAlertEvents());
+  const topNotice = waitingNotice ?? alertBanner ?? notice;
 
   if (view === "advice") {
     const filtered = adviceForSession(adviceList, selectedSessionId);
@@ -602,6 +695,7 @@ export function App({
       toolInventorySummary={toolInventorySummary}
       stuckLabel={stuckLabel}
       endedSummary={endedSummary}
+      pinned={pinned}
     />,
   );
 }
