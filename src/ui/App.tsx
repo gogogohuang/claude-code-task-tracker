@@ -23,6 +23,16 @@ import {
 } from "../session-pin.js";
 import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
+import { SplitView, clampSplitScroll } from "./SplitView.js";
+import {
+  SPLIT_TASK_ROWS,
+  SPLIT_TOO_NARROW_NOTICE,
+  canEnterSplit,
+  canPickSplitPartner,
+  focusedSessionId,
+  type SplitFocus,
+} from "../split-layout.js";
+import { taskRows } from "./task-rows.js";
 import { SessionPicker } from "./SessionPicker.js";
 import { AdvicePanel } from "./AdvicePanel.js";
 import { CachePanel } from "./CachePanel.js";
@@ -155,6 +165,13 @@ export function App({
   // state 檔內容變更時 sessionIds 可能不變；用 revision 強制列表重讀 hints。
   const [stateRevision, setStateRevision] = useState(0);
   const [pinned, setPinned] = useState(false);
+  const [pickingSplitPartner, setPickingSplitPartner] = useState(false);
+  const [splitLeftId, setSplitLeftId] = useState<string | undefined>();
+  const [splitRightId, setSplitRightId] = useState<string | undefined>();
+  const [splitFocus, setSplitFocus] = useState<SplitFocus>("left");
+  const [splitReturnSessionId, setSplitReturnSessionId] = useState<string | undefined>();
+  const [leftScroll, setLeftScroll] = useState(0);
+  const [rightScroll, setRightScroll] = useState(0);
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | undefined>();
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
   const lastWaitingKey = useRef<string | undefined>(undefined);
@@ -218,6 +235,64 @@ export function App({
     lastWaitingKey.current = undefined;
     setTimeline([]);
     setPinned(clearPinOnLeave());
+    setPickingSplitPartner(false);
+    setSplitLeftId(undefined);
+    setSplitRightId(undefined);
+    setSplitReturnSessionId(undefined);
+    setLeftScroll(0);
+    setRightScroll(0);
+  };
+
+  const exitSplit = () => {
+    const ret = splitReturnSessionId;
+    setView("main");
+    setSplitLeftId(undefined);
+    setSplitRightId(undefined);
+    setSplitReturnSessionId(undefined);
+    setPickingSplitPartner(false);
+    setSelectedSessionId(ret);
+    setBrowsing(false);
+    setNotice(undefined);
+    setPendingDeleteSessionId(undefined);
+    setLeftScroll(0);
+    setRightScroll(0);
+  };
+
+  const actionSessionId =
+    view === "split" && splitLeftId && splitRightId
+      ? focusedSessionId(splitLeftId, splitRightId, splitFocus)
+      : selectedSessionId;
+
+  const beginPickSplitPartner = (leftId: string) => {
+    if (!canEnterSplit(process.stdout.columns ?? 0)) {
+      setNotice(SPLIT_TOO_NARROW_NOTICE);
+      return;
+    }
+    setSplitReturnSessionId(leftId);
+    setPickingSplitPartner(true);
+    setSelectedSessionId(undefined);
+    setProjectKey(undefined);
+    setTaskState(null);
+    setBrowsing(true);
+    setPendingDeleteSessionId(undefined);
+    setNotice("選擇要並排的第二個 session");
+  };
+
+  const enterSplitWithPartner = (rightId: string) => {
+    if (!splitReturnSessionId) return;
+    if (!canPickSplitPartner(rightId, splitReturnSessionId)) {
+      setNotice("不能與目前 session 相同");
+      return;
+    }
+    setSplitLeftId(splitReturnSessionId);
+    setSplitRightId(rightId);
+    setSplitFocus("left");
+    setSelectedSessionId(splitReturnSessionId);
+    setPickingSplitPartner(false);
+    setView("split");
+    setBrowsing(false);
+    setNotice(undefined);
+    setProjectKey(undefined);
   };
 
   // 在非 TTY 環境（例如被其他腳本呼叫、或某些 CI）跳過 raw mode，避免直接噴錯。
@@ -229,32 +304,60 @@ export function App({
         exit();
         return;
       }
-      if (input === "d" && shouldHandleDeleteKey(view, selectedSessionId) && selectedSessionId) {
-        if (isSessionBusy(taskState?.activity)) {
+
+      if (view === "split") {
+        if (input === "[" ) {
+          setSplitFocus("left");
+          return;
+        }
+        if (input === "]") {
+          setSplitFocus("right");
+          return;
+        }
+        if (input === "v" || input === "b" || key.escape) {
+          exitSplit();
+          return;
+        }
+      }
+
+      if (input === "v" && view === "main" && selectedSessionId && !pickingSplitPartner) {
+        beginPickSplitPartner(selectedSessionId);
+        return;
+      }
+
+      const deleteTarget = actionSessionId;
+      if (input === "d" && shouldHandleDeleteKey(view, deleteTarget) && deleteTarget) {
+        const busyState = view === "split" ? readTaskState(deleteTarget) : taskState;
+        if (isSessionBusy(busyState?.activity)) {
           setPendingDeleteSessionId(undefined);
           setNotice(DELETE_SESSION_RUNNING_NOTICE);
           return;
         }
-        const step = armOrConfirmDelete(pendingDeleteSessionId, selectedSessionId);
+        const step = armOrConfirmDelete(pendingDeleteSessionId, deleteTarget);
         if (step === "arm") {
-          setPendingDeleteSessionId(selectedSessionId);
+          setPendingDeleteSessionId(deleteTarget);
           setNotice(DELETE_SESSION_CONFIRM_NOTICE);
           return;
         }
-        deleteSessionState(selectedSessionId, STATE_DIR);
-        const watcher = adviceWatchers.current.get(selectedSessionId);
+        deleteSessionState(deleteTarget, STATE_DIR);
+        const watcher = adviceWatchers.current.get(deleteTarget);
         if (watcher) {
           void watcher.close();
-          adviceWatchers.current.delete(selectedSessionId);
+          adviceWatchers.current.delete(deleteTarget);
         }
-        forget(selectedSessionId);
-        setAdviceList((prev) => prev.filter((advice) => advice.sessionId !== selectedSessionId));
-        leaveSessionToList();
+        forget(deleteTarget);
+        setAdviceList((prev) => prev.filter((advice) => advice.sessionId !== deleteTarget));
+        if (view === "split") {
+          exitSplit();
+        } else {
+          leaveSessionToList();
+        }
         return;
       }
-      if (input === "a" && view === "main" && selectedSessionId) {
+      if (input === "a" && (view === "main" || view === "split") && actionSessionId) {
         setPendingDeleteSessionId(undefined);
-        markAdviceSeen(selectedSessionId);
+        setSelectedSessionId(actionSessionId);
+        markAdviceSeen(actionSessionId);
         setView("advice");
         return;
       }
@@ -262,6 +365,10 @@ export function App({
         const target = nextJumpTarget(currentAlertEvents());
         if (!target) return;
         setPendingDeleteSessionId(undefined);
+        setPickingSplitPartner(false);
+        setSplitLeftId(undefined);
+        setSplitRightId(undefined);
+        setSplitReturnSessionId(undefined);
         setSelectedSessionId(target.sessionId);
         setBrowsing(false);
         if (target.kind === "advice") {
@@ -272,30 +379,46 @@ export function App({
         }
         return;
       }
-      if (input === "s" && view === "main" && selectedSessionId) {
+      if (input === "s" && (view === "main" || view === "split") && actionSessionId) {
         setPendingDeleteSessionId(undefined);
+        setSelectedSessionId(actionSessionId);
         setView("cache");
         return;
       }
-      if (input === "t" && view === "main" && selectedSessionId) {
+      if (input === "t" && (view === "main" || view === "split") && actionSessionId) {
         setPendingDeleteSessionId(undefined);
+        setSelectedSessionId(actionSessionId);
         setView("tools");
         return;
       }
-      if (input === "h" && view === "main" && selectedSessionId) {
+      if (input === "h" && (view === "main" || view === "split") && actionSessionId) {
         setPendingDeleteSessionId(undefined);
+        setSelectedSessionId(actionSessionId);
         setView("history");
         return;
       }
-      if (input === "p" && view === "main" && selectedSessionId) {
+      if (input === "p" && (view === "main" || view === "split") && actionSessionId) {
         setPendingDeleteSessionId(undefined);
+        setSelectedSessionId(actionSessionId);
         setPinned((value) => !value);
         return;
       }
       if (input !== "b" && !key.escape) return;
       setPendingDeleteSessionId(undefined);
+      if (pickingSplitPartner) {
+        setPickingSplitPartner(false);
+        setSelectedSessionId(splitReturnSessionId);
+        setBrowsing(false);
+        setNotice(undefined);
+        return;
+      }
       if (view === "advice" || view === "cache" || view === "tools" || view === "history") {
-        setView("main");
+        if (splitLeftId && splitRightId) {
+          setView("split");
+          setSelectedSessionId(focusedSessionId(splitLeftId, splitRightId, splitFocus));
+        } else {
+          setView("main");
+        }
         setNotice(undefined);
         return;
       }
@@ -412,12 +535,13 @@ export function App({
   // 使用者按 b 回到列表後不再自動跳回去。
   useEffect(() => {
     if (browsing || selectedSessionId || sessionIds.length === 0) return;
+    if (pickingSplitPartner) return;
     if (shouldBlockAutoSelect(pinned)) return;
     const hints = hintsFor(sessionIds);
     if (!shouldAutoSelectSession(hints, cwd)) return;
     const preferred = pickPreferredSession(hints, cwd);
     if (preferred) setSelectedSessionId(preferred);
-  }, [sessionIds, selectedSessionId, cwd, browsing, pinned]);
+  }, [sessionIds, selectedSessionId, cwd, browsing, pinned, pickingSplitPartner]);
 
   // 監控被選中 session 的檔案內容變化。
   // 寫入是 write-then-rename：直接 watch 最終路徑常會在 inode 換掉後漏事件，
@@ -535,11 +659,48 @@ export function App({
   }, []);
 
   const waitingNotice =
-    selectedSessionId && taskState?.activity && isWaitingForUser(taskState.activity)
-      ? waitingBannerMessage(taskState.activity.toolName)
+    actionSessionId &&
+    (view === "split" ? readTaskState(actionSessionId)?.activity : taskState?.activity) &&
+    isWaitingForUser(
+      view === "split" ? readTaskState(actionSessionId)?.activity : taskState?.activity,
+    )
+      ? waitingBannerMessage(
+          (view === "split" ? readTaskState(actionSessionId)?.activity : taskState?.activity)!.toolName,
+        )
       : undefined;
   const alertBanner = formatAlertBanner(currentAlertEvents());
   const topNotice = waitingNotice ?? alertBanner ?? notice;
+
+  if (view === "split" && splitLeftId && splitRightId) {
+    void stateRevision;
+    void clockRevision;
+    const leftState = readTaskState(splitLeftId);
+    const rightState = readTaskState(splitRightId);
+    const leftUsage = peek(splitLeftId);
+    const rightUsage = peek(splitRightId);
+    return withNotice(
+      topNotice,
+      <SplitView
+        left={leftState}
+        right={rightState}
+        focus={splitFocus}
+        pinned={pinned}
+        leftGauge={formatContextGaugeBar(leftUsage?.lastOccupiedTokens)}
+        rightGauge={formatContextGaugeBar(rightUsage?.lastOccupiedTokens)}
+        leftScroll={leftScroll}
+        rightScroll={rightScroll}
+        onScrollFocus={(delta) => {
+          const id = focusedSessionId(splitLeftId, splitRightId, splitFocus);
+          const rows = taskRows(readTaskState(id) ?? { sessionId: id, updatedAt: "" });
+          if (splitFocus === "left") {
+            setLeftScroll((n) => clampSplitScroll(n + delta, rows.length, SPLIT_TASK_ROWS));
+          } else {
+            setRightScroll((n) => clampSplitScroll(n + delta, rows.length, SPLIT_TASK_ROWS));
+          }
+        }}
+      />,
+    );
+  }
 
   if (view === "advice") {
     const filtered = adviceForSession(adviceList, selectedSessionId);
@@ -634,13 +795,17 @@ export function App({
       return withNotice(
         notice,
         <SessionPicker
-          heading="選擇專案"
-          hint="按 q 離開"
+          heading={pickingSplitPartner ? "選擇並排 session 的專案" : "選擇專案"}
+          hint={pickingSplitPartner ? "按 b 取消分割" : "按 q 離開"}
           items={projectChoices(hints, cwd)}
           onSelect={(key) => {
             const group = groups.find((item) => item.key === key);
             const preferred = group ? pickPreferredSession(group.sessions, cwd) : undefined;
             if (group && group.sessions.length === 1 && preferred) {
+              if (pickingSplitPartner) {
+                enterSplitWithPartner(preferred);
+                return;
+              }
               setSelectedSessionId(preferred);
               return;
             }
@@ -653,10 +818,20 @@ export function App({
     return withNotice(
       topNotice,
       <SessionPicker
-        heading={`選擇 session · ${group?.label ?? "專案"}`}
-        hint="按 b 回專案列表"
+        heading={
+          pickingSplitPartner
+            ? `選擇並排 session · ${group?.label ?? "專案"}`
+            : `選擇 session · ${group?.label ?? "專案"}`
+        }
+        hint={pickingSplitPartner ? "按 b 取消分割" : "按 b 回專案列表"}
         items={sessionChoicesInProject(group?.sessions ?? [], projectKey, cwd)}
-        onSelect={setSelectedSessionId}
+        onSelect={(id) => {
+          if (pickingSplitPartner) {
+            enterSplitWithPartner(id);
+            return;
+          }
+          setSelectedSessionId(id);
+        }}
       />,
     );
   }

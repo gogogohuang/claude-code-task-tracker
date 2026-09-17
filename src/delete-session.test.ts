@@ -12,8 +12,9 @@ import {
   shouldHandleDeleteKey,
 } from "./delete-session.js";
 
-test("shouldHandleDeleteKey 只在 main 且已選 session 時為 true", () => {
+test("shouldHandleDeleteKey 只在 main／split 且已選 session 時為 true", () => {
   assert.equal(shouldHandleDeleteKey("main", "s1"), true);
+  assert.equal(shouldHandleDeleteKey("split", "s1"), true);
   assert.equal(shouldHandleDeleteKey("advice", "s1"), false);
   assert.equal(shouldHandleDeleteKey("cache", "s1"), false);
   assert.equal(shouldHandleDeleteKey("main", undefined), false);
