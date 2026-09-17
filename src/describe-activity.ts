@@ -1,4 +1,5 @@
 import type { ActivityPhase } from "./schema.js";
+import type { Locale } from "./locale.js";
 import { parseWorkflowMeta } from "./workflow/parse-meta.js";
 
 const FRAGMENT_LIMIT = 80;
@@ -8,10 +9,15 @@ export function describeActivity(input: {
   toolInput: unknown;
   cwd?: string;
   phase: ActivityPhase;
+  locale?: Locale;
 }): string {
+  const locale = input.locale ?? "zh";
   const record = asRecord(input.toolInput);
-  if (!record) return fallback(input.toolName, input.phase);
-  return sentenceFor(input.toolName, record, input.cwd, input.phase) ?? fallback(input.toolName, input.phase);
+  if (!record) return fallback(input.toolName, input.phase, locale);
+  return (
+    sentenceFor(input.toolName, record, input.cwd, input.phase, locale) ??
+    fallback(input.toolName, input.phase, locale)
+  );
 }
 
 function sentenceFor(
@@ -19,44 +25,75 @@ function sentenceFor(
   toolInput: Record<string, unknown>,
   cwd: string | undefined,
   phase: ActivityPhase,
+  locale: Locale,
 ): string | undefined {
   switch (toolName) {
     case "Read":
-      return pathSentence(toolInput, cwd, phase, "讀取");
+      return pathSentence(toolInput, cwd, phase, locale, "讀取", "Reading", "Read");
     case "Edit":
     case "NotebookEdit":
-      return pathSentence(toolInput, cwd, phase, "修改");
+      return pathSentence(toolInput, cwd, phase, locale, "修改", "Editing", "Edited");
     case "Write":
-      return pathSentence(toolInput, cwd, phase, "寫入");
+      return pathSentence(toolInput, cwd, phase, locale, "寫入", "Writing", "Wrote");
     case "Glob":
-      return spaced(phase, "尋找", pickFragment(toolInput, "pattern"));
+      return spaced(phase, locale, "尋找", "Finding", "Found", pickFragment(toolInput, "pattern"));
     case "Grep":
-      return labeled(phase, "搜尋程式碼", pickFragment(toolInput, "pattern"));
+      return labeled(phase, locale, "搜尋程式碼", "Searching code", "Searched code", pickFragment(toolInput, "pattern"));
     case "WebSearch":
-      return labeled(phase, "搜尋網頁", pickFragment(toolInput, "query"));
+      return labeled(phase, locale, "搜尋網頁", "Searching the web", "Searched the web", pickFragment(toolInput, "query"));
     case "WebFetch":
-      return spaced(phase, "抓取", pickFragment(toolInput, "url"));
+      return spaced(phase, locale, "抓取", "Fetching", "Fetched", pickFragment(toolInput, "url"));
     case "Bash":
     case "PowerShell":
-      return spaced(phase, "執行", shellFragment(toolInput));
+      return spaced(phase, locale, "執行", "Running", "Ran", shellFragment(toolInput));
     case "Agent":
-      return agentSentence(toolInput, phase);
+      return agentSentence(toolInput, phase, locale);
     case "AskUserQuestion":
-      return labeled(phase, "詢問", firstQuestion(toolInput));
+      return labeled(phase, locale, "詢問", "Asking", "Asked", firstQuestion(toolInput));
     case "ExitPlanMode":
+      if (locale === "en") {
+        return phase === "running" ? "Waiting for plan approval" : "Submitted plan";
+      }
       return phase === "running" ? "正在等待核准計畫" : "已送出計畫";
     case "TodoWrite":
+      if (locale === "en") {
+        return phase === "running" ? "Updating todo list" : "Updated todo list";
+      }
       return phase === "running" ? "正在更新任務清單" : "已更新任務清單";
     case "TaskCreate":
-      return taskSentence(phase, "建立任務", pickFragment(toolInput, "subject") ?? pickFragment(toolInput, "title"));
+      return taskSentence(
+        phase,
+        locale,
+        "建立任務",
+        "Creating task",
+        "Created task",
+        pickFragment(toolInput, "subject") ?? pickFragment(toolInput, "title"),
+      );
     case "TaskUpdate":
-      return taskSentence(phase, "更新任務", pickFragment(toolInput, "subject") ?? pickFragment(toolInput, "title"));
+      return taskSentence(
+        phase,
+        locale,
+        "更新任務",
+        "Updating task",
+        "Updated task",
+        pickFragment(toolInput, "subject") ?? pickFragment(toolInput, "title"),
+      );
     case "TaskList":
+      if (locale === "en") {
+        return phase === "running" ? "Reading task list" : "Read task list";
+      }
       return phase === "running" ? "正在讀取任務清單" : "已讀取任務清單";
     case "Workflow":
-      return workflowSentence(toolInput, phase);
+      return workflowSentence(toolInput, phase, locale);
     case "Skill":
-      return labeled(phase, "使用技能", pickFragment(toolInput, "skill") ?? pickFragment(toolInput, "skillName"));
+      return labeled(
+        phase,
+        locale,
+        "使用技能",
+        "Using skill",
+        "Used skill",
+        pickFragment(toolInput, "skill") ?? pickFragment(toolInput, "skillName"),
+      );
     default:
       return undefined;
   }
@@ -66,42 +103,101 @@ function pathSentence(
   toolInput: Record<string, unknown>,
   cwd: string | undefined,
   phase: ActivityPhase,
-  verb: string,
+  locale: Locale,
+  verbZh: string,
+  enRunning: string,
+  enDone: string,
 ): string | undefined {
   const filePath = rawString(toolInput, "file_path")?.trim();
   if (!filePath) return undefined;
-  return spaced(phase, verb, displayPath(filePath, cwd));
+  return spaced(phase, locale, verbZh, enRunning, enDone, displayPath(filePath, cwd));
 }
 
-function spaced(phase: ActivityPhase, verb: string, fragment: string | undefined): string | undefined {
+function spaced(
+  phase: ActivityPhase,
+  locale: Locale,
+  verbZh: string,
+  enRunning: string,
+  enDone: string,
+  fragment: string | undefined,
+): string | undefined {
   if (!fragment) return undefined;
-  const head = phase === "running" ? `正在${verb}` : `已${verb}`;
+  if (locale === "en") {
+    const head = phase === "running" ? enRunning : enDone;
+    return `${head} ${fragment}`;
+  }
+  const head = phase === "running" ? `正在${verbZh}` : `已${verbZh}`;
   return `${head} ${fragment}`;
 }
 
-function labeled(phase: ActivityPhase, label: string, fragment: string | undefined): string | undefined {
+function labeled(
+  phase: ActivityPhase,
+  locale: Locale,
+  labelZh: string,
+  enRunning: string,
+  enDone: string,
+  fragment: string | undefined,
+): string | undefined {
   if (!fragment) return undefined;
-  const head = phase === "running" ? `正在${label}` : `已${label}`;
+  if (locale === "en") {
+    const head = phase === "running" ? enRunning : enDone;
+    return `${head}: ${fragment}`;
+  }
+  const head = phase === "running" ? `正在${labelZh}` : `已${labelZh}`;
   return `${head}：${fragment}`;
 }
 
-function workflowSentence(toolInput: Record<string, unknown>, phase: ActivityPhase): string {
+function workflowSentence(
+  toolInput: Record<string, unknown>,
+  phase: ActivityPhase,
+  locale: Locale,
+): string {
   const fromScript = typeof toolInput.script === "string" ? parseWorkflowMeta(toolInput.script)?.name : undefined;
   const name = pickFragment(toolInput, "name") ?? fromScript;
+  if (locale === "en") {
+    if (!name) return phase === "running" ? "Running workflow" : "Started workflow";
+    return phase === "running" ? `Running workflow ${name}` : `Started workflow ${name}`;
+  }
   if (!name) return phase === "running" ? "正在執行 workflow" : "已啟動 workflow";
   return phase === "running" ? `正在執行 workflow ${name}` : `已啟動 workflow ${name}`;
 }
 
-function taskSentence(phase: ActivityPhase, verb: string, subject: string | undefined): string {
-  if (!subject) return phase === "running" ? `正在${verb}` : `已${verb}`;
-  return labeled(phase, verb, subject) ?? (phase === "running" ? `正在${verb}` : `已${verb}`);
+function taskSentence(
+  phase: ActivityPhase,
+  locale: Locale,
+  verbZh: string,
+  enRunning: string,
+  enDone: string,
+  subject: string | undefined,
+): string {
+  if (!subject) {
+    if (locale === "en") return phase === "running" ? enRunning : enDone;
+    return phase === "running" ? `正在${verbZh}` : `已${verbZh}`;
+  }
+  return (
+    labeled(phase, locale, verbZh, enRunning, enDone, subject) ??
+    (locale === "en"
+      ? phase === "running"
+        ? enRunning
+        : enDone
+      : phase === "running"
+        ? `正在${verbZh}`
+        : `已${verbZh}`)
+  );
 }
 
-function agentSentence(toolInput: Record<string, unknown>, phase: ActivityPhase): string | undefined {
+function agentSentence(
+  toolInput: Record<string, unknown>,
+  phase: ActivityPhase,
+  locale: Locale,
+): string | undefined {
   const type = pickFragment(toolInput, "subagent_type");
   const description = pickFragment(toolInput, "description");
   if (!type || !description) return undefined;
-  return labeled(phase, `交給 ${type}`, description);
+  if (locale === "en") {
+    return labeled(phase, locale, "", `Handing to ${type}`, `Handed to ${type}`, description);
+  }
+  return labeled(phase, locale, `交給 ${type}`, "", "", description);
 }
 
 function shellFragment(toolInput: Record<string, unknown>): string | undefined {
@@ -168,6 +264,9 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
-function fallback(toolName: string, phase: ActivityPhase): string {
+function fallback(toolName: string, phase: ActivityPhase, locale: Locale): string {
+  if (locale === "en") {
+    return phase === "running" ? `Using ${toolName}` : `Used ${toolName}`;
+  }
   return phase === "running" ? `正在使用 ${toolName}` : `已使用 ${toolName}`;
 }

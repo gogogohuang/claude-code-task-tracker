@@ -83,6 +83,7 @@ import {
   shouldHandleDeleteKey,
   type WatchView,
 } from "../delete-session.js";
+import { copyText } from "../clipboard.js";
 import { Advice } from "../usage/types.js";
 
 function withNotice(notice: string | undefined, child: ReactNode) {
@@ -401,6 +402,16 @@ export function App({
         setPendingDeleteSessionId(undefined);
         setSelectedSessionId(actionSessionId);
         setPinned((value) => !value);
+        return;
+      }
+      if ((input === "c" || input === "C") && (view === "main" || view === "split")) {
+        if (!actionSessionId) {
+          setNotice("沒有可複製的 session");
+          return;
+        }
+        const payload = input === "c" ? actionSessionId : statePathForSession(actionSessionId);
+        const ok = copyText(payload);
+        setNotice(ok ? (input === "c" ? "已複製 session id" : "已複製暫存路徑") : "複製失敗（請手動選取）");
         return;
       }
       if (input !== "b" && !key.escape) return;

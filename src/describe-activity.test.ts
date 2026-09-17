@@ -7,12 +7,14 @@ function describe(input: {
   toolInput?: unknown;
   cwd?: string;
   phase?: "running" | "done";
+  locale?: "zh" | "en";
 }): string {
   return describeActivity({
     toolName: input.toolName,
     toolInput: input.toolInput,
     cwd: input.cwd,
     phase: input.phase ?? "running",
+    locale: input.locale ?? "zh",
   });
 }
 
@@ -284,6 +286,37 @@ test("計畫、清單和任務工具寫固定動作，不搬正文或 taskId", (
       phase: "done",
     }),
     "已啟動 workflow linego-feature-workflow",
+  );
+});
+
+test("en locale：主要工具句", () => {
+  assert.equal(
+    describe({
+      toolName: "Read",
+      toolInput: { file_path: "/proj/src/a.ts" },
+      cwd: "/proj",
+      locale: "en",
+    }),
+    "Reading src/a.ts",
+  );
+  assert.equal(
+    describe({
+      toolName: "Read",
+      toolInput: { file_path: "/proj/src/a.ts" },
+      cwd: "/proj",
+      phase: "done",
+      locale: "en",
+    }),
+    "Read src/a.ts",
+  );
+  assert.equal(
+    describe({ toolName: "ExitPlanMode", toolInput: {}, locale: "en" }),
+    "Waiting for plan approval",
+  );
+  assert.equal(describe({ toolName: "Read", toolInput: null, locale: "en" }), "Using Read");
+  assert.equal(
+    describe({ toolName: "AskUserQuestion", toolInput: { questions: [{ question: "Go?" }] }, locale: "en" }),
+    "Asking: Go?",
   );
 });
 

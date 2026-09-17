@@ -1,4 +1,5 @@
 import { describeActivity } from "../describe-activity.js";
+import { resolveLocale } from "../locale.js";
 import { readFileSync } from "node:fs";
 import {
   Activity,
@@ -205,6 +206,7 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
       toolInput: payload.tool_input,
       cwd: payload.cwd,
       phase,
+      locale: resolveLocale(process.env),
     }),
     at: updatedAt,
   };

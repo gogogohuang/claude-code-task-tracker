@@ -1,4 +1,5 @@
 import { Activity } from "./schema.js";
+import { resolveLocale } from "./locale.js";
 
 export const CONTEXT_WINDOW_TOKENS = 1_000_000;
 
@@ -60,9 +61,16 @@ export function lastTurnUsageFromStats(stats: {
 }
 
 export function activityLineLabel(activity: Activity): string {
+  const locale = resolveLocale(process.env);
   const body =
     activity.summary ??
-    (activity.phase === "running" ? `正在使用 ${activity.toolName}` : `已使用 ${activity.toolName}`);
+    (locale === "en"
+      ? activity.phase === "running"
+        ? `Using ${activity.toolName}`
+        : `Used ${activity.toolName}`
+      : activity.phase === "running"
+        ? `正在使用 ${activity.toolName}`
+        : `已使用 ${activity.toolName}`);
   const withTool = `${activity.toolName} · ${body}`;
   return activity.phase === "running" ? `◐ ${withTool}` : withTool;
 }
