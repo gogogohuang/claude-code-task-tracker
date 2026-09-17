@@ -120,3 +120,23 @@ test("formatEndedSummary 無 task／todo → 任務 —", () => {
   assert.match(line, /任務 —/);
   assert.match(line, /無活動/);
 });
+
+test("formatEndedSummary 排除 deleted task，不計入分母也不計入分子", () => {
+  const line = formatEndedSummary({
+    ...base,
+    tasks: {
+      a: { id: "a", status: "completed", subject: "A" },
+      b: { id: "b", status: "pending", subject: "B" },
+      c: { id: "c", status: "deleted", subject: "C" },
+    },
+  });
+  assert.match(line, /任務 1\/2/);
+});
+
+test("formatEndedSummary 全部都是 deleted task → 任務 —（視同沒有任務）", () => {
+  const line = formatEndedSummary({
+    ...base,
+    tasks: { a: { id: "a", status: "deleted", subject: "A" } },
+  });
+  assert.match(line, /任務 —/);
+});

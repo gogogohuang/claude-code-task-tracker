@@ -24,8 +24,8 @@
 4. ~~**settings.json 非原子寫入**~~（`src/install-hooks.ts:100-103`）
    ✅ 已修：抽出共用的 `src/fs-atomic.ts`（`writeFileAtomic`，write-then-rename），
    `install-hooks.ts` 的 `writeSettingsFile` 與 `store.ts` 的 `writeTaskState` 都改用它。
-5. **taskDoneTotal 誤算 deleted task**（`src/session-ended.ts:24-31`）
-   比照 `next-task.ts` 排除 `status:"deleted"`。
+5. ~~**taskDoneTotal 誤算 deleted task**~~（`src/session-ended.ts:24-31`）
+   ✅ 已修：`taskDoneTotal` 過濾掉 `status === "deleted"` 的 task，不計入分子也不計入分母。
 6. **settings.json 缺 schema 驗證**（`src/install-hooks.ts:61-68`, `91-98`）
    對讀出的既有設定做形狀檢查，不合法時走既有的友善錯誤路徑而不是讓 `TypeError` 冒出。
 7. **activity-timeline dedup 鍵不完整**（`src/activity-timeline.ts:16-19`）
