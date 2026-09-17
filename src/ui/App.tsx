@@ -54,8 +54,8 @@ import {
 import {
   isWaitingForUser,
   shouldRingWaitingBell,
-  waitingBannerMessage,
   waitingEdgeKey,
+  waitingNoticeForActivity,
 } from "../session-presence.js";
 import { pushActivityToTimeline, type TimelineEntry } from "../activity-timeline.js";
 import { formatStuckLabel, isActivityStuck } from "../activity-stuck.js";
@@ -673,16 +673,12 @@ export function App({
     return () => clearInterval(timer);
   }, []);
 
-  const waitingNotice =
-    actionSessionId &&
-    (view === "split" ? readTaskState(actionSessionId)?.activity : taskState?.activity) &&
-    isWaitingForUser(
-      view === "split" ? readTaskState(actionSessionId)?.activity : taskState?.activity,
-    )
-      ? waitingBannerMessage(
-          (view === "split" ? readTaskState(actionSessionId)?.activity : taskState?.activity)!.toolName,
-        )
-      : undefined;
+  const actionActivity = actionSessionId
+    ? view === "split"
+      ? readTaskState(actionSessionId)?.activity
+      : taskState?.activity
+    : undefined;
+  const waitingNotice = waitingNoticeForActivity(actionActivity);
   const alertBanner = formatAlertBanner(currentAlertEvents());
   const topNotice = waitingNotice ?? alertBanner ?? notice;
 

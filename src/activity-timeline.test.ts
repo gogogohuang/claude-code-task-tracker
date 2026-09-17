@@ -47,6 +47,14 @@ test("pushActivityToTimeline：同 at+phase 不重複", () => {
   assert.deepEqual(pushActivityToTimeline(prev, running("Read", "t1")), prev);
 });
 
+test("pushActivityToTimeline：不同 tool 但同 at+phase 不會被誤判成重複而丟掉", () => {
+  const prev = [running("Read", "t1")];
+  assert.deepEqual(pushActivityToTimeline(prev, running("Bash", "t1")), [
+    running("Read", "t1"),
+    running("Bash", "t1"),
+  ]);
+});
+
 test("pushActivityToTimeline：超過上限丟最舊", () => {
   let entries: TimelineEntry[] = [];
   for (let i = 0; i < TIMELINE_MAX + 5; i++) {

@@ -7,6 +7,7 @@ import { classifyPresence, presenceColor } from "../session-presence.js";
 import { AgentDispatch, dispatchLabel, SubagentsState } from "../usage/subagents.js";
 import { phaseProgress } from "../workflow/phase-progress.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
+import { subagentBlockRows } from "./subagents-block.js";
 import { RowStatus, taskRows, workItemRows } from "./task-rows.js";
 
 const STATUS_ICON: Record<RowStatus, string> = {
@@ -128,9 +129,7 @@ export function TaskList({
   const headerColor = presenceColor(presence);
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
-  const subagentRows = subagents && subagents.dispatches.length > 0
-    ? 1 + subagents.dispatches.length + (subagents.latestSidechainActivity ? 1 : 0)
-    : 0;
+  const subagentRows = subagentBlockRows(subagents);
   const snapshotExtraRows =
     (contextSnapshot
       ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) + (contextSnapshot.gauge ? 1 : 0)

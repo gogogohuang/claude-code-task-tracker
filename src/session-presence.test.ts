@@ -10,6 +10,7 @@ import {
   shouldRingWaitingBell,
   waitingBannerMessage,
   waitingEdgeKey,
+  waitingNoticeForActivity,
 } from "./session-presence.js";
 
 test("isWaitingForUser：AskUserQuestion／ExitPlanMode + running 才是 true", () => {
@@ -96,4 +97,21 @@ test("waiting 邊沿響鈴：同一 key 不重響，換 key 再響", () => {
   assert.equal(shouldRingWaitingBell(key, key), false);
   assert.equal(shouldRingWaitingBell(key, undefined), false);
   assert.equal(shouldRingWaitingBell(key, waitingEdgeKey("s1", { toolName: "AskUserQuestion", at: "t2" })), true);
+});
+
+test("waitingNoticeForActivity：activity 為 undefined/null 不丟例外，回傳 undefined", () => {
+  assert.equal(waitingNoticeForActivity(undefined), undefined);
+  assert.equal(waitingNoticeForActivity(null), undefined);
+});
+
+test("waitingNoticeForActivity：running + AskUserQuestion 回對應提示", () => {
+  assert.equal(
+    waitingNoticeForActivity({ toolName: "AskUserQuestion", phase: "running" }),
+    "正在等待你的回答 — 回到 Claude Code 視窗",
+  );
+});
+
+test("waitingNoticeForActivity：不是 waiting 狀態回 undefined", () => {
+  assert.equal(waitingNoticeForActivity({ toolName: "Read", phase: "running" }), undefined);
+  assert.equal(waitingNoticeForActivity({ toolName: "AskUserQuestion", phase: "done" }), undefined);
 });

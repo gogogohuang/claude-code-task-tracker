@@ -44,6 +44,13 @@ export function waitingBannerMessage(toolName: string): string | undefined {
   return undefined;
 }
 
+export function waitingNoticeForActivity(
+  activity?: { toolName: string; phase: string } | null,
+): string | undefined {
+  if (!activity || !isWaitingForUser(activity)) return undefined;
+  return waitingBannerMessage(activity.toolName);
+}
+
 export function waitingEdgeKey(
   sessionId: string,
   activity: { toolName: string; at: string },

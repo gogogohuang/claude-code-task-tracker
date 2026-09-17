@@ -67,6 +67,22 @@ test("clearSessions --log 才刪 hook-debug.log", () => {
   }
 });
 
+test("clearSessions 順便清掉孤兒的 *.json.tmp-* 檔案（crash 留下的半寫入殘留）", () => {
+  const dir = mkdtempSync(join(tmpdir(), "tt-clear-orphan-"));
+  try {
+    writeSession(dir, "keep-here", "/proj/a");
+    writeFileSync(join(dir, "crashed-session.json.tmp-4821"), "{}");
+    writeFileSync(join(dir, "hook-debug.log"), "log");
+
+    const result = clearSessions({ stateDir: dir, cwd: "/proj/a" });
+    assert.deepEqual(result.deletedSessionIds, ["keep-here"]);
+    assert.equal(existsSync(join(dir, "crashed-session.json.tmp-4821")), false);
+    assert.equal(existsSync(join(dir, "hook-debug.log")), true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("clearSessions 目錄不存在時回空結果", () => {
   const result = clearSessions({ stateDir: join(tmpdir(), "tt-clear-missing-" + Date.now()), cwd: "/proj/a" });
   assert.deepEqual(result.deletedSessionIds, []);

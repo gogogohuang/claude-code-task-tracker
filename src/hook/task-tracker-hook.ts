@@ -1,6 +1,6 @@
 import { applyHookEvent } from "./apply-event.js";
 import { HookPayloadSchema } from "../schema.js";
-import { appendDebugLog, readTaskState, writeTaskState } from "../store.js";
+import { appendDebugLog, readTaskState, withSessionLock, writeTaskState } from "../store.js";
 
 /**
  * 這支腳本會被 Claude Code 以 PreToolUse／PostToolUse／SessionStart hook
@@ -35,7 +35,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  applyHookEvent(payloadResult.data, { readTaskState, writeTaskState, appendDebugLog });
+  await withSessionLock(payloadResult.data.session_id, () => {
+    applyHookEvent(payloadResult.data, { readTaskState, writeTaskState, appendDebugLog });
+  });
 }
 
 main().catch((err) => {

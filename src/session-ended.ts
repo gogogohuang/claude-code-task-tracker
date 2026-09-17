@@ -22,7 +22,7 @@ export function isSessionEnded(state: TaskState, now: number = Date.now()): bool
 }
 
 function taskDoneTotal(state: TaskState): { done: number; total: number } | undefined {
-  const tasks = state.tasks ? Object.values(state.tasks) : [];
+  const tasks = state.tasks ? Object.values(state.tasks).filter((t) => t.status !== "deleted") : [];
   const todos = state.todos ?? [];
   const items = [...tasks, ...todos];
   if (items.length === 0) return undefined;

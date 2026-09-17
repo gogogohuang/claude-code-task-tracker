@@ -76,8 +76,8 @@ export function AdvicePanel({
       {visible.map((row, index) => (
         <Box key={`${row.kind}-${row.at}-${index}`} flexDirection="column" marginBottom={1}>
           <Text color="yellow">⚠ {row.message}</Text>
-          {row.detailLines?.map((line) => (
-            <Text key={line} dimColor>
+          {row.detailLines?.map((line, lineIndex) => (
+            <Text key={`${line}-${lineIndex}`} dimColor>
               {"  "}· {line}
             </Text>
           ))}

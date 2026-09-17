@@ -29,8 +29,10 @@ function extractCreatedTaskId(toolResponse: unknown): string | undefined {
   if (!toolResponse || typeof toolResponse !== "object") return undefined;
   const obj = toolResponse as Record<string, unknown>;
   const nestedTask = obj.task as Record<string, unknown> | undefined;
-  const candidate = obj.taskId ?? obj.id ?? nestedTask?.id;
-  return typeof candidate === "string" ? candidate : undefined;
+  if (typeof obj.taskId === "string") return obj.taskId;
+  if (typeof obj.id === "string") return obj.id;
+  if (typeof nestedTask?.id === "string") return nestedTask.id;
+  return undefined;
 }
 
 function extractTaskList(toolResponse: unknown): TaskItem[] | undefined {
@@ -177,7 +179,9 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
       deps.appendDebugLog(`${payload.hook_event_name} 缺少 task_id，略過這次更新`);
       return;
     }
-    const status: TaskStatus = payload.hook_event_name === "TaskCompleted" ? "completed" : "in_progress";
+    const alreadyCompleted = existing?.tasks?.[id]?.status === "completed";
+    const status: TaskStatus =
+      payload.hook_event_name === "TaskCompleted" || alreadyCompleted ? "completed" : "in_progress";
     persist(
       undefined,
       upsertTask(existing?.tasks, id, {
