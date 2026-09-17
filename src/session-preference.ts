@@ -52,6 +52,18 @@ export function normalizeOptionalCwd(cwd?: string): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/** watch 列表／通知只認有專案路徑的 session；無 cwd 不進可見池。 */
+export function isListableSession(cwd?: string): boolean {
+  return normalizeOptionalCwd(cwd) !== undefined;
+}
+
+export function filterListableSessionIds(
+  sessionIds: string[],
+  cwdOf: (sessionId: string) => string | undefined,
+): string[] {
+  return sessionIds.filter((sessionId) => isListableSession(cwdOf(sessionId)));
+}
+
 function newestFirst(left: SessionHint, right: SessionHint): number {
   return right.updatedAt.localeCompare(left.updatedAt);
 }
@@ -132,6 +144,8 @@ export function groupSessionsByProject(sessions: SessionHint[], watchCwd: string
   const groups = new Map<string, ProjectGroup>();
   for (const session of sessions) {
     const cwd = normalizeOptionalCwd(session.cwd);
+    // 無 cwd 的舊／異常狀態檔不進專案選單（避免「未知專案」）
+    if (!cwd) continue;
     const key = projectKeyFor(cwd);
     const existing = groups.get(key);
     if (existing) {
@@ -140,7 +154,7 @@ export function groupSessionsByProject(sessions: SessionHint[], watchCwd: string
     }
     groups.set(key, {
       key,
-      label: cwd ? basename(cwd) : "未知專案",
+      label: basename(cwd),
       cwd,
       sessions: [session],
     });
