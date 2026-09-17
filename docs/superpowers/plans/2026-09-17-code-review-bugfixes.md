@@ -1,0 +1,55 @@
+# Code Review Bug Fixes — Implementation Plan
+
+> 來源：2026-09-17 全 repo bug review，四份完整筆記在
+> `docs/superpowers/plans/2026-09-17-review-{store,hooks,ui,workflow-usage-inspect}.md`。
+> 本檔只列修復順序與驗收條件，細節/程式碼片段見上述筆記。
+
+**Goal:** 依嚴重度修掉 review 找到的 14 個 bug，優先處理會造成資料遺失／crash 的 High 項目。
+
+## Tasks
+
+### P0 — High（資料遺失 / crash）
+
+1. **hook read-modify-write race**（`src/hook/apply-event.ts:136-161` + `src/store.ts:26-48`）
+   同一 `session_id` 的並行 hook subprocess 沒有鎖，並行寫入會遺失更新。
+   加檔案鎖或 per-session 寫入序列化（例如 lockfile / 單一 writer queue）。
+2. **TaskCreated/TaskCompleted 亂序回退**（`src/hook/apply-event.ts:174-191`）
+   跟 #1 同根因；狀態轉換要保序，或至少不允許 `TaskCreated` 覆蓋已存在的 `completed` 狀態。
+   建議跟 #1 一起修（鎖住寫入後亂序問題多半自然消失，但轉換規則仍該補防呆）。
+3. **TUI waitingNotice 讀檔 race 導致 crash**（`src/ui/App.tsx:676-685`）
+   把三次 `readTaskState` 併成一次讀取結果重複使用；移除 `!` 強制解包，缺 `.activity` 時要有 fallback 而不是丟例外。
+
+### P1 — Medium / Medium-High
+
+4. **settings.json 非原子寫入**（`src/install-hooks.ts:100-103`）
+   套用 `store.ts` 既有的 tmp+rename pattern。
+5. **taskDoneTotal 誤算 deleted task**（`src/session-ended.ts:24-31`）
+   比照 `next-task.ts` 排除 `status:"deleted"`。
+6. **settings.json 缺 schema 驗證**（`src/install-hooks.ts:61-68`, `91-98`）
+   對讀出的既有設定做形狀檢查，不合法時走既有的友善錯誤路徑而不是讓 `TypeError` 冒出。
+7. **activity-timeline dedup 鍵不完整**（`src/activity-timeline.ts:16-19`）
+   dedup key 加上 `toolName`。
+
+### P2 — Low / Low-Medium
+
+8. **hook 重複安裝**（`src/cli.tsx:106-129`）
+   `watch` 裝 user scope 前先檢查是否已有 project scope 安裝，避免同事件觸發兩次。
+9. **TaskList 版面 off-by-one**（`src/ui/TaskList.tsx:131-133`）
+   `subagentRows` 補上 `SubagentsBlock` 自己的 `marginBottom={1}`。
+10. **STATE_DIR 環境變數快取**（`src/store.ts:7-12`）
+    改成跟 `locale.ts` 一樣每次呼叫讀 env（或明確記錄這是刻意的 module-load-once 設計，不改）。
+11. **孤兒 tmp 檔案**（`src/store.ts:32-36`, `src/clear-sessions.ts:32-33`）
+    `clearSessions` / `listSessionIds` 順便清掉 `*.json.tmp-*`。
+12. **extractCreatedTaskId fallback 鏈**（`src/hook/apply-event.ts:28-34`）
+    型別檢查後才決定要不要 fallback 到下一個欄位。
+13. **AdvicePanel React key 碰撞**（`src/ui/AdvicePanel.tsx:79-83`）
+    key 改成 `` `${line}-${index}` ``。
+14. **CRLF frontmatter 偵測漏判**（`src/inspect/markdown.ts:63`）
+    比對時允許 `\r\n`（例如先 normalize 換行符再比對）。
+
+## Completion
+
+- [ ] 每個 P0 項目都有對應測試（race 條件可用可重現的併發模擬測試，或至少補上回歸測試涵蓋亂序/重複讀取）
+- [ ] `pnpm test` 全過
+- [ ] `pnpm typecheck` 全過
+- [ ] 不 bump version（按 CLAUDE.md，feature/fix PR 不逐次 bump）
