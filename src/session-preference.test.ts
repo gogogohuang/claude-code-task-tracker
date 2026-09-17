@@ -43,12 +43,34 @@ test("shouldAutoSelectSession 只有一個、或 cwd 對得上時自動選", () 
   assert.equal(shouldAutoSelectSession(sessions, "/elsewhere"), false);
 });
 
-test("sessionChoices 把當下 session 放第一列並標 目前", () => {
+test("sessionChoices 缺 title／activity 不留空洞分隔", () => {
   const now = Date.parse("2026-09-15T03:00:00.000Z");
-  const items = sessionChoices(sessions, "/proj/b", now);
-  assert.equal(items[0].value, "current");
-  assert.equal(items[0].label, "○ current  (目前) · 1 小時前");
-  assert.ok(items.some((item) => item.value === "newer-other" && item.label === "○ newer-ot · 剛剛"));
+  const items = sessionChoices(
+    [{ sessionId: "only-id", cwd: "/proj/a", updatedAt: "2026-09-15T03:00:00.000Z" }],
+    "/proj/a",
+    now,
+  );
+  assert.equal(items[0]!.label, "○ only-id  (目前) · 剛剛");
+  assert.equal(items[0]!.label.includes(" · · "), false);
+});
+
+test("sessionChoices 過長 activity 截斷", () => {
+  const now = Date.parse("2026-09-15T03:00:00.000Z");
+  const long = "x".repeat(80);
+  const items = sessionChoices(
+    [
+      {
+        sessionId: "s1",
+        cwd: "/proj/a",
+        updatedAt: "2026-09-15T03:00:00.000Z",
+        activitySummary: long,
+      },
+    ],
+    "/proj/a",
+    now,
+  );
+  assert.match(items[0]!.label, /…/);
+  assert.ok(!items[0]!.label.includes(long));
 });
 
 test("sessionChoices 沒有 cwd 對得上時，最新的標 最近", () => {

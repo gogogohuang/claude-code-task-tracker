@@ -84,7 +84,7 @@ export function shouldAutoSelectSession(sessions: SessionHint[], watchCwd: strin
 
 const LABEL_PART_LIMIT = 32;
 
-function clipLabelPart(value: string): string {
+export function clipLabelPart(value: string): string {
   return value.length > LABEL_PART_LIMIT ? `${value.slice(0, LABEL_PART_LIMIT)}…` : value;
 }
 
