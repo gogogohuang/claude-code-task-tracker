@@ -37,22 +37,29 @@
 8. ~~**hook 重複安裝**~~（`src/cli.tsx:106-129`）
    ✅ 已修：新增 `hasTrackerHookInstalled`，`watch` 裝 user scope 前先檢查 project scope 是否
    已裝過，裝過就跳過 user scope 安裝。
-9. **TaskList 版面 off-by-one**（`src/ui/TaskList.tsx:131-133`）
-   `subagentRows` 補上 `SubagentsBlock` 自己的 `marginBottom={1}`。
-10. **STATE_DIR 環境變數快取**（`src/store.ts:7-12`）
-    改成跟 `locale.ts` 一樣每次呼叫讀 env（或明確記錄這是刻意的 module-load-once 設計，不改）。
-11. **孤兒 tmp 檔案**（`src/store.ts:32-36`, `src/clear-sessions.ts:32-33`）
-    `clearSessions` / `listSessionIds` 順便清掉 `*.json.tmp-*`。
-12. **extractCreatedTaskId fallback 鏈**（`src/hook/apply-event.ts:28-34`）
-    型別檢查後才決定要不要 fallback 到下一個欄位。
-13. **AdvicePanel React key 碰撞**（`src/ui/AdvicePanel.tsx:79-83`）
-    key 改成 `` `${line}-${index}` ``。
-14. **CRLF frontmatter 偵測漏判**（`src/inspect/markdown.ts:63`）
-    比對時允許 `\r\n`（例如先 normalize 換行符再比對）。
+9. ~~**TaskList 版面 off-by-one**~~（`src/ui/TaskList.tsx:131-133`）
+   ✅ 已修：抽出 `src/ui/subagents-block.ts` 的 `subagentBlockRows`（純函式，補上
+   `marginBottom={1}` 那一行），`TaskList.tsx` 改用它。
+10. ~~**STATE_DIR 環境變數快取**~~（`src/store.ts:7-12`）
+    ✅ 已處理：選擇「明確記錄這是刻意的 module-load-once 設計，不改」——每個 hook 事件／CLI／
+    TUI 都是獨立 process，process 生命週期內 env var 不會變，不像 `locale.ts` 需要因應同一
+    process 內語系切換。在 `STATE_DIR` 定義前加了說明註解，沒有改變行為。
+11. ~~**孤兒 tmp 檔案**~~（`src/store.ts:32-36`, `src/clear-sessions.ts:32-33`）
+    ✅ 已修：`clearSessions` 遇到 `*.json.tmp-<pid>` 直接清掉（跟 cwd 篩選無關，crash 留下的
+    半寫入殘留）。`listSessionIds` 本來就靠 `.endsWith(".json")` 正確排除 tmp 檔，不用改。
+12. ~~**extractCreatedTaskId fallback 鏈**~~（`src/hook/apply-event.ts:28-34`）
+    ✅ 已修：改成逐一檢查型別再決定要不要 fallback，不再被 `??` 卡在非 nullish 但錯誤型別的值。
+13. ~~**AdvicePanel React key 碰撞**~~（`src/ui/AdvicePanel.tsx:79-83`）
+    ✅ 已修：key 改成 `` `${line}-${lineIndex}` ``。純 JSX key prop，repo 沒有 Ink 元件的
+    render-testing 基礎設施，直接改，沒加測試。
+14. ~~**CRLF frontmatter 偵測漏判**~~（`src/inspect/markdown.ts:63`）
+    ✅ 已修：`readRulePaths` 一開始先 `replace(/\r\n/g, "\n")` normalize 換行符再比對。
 
 ## Completion
 
-- [ ] 每個 P0 項目都有對應測試（race 條件可用可重現的併發模擬測試，或至少補上回歸測試涵蓋亂序/重複讀取）
-- [ ] `pnpm test` 全過
-- [ ] `pnpm typecheck` 全過
-- [ ] 不 bump version（按 CLAUDE.md，feature/fix PR 不逐次 bump）
+- [x] 每個 P0 項目都有對應測試（race 條件可用可重現的併發模擬測試，或至少補上回歸測試涵蓋亂序/重複讀取）
+- [x] `pnpm test` 全過（321 個）
+- [x] `pnpm typecheck` 全過
+- [x] 不 bump version（按 CLAUDE.md，feature/fix PR 不逐次 bump）
+
+全部 14 個 bug 都已修完（P0 3、P1 4、P2 7），逐項分開 commit（見 git log）。

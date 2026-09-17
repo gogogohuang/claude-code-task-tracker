@@ -20,6 +20,11 @@ function resolveStateDir(): string {
   return override && override.length > 0 ? override : join(homedir(), ".claude-task-tracker");
 }
 
+/**
+ * 刻意只在 module load 時讀一次：每個 hook 事件、CLI 指令、TUI 都是獨立 process，
+ * process 生命週期內 CLAUDE_TASK_TRACKER_DIR 不會變，不像 locale.ts 需要因應同一
+ * process 內語系切換而每次呼叫重讀。
+ */
 export const STATE_DIR = resolveStateDir();
 export const DEBUG_LOG_PATH = join(STATE_DIR, "hook-debug.log");
 

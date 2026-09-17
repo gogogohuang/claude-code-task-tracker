@@ -29,8 +29,10 @@ function extractCreatedTaskId(toolResponse: unknown): string | undefined {
   if (!toolResponse || typeof toolResponse !== "object") return undefined;
   const obj = toolResponse as Record<string, unknown>;
   const nestedTask = obj.task as Record<string, unknown> | undefined;
-  const candidate = obj.taskId ?? obj.id ?? nestedTask?.id;
-  return typeof candidate === "string" ? candidate : undefined;
+  if (typeof obj.taskId === "string") return obj.taskId;
+  if (typeof obj.id === "string") return obj.id;
+  if (typeof nestedTask?.id === "string") return nestedTask.id;
+  return undefined;
 }
 
 function extractTaskList(toolResponse: unknown): TaskItem[] | undefined {

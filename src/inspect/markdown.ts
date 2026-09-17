@@ -60,10 +60,11 @@ function unquote(value: string): string {
 }
 
 export function readRulePaths(markdown: string): string[] | null {
-  if (!markdown.startsWith("---\n") && markdown !== "---") return null;
-  const end = markdown.indexOf("\n---", 3);
+  const normalized = markdown.replace(/\r\n/g, "\n");
+  if (!normalized.startsWith("---\n") && normalized !== "---") return null;
+  const end = normalized.indexOf("\n---", 3);
   if (end === -1) return null;
-  const frontmatter = markdown.slice(4, end).split("\n");
+  const frontmatter = normalized.slice(4, end).split("\n");
   const pathsIndex = frontmatter.findIndex((line) => line.trim() === "paths:" || line.trim().startsWith("paths:"));
   if (pathsIndex === -1) return null;
   const header = frontmatter[pathsIndex].trim();

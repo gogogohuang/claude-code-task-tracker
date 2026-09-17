@@ -170,6 +170,22 @@ test("TaskCreate 沒給 status 時視為進行中，不是 pending", () => {
   assert.equal(written.at(-1)?.tasks?.["t-2"]?.subject, "修測試");
 });
 
+test("TaskCreate tool_response 的 taskId 型別不對時，會 fallback 到 id", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "abc",
+      hook_event_name: "PostToolUse",
+      tool_name: "TaskCreate",
+      tool_input: { subject: "型別測試" },
+      tool_response: { taskId: 123, id: "t-9" },
+    },
+    deps,
+  );
+  assert.equal(written.at(-1)?.tasks?.["t-9"]?.status, "in_progress");
+  assert.equal(written.at(-1)?.tasks?.["t-9"]?.subject, "型別測試");
+});
+
 test("TaskUpdate 接受 id 當 taskId，才能把狀態改成進行中", () => {
   const { written, deps } = capture();
   applyHookEvent(

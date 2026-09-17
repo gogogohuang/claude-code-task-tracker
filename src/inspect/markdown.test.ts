@@ -29,3 +29,11 @@ test("readRulePaths 沒有 paths 回 null，有 paths 就回條件", () => {
   );
   assert.deepEqual(readRulePaths("---\npaths: src/api/**/*.ts\n---\n"), ["src/api/**/*.ts"]);
 });
+
+test("readRulePaths 認得 CRLF 換行的 frontmatter", () => {
+  assert.deepEqual(
+    readRulePaths("---\r\npaths:\r\n  - src/**/*.ts\r\n  - \"lib/**/*.ts\"\r\n---\r\n# Rule\r\n"),
+    ["src/**/*.ts", "lib/**/*.ts"],
+  );
+  assert.deepEqual(readRulePaths("---\r\npaths: src/api/**/*.ts\r\n---\r\n"), ["src/api/**/*.ts"]);
+});
