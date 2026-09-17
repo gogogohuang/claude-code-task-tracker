@@ -39,6 +39,13 @@ function extractToolPath(input: unknown): string | undefined {
   return undefined;
 }
 
+function extractAgentDispatch(input: unknown): { subagentType?: string; description?: string } {
+  if (!isRecord(input)) return {};
+  const subagentType = typeof input.subagent_type === "string" ? input.subagent_type : undefined;
+  const description = typeof input.description === "string" ? input.description : undefined;
+  return { subagentType, description };
+}
+
 function extractUsableUserText(content: unknown): string | undefined {
   let raw: string | undefined;
   if (typeof content === "string") {
@@ -144,6 +151,10 @@ export function parseNewContent(
             toolUseNameById.set(block.id, { name: block.name, path });
           }
           if (typeof block.name === "string") {
+            const agentDispatch =
+              block.name === "Agent" && typeof block.id === "string"
+                ? { toolUseId: block.id, ...extractAgentDispatch(block.input) }
+                : undefined;
             events.push({
               messageId: undefined,
               isSidechain,
@@ -152,6 +163,7 @@ export function parseNewContent(
               toolResultChars: undefined,
               toolUseName: detailToolLabel(block.name, block.input),
               toolUsePath: path,
+              agentDispatch,
             });
           }
         }
@@ -176,6 +188,7 @@ export function parseNewContent(
               toolName: ref?.name,
               chars: toolResultTextLength(block.content),
               path: ref?.path,
+              toolUseId,
             },
           });
         }

@@ -117,6 +117,11 @@ task-tracker clear --log        # 一併清 hook-debug.log
 `AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。其他 session 在等你或有新用量建議時，頂列也會彙總並響鈴（按 `n` 跳轉）。若設 `TASK_TRACKER_NOTIFY=1`，同一事件會再發一次 macOS 桌面通知（失敗静默）。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。有 workflow 時會多一條 Phase 進度條；活動列下方可顯示「下一個」pending 任務。若約 5 分鐘無更新且沒有進行中的工作，會提示「Session 似乎已結束」。專案／session 列表前綴：`!` 等你、
 `●` 忙碌、`○` 閒置；整列文字上色（紅＝等你、黃＝進行中、綠＝就緒），進入 session 後標題列同色。
 
+派發過 `Agent` 工具（sub-task）時，主畫面會多一塊「Sub-task（Agent 派發）」清單，逐筆顯示派發時的
+subagent type／description，◐ 表示還在跑、✔ 表示已回報結果；清單下方再帶一行全域最新的 sidechain
+活動句。v1 只做「派發清單＋全域最新活動句」，平行派發多個 Agent 時無法把 sidechain 活動精準對回是哪一個
+（transcript 沒有可靠的歸屬欄位），之後才會升級成逐一 branch 對應。
+
 想看這個專案會進 prompt 的東西：
 
 ```bash
@@ -172,7 +177,7 @@ src/
 │   └── task-tracker-hook.ts  # Claude Code 實際呼叫的 hook 腳本
 ├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory、prompt 檔案）
 ├── workflow/                 # dynamic workflow 的 meta.phases 與 journal 解析
-├── usage/                    # 跨 session 用量分析（tail transcript、偵測、建議文字）
+├── usage/                    # 跨 session 用量分析（tail transcript、偵測、建議文字、sub-task 派發追蹤）
 └── ui/
     ├── App.tsx               # 主畫面，負責 session 偵測、檔案監控與用量建議通知
     ├── SessionPicker.tsx     # 多 session 時的選單

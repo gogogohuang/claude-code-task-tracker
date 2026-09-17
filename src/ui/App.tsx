@@ -42,7 +42,7 @@ import { HistoryPanel } from "./HistoryPanel.js";
 import { cachePanelLinesForSession } from "../cache-panel-lines.js";
 import { adviceForSession } from "../usage/advice-groups.js";
 import { attachHeavyBaselineHeat } from "../usage/advice-heat.js";
-import { forget, peek, prime, refresh } from "../usage/tail-runtime.js";
+import { forget, peek, peekSubagents, prime, refresh } from "../usage/tail-runtime.js";
 import { formatToolInventoryLines, formatToolInventorySummary } from "../usage/tool-inventory.js";
 import { resolveTranscriptPath } from "../workflow/paths.js";
 import {
@@ -886,6 +886,7 @@ export function App({
       stuckLabel={stuckLabel}
       endedSummary={endedSummary}
       pinned={pinned}
+      subagents={peekSubagents(taskState.sessionId)}
     />,
   );
 }

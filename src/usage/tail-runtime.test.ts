@@ -3,7 +3,7 @@ import test from "node:test";
 import { appendFileSync, chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { forget, peek, prime, refresh } from "./tail-runtime.js";
+import { forget, peek, peekSubagents, prime, refresh } from "./tail-runtime.js";
 
 function assistantLine(id: string, cacheCreation: number): string {
   return JSON.stringify({
@@ -210,4 +210,38 @@ test("prime 後 peek 拿得到 title、firstPrompt、lastOccupiedTokens", () => 
 
 test("peek 對沒 prime 過的 session 回 undefined", () => {
   assert.equal(peek("never-primed-session"), undefined);
+});
+
+function agentDispatchLine(toolUseId: string, subagentType: string): string {
+  return JSON.stringify({
+    isSidechain: false,
+    timestamp: new Date().toISOString(),
+    message: {
+      role: "assistant",
+      id: "m-agent",
+      usage: { cache_creation_input_tokens: 10, cache_read_input_tokens: 0, output_tokens: 0 },
+      content: [{ type: "tool_use", id: toolUseId, name: "Agent", input: { subagent_type: subagentType } }],
+    },
+  });
+}
+
+test("prime 後 peekSubagents 拿得到派發清單", () => {
+  const dir = mkdtempSync(join(tmpdir(), "usage-advisor-"));
+  const path = join(dir, "session.jsonl");
+  const sessionId = `test-${Date.now()}-subagents`;
+  try {
+    writeFileSync(path, agentDispatchLine("toolu_1", "Explore") + "\n");
+    prime(sessionId, path);
+    const subagents = peekSubagents(sessionId);
+    assert.equal(subagents?.dispatches.length, 1);
+    assert.equal(subagents?.dispatches[0].subagentType, "Explore");
+    assert.equal(subagents?.dispatches[0].status, "running");
+  } finally {
+    forget(sessionId);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("peekSubagents 對沒 prime 過的 session 回 undefined", () => {
+  assert.equal(peekSubagents("never-primed-session"), undefined);
 });
