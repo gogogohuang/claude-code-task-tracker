@@ -1,15 +1,17 @@
 import { readFileSync } from "node:fs";
 import { TaskState } from "./schema.js";
 import { formatRelativeAge } from "./format-relative-age.js";
-import { SessionHint, sameCwd, shortSessionId } from "./session-preference.js";
+import { SessionHint, normalizeOptionalCwd, sameCwd, shortSessionId } from "./session-preference.js";
 import { readTaskState, statePathForSession } from "./store.js";
 
 export function sessionHintFromState(state: TaskState): SessionHint {
   return {
     sessionId: state.sessionId,
-    cwd: state.cwd,
+    cwd: normalizeOptionalCwd(state.cwd),
     updatedAt: state.updatedAt,
     activitySummary: state.activity?.summary,
+    activityToolName: state.activity?.toolName,
+    activityPhase: state.activity?.phase,
   };
 }
 

@@ -4,6 +4,7 @@ import {
   addedSessionIds,
   formatNewSessionNotice,
   groupSessionsByProject,
+  normalizeOptionalCwd,
   pickPreferredSession,
   projectChoices,
   sessionChoices,
@@ -57,7 +58,7 @@ test("sessionChoices 沒有 cwd 對得上時，最新的標 最近", () => {
   assert.equal(items[0].label, "○ newer-ot  (最近) · 剛剛");
 });
 
-test("groupSessionsByProject 依 cwd 分組，當下專案排第一，略過沒有 cwd 的 session", () => {
+test("groupSessionsByProject 依 cwd 分組，當下專案排第一；無 cwd 進未知專案", () => {
   const groups = groupSessionsByProject(
     [
       ...sessions,
@@ -68,17 +69,16 @@ test("groupSessionsByProject 依 cwd 分組，當下專案排第一，略過沒�
   );
   assert.deepEqual(
     groups.map((group) => `${group.label}:${group.sessions.map((s) => s.sessionId).join(",")}`),
-    ["b:current,b2", "c:newer-other", "a:old"],
+    ["b:current,b2", "c:newer-other", "a:old", "未知專案:orphan"],
   );
 });
 
-test("projectChoices 不列出沒有 cwd 的未知專案", () => {
+test("projectChoices 列出沒有 cwd 的未知專案", () => {
   const items = projectChoices(
     [...sessions, { sessionId: "orphan", updatedAt: "2026-09-15T00:00:00.000Z" }],
     "/proj/b",
   );
-  assert.equal(items.every((item) => !item.label.includes("未知專案")), true);
-  assert.equal(items.some((item) => item.value === ""), false);
+  assert.ok(items.some((item) => item.label.includes("未知專案") && item.value === ""));
 });
 
 test("projectChoices 標出目前專案與 session 數", () => {
@@ -153,8 +153,29 @@ test("pickPreferredSession 與 shouldAutoSelectSession 略過沒有 cwd 的 sess
     ...sessions,
   ];
   assert.equal(pickPreferredSession(withOrphan, "/elsewhere"), "newer-other");
-  assert.equal(pickPreferredSession([{ sessionId: "orphan", updatedAt: "t" }], "/proj/a"), undefined);
+  // 全部沒 cwd 時退回全域最新（status CLI）；TUI 仍不自動選
+  assert.equal(pickPreferredSession([{ sessionId: "orphan", updatedAt: "t" }], "/proj/a"), "orphan");
   assert.equal(shouldAutoSelectSession([{ sessionId: "orphan", updatedAt: "t" }], "/proj/a"), false);
+});
+
+test("空字串 cwd 視同沒有 cwd；無 cwd session 進未知專案", () => {
+  assert.equal(normalizeOptionalCwd(""), undefined);
+  assert.equal(normalizeOptionalCwd("  "), undefined);
+  assert.equal(normalizeOptionalCwd("/proj"), "/proj");
+  assert.equal(
+    pickPreferredSession(
+      [{ sessionId: "empty-cwd", cwd: "", updatedAt: "2026-09-15T09:00:00.000Z" }],
+      "/proj/a",
+    ),
+    "empty-cwd",
+  );
+  const groups = groupSessionsByProject(
+    [{ sessionId: "orphan", cwd: "", updatedAt: "2026-09-15T09:00:00.000Z" }],
+    "/proj/a",
+  );
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].label, "未知專案");
+  assert.equal(groups[0].sessions[0].sessionId, "orphan");
 });
 
 test("sessionChoicesInProject 只列出該專案，不再重複專案名", () => {

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFile
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { TaskState, TaskStateSchema } from "./schema.js";
+import { normalizeOptionalCwd } from "./session-preference.js";
 
 function resolveStateDir(): string {
   const override = process.env.CLAUDE_TASK_TRACKER_DIR?.trim();
@@ -24,9 +25,13 @@ export function statePathForSession(sessionId: string): string {
 /** 用 write-then-rename 避免 TUI 讀到寫一半的檔案。 */
 export function writeTaskState(state: TaskState): void {
   ensureStateDir();
-  const finalPath = statePathForSession(state.sessionId);
+  const normalized: TaskState = {
+    ...state,
+    cwd: normalizeOptionalCwd(state.cwd),
+  };
+  const finalPath = statePathForSession(normalized.sessionId);
   const tmpPath = `${finalPath}.tmp-${process.pid}`;
-  writeFileSync(tmpPath, JSON.stringify(state, null, 2), "utf-8");
+  writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), "utf-8");
   renameSync(tmpPath, finalPath);
 }
 
@@ -35,7 +40,8 @@ export function readTaskState(sessionId: string): TaskState | null {
   if (!existsSync(path)) return null;
   try {
     const raw = JSON.parse(readFileSync(path, "utf-8"));
-    return TaskStateSchema.parse(raw);
+    const parsed = TaskStateSchema.parse(raw);
+    return { ...parsed, cwd: normalizeOptionalCwd(parsed.cwd) };
   } catch {
     return null;
   }
