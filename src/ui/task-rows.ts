@@ -42,15 +42,31 @@ function rowsFromTodos(todos: TodoItem[]): TaskRow[] {
 
 function rowsFromWorkflow(run: WorkflowRun | undefined): TaskRow[] {
   if (!run) return [];
-  return run.phases.map((phase) => ({
-    key: `wf:${run.runId}:${phase.title}`,
-    status: phase.status,
-    label: phase.title,
-  }));
+  const rows: TaskRow[] = [];
+  for (const phase of run.phases) {
+    rows.push({
+      key: `wf:${run.runId}:${phase.title}`,
+      status: phase.status,
+      label: phase.title,
+    });
+    for (const step of phase.steps ?? []) {
+      const summary = step.summary ? ` · ${step.summary}` : "";
+      rows.push({
+        key: `wf:${run.runId}:${phase.title}:${step.key}`,
+        status: step.status,
+        label: `  ${step.label}${summary}`,
+      });
+    }
+  }
+  return rows;
+}
+
+export function workItemRows(state: TaskState): TaskRow[] {
+  const rows = [...rowsFromTasks(state.tasks ?? {}), ...rowsFromTodos(state.todos ?? [])];
+  rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+  return rows;
 }
 
 export function taskRows(state: TaskState): TaskRow[] {
-  const rows = [...rowsFromTasks(state.tasks ?? {}), ...rowsFromTodos(state.todos ?? [])];
-  rows.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
-  return [...rowsFromWorkflow(state.workflow), ...rows];
+  return [...rowsFromWorkflow(state.workflow), ...workItemRows(state)];
 }

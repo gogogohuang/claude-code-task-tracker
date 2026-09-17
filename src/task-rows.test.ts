@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { taskRows } from "./ui/task-rows.js";
+import { taskRows, workItemRows } from "./ui/task-rows.js";
 
 test("taskRows 合併 todos 與 tasks，進行中排最前", () => {
   const rows = taskRows({
@@ -43,3 +43,57 @@ test("taskRows 把 workflow phases 依宣告順序放在 task 前面", () => {
   assert.equal(rows[1].status, "in_progress");
 });
 
+test("workItemRows 只含 todos／tasks，不含 workflow（給無標籤進度條用）", () => {
+  const state = {
+    sessionId: "abc",
+    updatedAt: "2026-09-15T01:00:00.000Z",
+    todos: [{ content: "寫測試", status: "pending" as const }],
+    workflow: {
+      runId: "wf_1",
+      journalPath: "/tmp/journal.jsonl",
+      phases: [
+        { title: "Read Ticket", status: "pending" as const },
+        { title: "Plan", status: "pending" as const },
+      ],
+    },
+  };
+  assert.deepEqual(
+    workItemRows(state).map((row) => row.label),
+    ["寫測試"],
+  );
+  assert.deepEqual(workItemRows({ ...state, todos: undefined }).map((row) => row.label), []);
+});
+
+test("taskRows 在 phase 下縮排顯示 step label 與短摘要", () => {
+  const rows = taskRows({
+    sessionId: "abc",
+    updatedAt: "2026-09-15T01:00:00.000Z",
+    workflow: {
+      runId: "wf_1",
+      journalPath: "/tmp/journal.jsonl",
+      phases: [
+        {
+          title: "Plan",
+          status: "in_progress",
+          steps: [
+            {
+              key: "a",
+              label: "plan",
+              status: "completed",
+              summary: "Drafted a single-task plan",
+            },
+            { key: "b", label: "grill-plan", status: "in_progress" },
+          ],
+        },
+      ],
+    },
+  });
+  assert.deepEqual(
+    rows.map((row) => `${row.status}:${row.label}`),
+    [
+      "in_progress:Plan",
+      "completed:  plan · Drafted a single-task plan",
+      "in_progress:  grill-plan",
+    ],
+  );
+});
