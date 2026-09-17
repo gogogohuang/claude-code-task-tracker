@@ -11,11 +11,19 @@ export interface ToolResultChars {
   toolName: string | undefined;
   chars: number;
   path?: string;
+  toolUseId?: string;
 }
 
 export interface ToolUseRef {
   name: string;
   path?: string;
+}
+
+/** Agent tool_use 事件帶出的派發資訊（供 sub-agent 追蹤使用）。 */
+export interface AgentDispatchInfo {
+  toolUseId: string;
+  subagentType?: string;
+  description?: string;
 }
 
 /** 一行 transcript JSONL 解析出來的事件。assistant 行帶 usage；user 行裡的 tool_result 帶 toolResultChars。 */
@@ -28,6 +36,8 @@ export interface ParsedEvent {
   toolUseName?: string;
   /** tool_use 的檔案路徑（Read 等） */
   toolUsePath?: string;
+  /** 只在 tool_use 是 Agent 時才有值 */
+  agentDispatch?: AgentDispatchInfo;
   title?: string;
   userText?: string;
 }

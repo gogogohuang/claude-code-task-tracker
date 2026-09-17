@@ -4,6 +4,7 @@ import { activityLineLabel } from "../context-snapshot.js";
 import { pickNextTask } from "../next-task.js";
 import { Activity, TaskState } from "../schema.js";
 import { classifyPresence, presenceColor } from "../session-presence.js";
+import { AgentDispatch, dispatchLabel, SubagentsState } from "../usage/subagents.js";
 import { phaseProgress } from "../workflow/phase-progress.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 import { RowStatus, taskRows, workItemRows } from "./task-rows.js";
@@ -64,6 +65,33 @@ function ActivityLine({ activity }: { activity: Activity }) {
   );
 }
 
+const DISPATCH_STATUS_ICON: Record<AgentDispatch["status"], string> = {
+  running: "◐",
+  done: "✔",
+};
+
+const DISPATCH_STATUS_COLOR: Record<AgentDispatch["status"], string> = {
+  running: "yellow",
+  done: "green",
+};
+
+function SubagentsBlock({ subagents }: { subagents: SubagentsState }) {
+  if (subagents.dispatches.length === 0) return null;
+  return (
+    <Box marginBottom={1} flexDirection="column">
+      <Text dimColor>Sub-task（Agent 派發）</Text>
+      {subagents.dispatches.map((dispatch) => (
+        <Text key={dispatch.toolUseId} color={DISPATCH_STATUS_COLOR[dispatch.status]}>
+          {DISPATCH_STATUS_ICON[dispatch.status]} {dispatchLabel(dispatch)}
+        </Text>
+      ))}
+      {subagents.latestSidechainActivity ? (
+        <Text dimColor>  ↳ {subagents.latestSidechainActivity.text}</Text>
+      ) : null}
+    </Box>
+  );
+}
+
 export function TaskList({
   state,
   current,
@@ -72,6 +100,7 @@ export function TaskList({
   stuckLabel,
   endedSummary,
   pinned,
+  subagents,
 }: {
   state: TaskState;
   current?: boolean;
@@ -84,6 +113,7 @@ export function TaskList({
   stuckLabel?: string;
   endedSummary?: string;
   pinned?: boolean;
+  subagents?: SubagentsState;
 }) {
   const { isRawModeSupported } = useStdin();
   const rows = taskRows(state);
@@ -98,6 +128,9 @@ export function TaskList({
   const headerColor = presenceColor(presence);
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
+  const subagentRows = subagents && subagents.dispatches.length > 0
+    ? 1 + subagents.dispatches.length + (subagents.latestSidechainActivity ? 1 : 0)
+    : 0;
   const snapshotExtraRows =
     (contextSnapshot
       ? 2 + (contextSnapshot.breakdownLine ? 1 : 0) + (contextSnapshot.gauge ? 1 : 0)
@@ -107,7 +140,8 @@ export function TaskList({
     (endedSummary ? 1 : 0) +
     (phases ? 1 : 0) +
     (workItems.length > 0 ? 1 : 0) +
-    (next ? 1 : 0);
+    (next ? 1 : 0) +
+    subagentRows;
   const pageSize = pageSizeFromTerminal(termRows, LIST_CHROME_ROWS + snapshotExtraRows);
   const start = clampScrollOffset(offset, rows.length, pageSize);
   const visible = visibleSlice(rows, start, pageSize);
@@ -190,6 +224,8 @@ export function TaskList({
           </Text>
         </Box>
       ) : null}
+
+      {subagents ? <SubagentsBlock subagents={subagents} /> : null}
 
       {phases || rows.length > 0 ? (
         <>

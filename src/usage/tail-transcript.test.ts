@@ -174,6 +174,55 @@ test("parseNewContent Skill／Agent 的 toolUseName 帶上 input 細節", () => 
   assert.deepEqual(names, ["Skill · superpowers:writing-plans", "Agent · Explore"]);
 });
 
+test("parseNewContent 對 Agent tool_use 事件帶出 agentDispatch（toolUseId/subagentType/description）", () => {
+  const state = createTailState();
+  const chunk =
+    assistantLine({
+      id: "m1",
+      cacheCreation: 100,
+      content: [
+        {
+          type: "tool_use",
+          id: "toolu_1",
+          name: "Agent",
+          input: { subagent_type: "Explore", description: "找 schema 定義" },
+        },
+      ],
+    }) + "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  const dispatch = events.find((e) => e.agentDispatch)?.agentDispatch;
+  assert.deepEqual(dispatch, { toolUseId: "toolu_1", subagentType: "Explore", description: "找 schema 定義" });
+});
+
+test("parseNewContent 對非 Agent 的 tool_use 不帶 agentDispatch", () => {
+  const state = createTailState();
+  const chunk =
+    assistantLine({
+      id: "m1",
+      cacheCreation: 100,
+      content: [{ type: "tool_use", id: "toolu_1", name: "Read", input: {} }],
+    }) + "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events.some((e) => e.agentDispatch), false);
+});
+
+test("parseNewContent 把 tool_result 對應的 toolUseId 帶到 toolResultChars", () => {
+  const state = createTailState();
+  const chunk =
+    assistantLine({
+      id: "m1",
+      cacheCreation: 100,
+      content: [{ type: "tool_use", id: "toolu_1", name: "Agent", input: { subagent_type: "Explore" } }],
+    }) +
+    "\n" +
+    toolResultLine({ toolUseId: "toolu_1", text: "done" }) +
+    "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  const result = events.find((e) => e.toolResultChars);
+  assert.equal(result?.toolResultChars?.toolUseId, "toolu_1");
+  assert.equal(result?.toolResultChars?.toolName, "Agent");
+});
+
 test("parseNewContent 對不到 tool_use id 時，toolName 是 undefined", () => {
   const state = createTailState();
   const chunk = toolResultLine({ toolUseId: "toolu_missing", text: "x".repeat(10) }) + "\n";
