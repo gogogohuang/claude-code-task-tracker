@@ -1,6 +1,7 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFileAtomic } from "./fs-atomic.js";
 
 export const HOOK_MATCHER = "*";
 export const TRACKER_HOOK_FILENAME = "task-tracker-hook.js";
@@ -99,7 +100,7 @@ export function readSettingsFile(settingsPath: string): { ok: true; settings: Cl
 
 export function writeSettingsFile(settingsPath: string, settings: ClaudeSettings): void {
   mkdirSync(dirname(settingsPath), { recursive: true });
-  writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf-8");
+  writeFileAtomic(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
 }
 
 export type InstallResult =

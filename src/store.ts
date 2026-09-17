@@ -5,13 +5,13 @@ import {
   openSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { writeFileAtomic } from "./fs-atomic.js";
 import { TaskState, TaskStateSchema } from "./schema.js";
 import { normalizeOptionalCwd } from "./session-preference.js";
 
@@ -33,17 +33,13 @@ export function statePathForSession(sessionId: string): string {
   return join(STATE_DIR, `${sessionId}.json`);
 }
 
-/** 用 write-then-rename 避免 TUI 讀到寫一半的檔案。 */
 export function writeTaskState(state: TaskState): void {
   ensureStateDir();
   const normalized: TaskState = {
     ...state,
     cwd: normalizeOptionalCwd(state.cwd),
   };
-  const finalPath = statePathForSession(normalized.sessionId);
-  const tmpPath = `${finalPath}.tmp-${process.pid}`;
-  writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), "utf-8");
-  renameSync(tmpPath, finalPath);
+  writeFileAtomic(statePathForSession(normalized.sessionId), JSON.stringify(normalized, null, 2));
 }
 
 export function readTaskState(sessionId: string): TaskState | null {
