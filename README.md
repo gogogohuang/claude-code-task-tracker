@@ -110,8 +110,8 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
-`已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。
+畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+`已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對 1M 窗口的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
 `AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。其他 session 在等你或有新用量建議時，頂列也會彙總並響鈴（按 `n` 跳轉）。若設 `TASK_TRACKER_NOTIFY=1`，同一事件會再發一次 macOS 桌面通知（失敗静默）。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。有 workflow 時會多一條 Phase 進度條；活動列下方可顯示「下一個」pending 任務。若約 5 分鐘無更新且沒有進行中的工作，會提示「Session 似乎已結束」。專案／session 列表前綴：`!` 等你、
