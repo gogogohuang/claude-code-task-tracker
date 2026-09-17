@@ -33,7 +33,8 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/*.test.ts src/commands/*.test.ts src/inspect/*.test.ts src/workflow/*.test.ts src/ui/*.test.ts src/usage/*.test.ts scripts/*.test.ts",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "version": "tsx scripts/sync-release-version.ts --sync-readme && git add README.md"
   },
   "dependencies": {
     "chokidar": "^3.6.0",

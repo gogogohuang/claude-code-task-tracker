@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyReleaseVersion,
+  assertTagMatchesFiles,
   parseReleaseTag,
+  syncReadmeToVersion,
 } from "./sync-release-version.js";
 
 test("parseReleaseTag 去掉可選的 v 前綴", () => {
@@ -64,4 +66,45 @@ test("applyReleaseVersion 找不到目前版本行則 throw", () => {
       }),
     /目前版本/,
   );
+});
+
+test("assertTagMatchesFiles：tag 與 package／README 一致則通過", () => {
+  assert.equal(
+    assertTagMatchesFiles({
+      tag: "v0.14.1",
+      packageJson: samplePkg,
+      readme: sampleReadme,
+    }),
+    "0.14.1",
+  );
+});
+
+test("assertTagMatchesFiles：package.json 不一致則 throw", () => {
+  assert.throws(
+    () =>
+      assertTagMatchesFiles({
+        tag: "v0.17.0",
+        packageJson: samplePkg,
+        readme: sampleReadme.replace("v0.14.1", "v0.17.0"),
+      }),
+    /package\.json/,
+  );
+});
+
+test("assertTagMatchesFiles：README 不一致則 throw", () => {
+  assert.throws(
+    () =>
+      assertTagMatchesFiles({
+        tag: "v0.14.1",
+        packageJson: samplePkg,
+        readme: sampleReadme.replace("v0.14.1", "v0.99.0"),
+      }),
+    /README/,
+  );
+});
+
+test("syncReadmeToVersion：只改 README 目前版本行", () => {
+  const next = syncReadmeToVersion(sampleReadme, "0.18.0");
+  assert.match(next, /目前版本：\*\*v0\.18\.0\*\*/);
+  assert.match(next, /升到 v0\.7\.1/);
 });

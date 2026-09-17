@@ -187,9 +187,12 @@ src/
 
 一般功能／修 bug 的 PR **不必**改版號。要發新版本時：
 
-1. 合入 `main` 後，在 GitHub 建立 Release，target 選 `main`，tag 例如 `v0.17.0`（feature → minor，fix／docs → patch）
-2. Actions workflow `publish.yml` 會把該 tag 寫進 `package.json` 與上方「目前版本」，若有改檔就 commit 回 `main` 並把同一個 tag 移到新 commit，再用 npm Trusted Publishing（OIDC）自動 `pnpm publish`，不需要 `NPM_TOKEN`
-3. 若版號已經跟 tag 相同，workflow 會跳過 commit，只發 npm
+1. 合入 `main` 後，在乾淨的 `main` 上本機 bump（會一併改 README「目前版本」）：
+   - 新功能：`pnpm version minor`
+   - 修 bug／文件：`pnpm version patch`
+2. `git push origin main --follow-tags`
+3. 在 GitHub **Releases** 建立 Release，**選已存在的 tag**（例如 `v0.18.0`），不要對未 bump 的 tip 新建 tag
+4. Actions `publish.yml` 會確認 `package.json`／README 與 tag 一致，通過測試後用 npm Trusted Publishing（OIDC）`pnpm publish`，不需要 `NPM_TOKEN`，也不會改檔或 force-move tag
 
 ## 之後可以擴充的方向
 
