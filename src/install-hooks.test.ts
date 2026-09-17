@@ -5,9 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildHookCommand,
+  hasTrackerHookInstalled,
   isTrackerHookCommand,
   mergeTrackerHooks,
   readSettingsFile,
+  settingsPathFor,
   writeSettingsFile,
 } from "./install-hooks.js";
 
@@ -100,6 +102,26 @@ test("mergeTrackerHooks 已是穩定路徑時不重複新增", () => {
   assert.equal(twice.hooks?.SessionStart?.length, 1);
   assert.equal(twice.hooks?.TaskCreated?.length, 1);
   assert.equal(twice.hooks?.TaskCompleted?.length, 1);
+});
+
+test("hasTrackerHookInstalled 偵測到指定 scope 已安裝 tracker hook", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "tt-scope-"));
+  try {
+    const settingsPath = settingsPathFor("project", { home: "/unused", cwd });
+    writeSettingsFile(settingsPath, mergeTrackerHooks({}, COMMAND));
+    assert.equal(hasTrackerHookInstalled("project", { home: "/unused", cwd }), true);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("hasTrackerHookInstalled 沒裝過或檔案不存在回 false", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "tt-scope-none-"));
+  try {
+    assert.equal(hasTrackerHookInstalled("project", { home: "/unused", cwd }), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("writeSettingsFile 寫完只留下最終檔案，內容正確", () => {

@@ -8,7 +8,7 @@ import { runClear } from "./commands/clear.js";
 import { runShow } from "./commands/show.js";
 import { runStatus } from "./commands/status.js";
 import { runInit } from "./commands/init.js";
-import { installTrackerHooks, resolveBundledHookPath } from "./install-hooks.js";
+import { hasTrackerHookInstalled, installTrackerHooks, resolveBundledHookPath, settingsPathFor } from "./install-hooks.js";
 import { defaultManagedPolicyPath } from "./inspect/paths.js";
 import { STATE_DIR } from "./store.js";
 import { App } from "./ui/App.js";
@@ -108,14 +108,19 @@ program
   .description("開啟 TUI，即時觀看 task 進度")
   .option("--session <id>", "指定要觀看的 session id（不指定則自動偵測或列出選單）")
   .action((opts: { session?: string }) => {
-    const install = installTrackerHooks({
-      scope: "user",
-      home: homedir(),
-      cwd: process.cwd(),
-      execPath: process.execPath,
-      bundledHookPath: resolveBundledHookPath(),
-      stateDir: STATE_DIR,
-    });
+    const home = homedir();
+    const cwd = process.cwd();
+    // project scope 已經裝過就不再裝 user scope，避免同一事件觸發兩次 hook。
+    const install = hasTrackerHookInstalled("project", { home, cwd })
+      ? { ok: true as const, settingsPath: settingsPathFor("project", { home, cwd }), already: true }
+      : installTrackerHooks({
+          scope: "user",
+          home,
+          cwd,
+          execPath: process.execPath,
+          bundledHookPath: resolveBundledHookPath(),
+          stateDir: STATE_DIR,
+        });
     const emptyHint = install.ok
       ? [
           `Hook 已寫入 ${install.settingsPath}。`,

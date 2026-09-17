@@ -34,8 +34,9 @@
 
 ### P2 — Low / Low-Medium
 
-8. **hook 重複安裝**（`src/cli.tsx:106-129`）
-   `watch` 裝 user scope 前先檢查是否已有 project scope 安裝，避免同事件觸發兩次。
+8. ~~**hook 重複安裝**~~（`src/cli.tsx:106-129`）
+   ✅ 已修：新增 `hasTrackerHookInstalled`，`watch` 裝 user scope 前先檢查 project scope 是否
+   已裝過，裝過就跳過 user scope 安裝。
 9. **TaskList 版面 off-by-one**（`src/ui/TaskList.tsx:131-133`）
    `subagentRows` 補上 `SubagentsBlock` 自己的 `marginBottom={1}`。
 10. **STATE_DIR 環境變數快取**（`src/store.ts:7-12`）

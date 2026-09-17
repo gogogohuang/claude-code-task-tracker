@@ -131,6 +131,18 @@ export function writeSettingsFile(settingsPath: string, settings: ClaudeSettings
   writeFileAtomic(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
 }
 
+export function hasTrackerHookInstalled(scope: HookScope, input: { home: string; cwd: string }): boolean {
+  const loaded = readSettingsFile(settingsPathFor(scope, input));
+  if (!loaded.ok) return false;
+  const hooks = loaded.settings.hooks;
+  if (!hooks) return false;
+  return Object.values(hooks).some(
+    (groups) =>
+      Array.isArray(groups) &&
+      (groups as ClaudeHookGroup[]).some((group) => group.hooks.some((hook) => isTrackerHookCommand(hook.command))),
+  );
+}
+
 export type InstallResult =
   | { ok: true; settingsPath: string; already: boolean }
   | { ok: false; error: string };
