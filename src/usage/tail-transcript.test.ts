@@ -106,6 +106,32 @@ test("parseNewContent 用稍早看到的 tool_use id 換回工具名稱（tool_u
   assert.equal(toolResultEvent?.toolResultChars?.chars, 50);
 });
 
+test("parseNewContent 把 Read 的 file_path 帶到 toolResultChars.path 與 toolUsePath", () => {
+  const state = createTailState();
+  const chunk =
+    assistantLine({
+      id: "m1",
+      cacheCreation: 100,
+      content: [
+        {
+          type: "tool_use",
+          id: "toolu_1",
+          name: "Read",
+          input: { file_path: "/proj/src/schema.ts" },
+        },
+      ],
+    }) +
+    "\n" +
+    toolResultLine({ toolUseId: "toolu_1", text: "x".repeat(20) }) +
+    "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  const use = events.find((e) => e.toolUseName === "Read");
+  assert.equal(use?.toolUsePath, "/proj/src/schema.ts");
+  const result = events.find((e) => e.toolResultChars);
+  assert.equal(result?.toolResultChars?.path, "/proj/src/schema.ts");
+  assert.equal(result?.toolResultChars?.toolName, "Read");
+});
+
 test("parseNewContent 對 tool_use block 另外發出 toolUseName 事件", () => {
   const state = createTailState();
   const chunk =

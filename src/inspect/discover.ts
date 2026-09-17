@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { expandImports } from "./expand-imports.js";
+import { attachByteSizes, sortEntriesByHeat } from "./heat.js";
 import { collectInstructionEntries } from "./instructions.js";
 import { collectMemoryEntries } from "./memory.js";
 import { collectProjectPromptEntries } from "./prompt-files.js";
@@ -52,11 +53,7 @@ export function discoverInspectModel(options: DiscoverOptions): InspectModel {
       already,
     }),
   ];
-  const entries = [
-    ...combined.filter((entry) => entry.section === "launch"),
-    ...combined.filter((entry) => entry.section === "onDemand"),
-    ...combined.filter((entry) => entry.section === "outOfSession"),
-  ];
+  const entries = sortEntriesByHeat(attachByteSizes(combined));
   return {
     cwd,
     configDir,

@@ -105,6 +105,7 @@ test("session／專案 label 前綴反映 presence（! 等你、● 忙碌、○
     now,
   );
   assert.ok(waiting[0].label.startsWith("! "));
+  assert.equal(waiting[0].presence, "waiting");
 
   const busy = sessionChoicesInProject(
     [
@@ -121,6 +122,7 @@ test("session／專案 label 前綴反映 presence（! 等你、● 忙碌、○
     now,
   );
   assert.ok(busy[0].label.startsWith("● "));
+  assert.equal(busy[0].presence, "busy");
 
   const project = projectChoices(
     [

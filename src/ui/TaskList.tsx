@@ -3,6 +3,7 @@ import { Box, Text, useInput, useStdin } from "ink";
 import { activityLineLabel } from "../context-snapshot.js";
 import { pickNextTask } from "../next-task.js";
 import { Activity, TaskState } from "../schema.js";
+import { classifyPresence, presenceColor } from "../session-presence.js";
 import { phaseProgress } from "../workflow/phase-progress.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 import { RowStatus, taskRows } from "./task-rows.js";
@@ -87,6 +88,11 @@ export function TaskList({
   const done = rows.filter((r) => r.status === "completed").length;
   const phases = phaseProgress(state.workflow);
   const next = pickNextTask(state);
+  const presence = classifyPresence({
+    activity: state.activity,
+    updatedAt: state.updatedAt,
+  });
+  const headerColor = presenceColor(presence);
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
   const snapshotExtraRows =
@@ -130,8 +136,10 @@ export function TaskList({
   return (
     <Box flexDirection="column">
       <Box marginBottom={1}>
-        <Text bold>Session: </Text>
-        <Text color="cyan">{state.sessionId}</Text>
+        <Text bold color={headerColor}>
+          Session:{" "}
+        </Text>
+        <Text color={headerColor}>{state.sessionId}</Text>
         {current ? <Text color="green">  目前</Text> : null}
         {state.cwd ? <Text dimColor> ({state.cwd})</Text> : null}
       </Box>

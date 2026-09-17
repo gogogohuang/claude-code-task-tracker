@@ -10,6 +10,12 @@ export interface ParsedUsage {
 export interface ToolResultChars {
   toolName: string | undefined;
   chars: number;
+  path?: string;
+}
+
+export interface ToolUseRef {
+  name: string;
+  path?: string;
 }
 
 /** 一行 transcript JSONL 解析出來的事件。assistant 行帶 usage；user 行裡的 tool_result 帶 toolResultChars。 */
@@ -20,13 +26,15 @@ export interface ParsedEvent {
   usage: ParsedUsage | undefined;
   toolResultChars: ToolResultChars | undefined;
   toolUseName?: string;
+  /** tool_use 的檔案路徑（Read 等） */
+  toolUsePath?: string;
   title?: string;
   userText?: string;
 }
 
 export interface TailState {
   offset: number;
-  toolUseNameById: Map<string, string>;
+  toolUseNameById: Map<string, ToolUseRef>;
   danglingLine: string;
 }
 
@@ -45,6 +53,8 @@ export interface SessionUsageStats {
   lastCacheCreation?: number;
   lastInput?: number;
   toolInventory?: ToolInventory;
+  /** 主線 Read 各 path 次數（供 repeated-read） */
+  readPathCounts?: Record<string, number>;
 }
 
 export function createSessionUsageStats(sessionId: string): SessionUsageStats {
@@ -56,6 +66,7 @@ export function createSessionUsageStats(sessionId: string): SessionUsageStats {
     cacheCreationTotal: 0,
     cacheCreationRollingAvg: 0,
     recentMessageIds: [],
+    readPathCounts: {},
   };
 }
 
@@ -66,11 +77,17 @@ export interface AccumulateStep {
   statsAfter: SessionUsageStats;
 }
 
-export type AdviceKind = "long-session" | "cache-spike" | "fat-tool-result" | "heavy-baseline";
+export type AdviceKind =
+  | "long-session"
+  | "cache-spike"
+  | "fat-tool-result"
+  | "heavy-baseline"
+  | "repeated-read";
 
 export interface Advice {
   sessionId: string;
   kind: AdviceKind;
   at: string;
   message: string;
+  detailLines?: string[];
 }

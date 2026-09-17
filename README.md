@@ -115,7 +115,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對 1M 窗口的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
 `AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。有 workflow 時會多一條 Phase 進度條；活動列下方可顯示「下一個」pending 任務。若約 5 分鐘無更新且沒有進行中的工作，會提示「Session 似乎已結束」。專案／session 列表前綴：`!` 等你、
-`●` 忙碌、`○` 閒置。
+`●` 忙碌、`○` 閒置；整列文字上色（紅＝等你、黃＝進行中、綠＝就緒），進入 session 後標題列同色。
 
 想看這個專案會進 prompt 的東西：
 
@@ -128,7 +128,9 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 它的載入範圍內（例如子目錄的 `.claude/skills` 對上層 session 不可見），會歸進「此目錄不會
 載入」那組，跟真的會進這次 session prompt 的項目分開看。
 
-畫面先顯示可捲動的清單（`↑↓` / `j` `k`），按 Enter 進預覽、`b` 回清單、`q` 離開。
+畫面先顯示可捲動的清單（`↑↓` / `j` `k`），同一分組內依檔案大小（byte）由大到小排，並列出體積；按 Enter 進預覽、`b` 回清單、`q` 離開。
+
+用量建議（watch 按 `a`）會列出過肥 tool 回傳、同路徑反覆 Read 等可執行的減肥項；若開場底子偏重，同一則建議下方會嵌 launch 熱力 Top-5 摘要（無資料則只留原文）。
 
 ## 重要注意事項
 
@@ -185,9 +187,12 @@ src/
 
 一般功能／修 bug 的 PR **不必**改版號。要發新版本時：
 
-1. 合入 `main` 後，在 GitHub 建立 Release，target 選 `main`，tag 例如 `v0.17.0`（feature → minor，fix／docs → patch）
-2. Actions workflow `publish.yml` 會把該 tag 寫進 `package.json` 與上方「目前版本」，若有改檔就 commit 回 `main` 並把同一個 tag 移到新 commit，再用 npm Trusted Publishing（OIDC）自動 `pnpm publish`，不需要 `NPM_TOKEN`
-3. 若版號已經跟 tag 相同，workflow 會跳過 commit，只發 npm
+1. 合入 `main` 後，在乾淨的 `main` 上本機 bump（會一併改 README「目前版本」）：
+   - 新功能：`pnpm version minor`
+   - 修 bug／文件：`pnpm version patch`
+2. `git push origin main --follow-tags`
+3. 在 GitHub **Releases** 建立 Release，**選已存在的 tag**（例如 `v0.18.0`），不要對未 bump 的 tip 新建 tag
+4. Actions `publish.yml` 會確認 `package.json`／README 與 tag 一致，通過測試後用 npm Trusted Publishing（OIDC）`pnpm publish`，不需要 `NPM_TOKEN`，也不會改檔或 force-move tag
 
 ## 之後可以擴充的方向
 

@@ -17,6 +17,8 @@ export interface InspectEntry {
   detail?: string;
   trustNote?: string;
   importedBy?: string;
+  /** 檔案位元組數（stat）；缺檔或不存在時可省略 */
+  byteSize?: number;
 }
 
 export interface InspectModel {
