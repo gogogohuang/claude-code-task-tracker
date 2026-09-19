@@ -16,6 +16,10 @@ function estimateTokensFromChars(chars: number): number {
   return Math.round(chars / CHARS_PER_TOKEN_ESTIMATE);
 }
 
+function isCodex(stats: SessionUsageStats): boolean {
+  return stats.agent === "codex";
+}
+
 function minutesBetween(startIso: string, endIso: string): number {
   return (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000;
 }
@@ -36,7 +40,9 @@ function checkLongSession(before: SessionUsageStats, after: SessionUsageStats): 
       sessionId: after.sessionId,
       kind: "long-session",
       at: after.lastMsgAt ?? new Date().toISOString(),
-      message: `先把進度寫進 docs/superpowers/plans/（結論、檔案清單、未完成項），再執行 /clear 或另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`,
+      message: isCodex(after)
+        ? `先把進度寫進 docs/superpowers/plans/（結論、檔案清單、未完成項），再另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`
+        : `先把進度寫進 docs/superpowers/plans/（結論、檔案清單、未完成項），再執行 /clear 或另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`,
     },
   ];
 }
@@ -52,7 +58,9 @@ function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advic
       sessionId: before.sessionId,
       kind: "cache-spike",
       at: step.event.timestamp ?? new Date().toISOString(),
-      message: `現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定（剛剛這一輪因此重算了 ${usage.cacheCreation.toLocaleString("en-US")} token，平常只要 ${Math.round(before.cacheCreationRollingAvg).toLocaleString("en-US")}）。`,
+      message: isCodex(before)
+        ? `這一輪重算了 ${usage.cacheCreation.toLocaleString("en-US")} token（平常 ${Math.round(before.cacheCreationRollingAvg).toLocaleString("en-US")}），可能是閒置太久 cache 過期或 context 被改動；長時間離開後建議另開新 session。`
+        : `現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定（剛剛這一輪因此重算了 ${usage.cacheCreation.toLocaleString("en-US")} token，平常只要 ${Math.round(before.cacheCreationRollingAvg).toLocaleString("en-US")}）。`,
     },
   ];
 }
@@ -67,7 +75,9 @@ function checkHeavyBaseline(before: SessionUsageStats, step: AccumulateStep): Ad
       sessionId: before.sessionId,
       kind: "heavy-baseline",
       at: step.event.timestamp ?? new Date().toISOString(),
-      message: `開場偏重（第一輪就吃了 ${usage.cacheCreation.toLocaleString("en-US")} token）；下方是可能來源，也可執行 task-tracker inspect 細看。`,
+      message: isCodex(before)
+        ? `開場偏重（第一輪就吃了 ${usage.cacheCreation.toLocaleString("en-US")} token）；檢查 AGENTS.md、啟用的 MCP／plugin 與 skill 有沒有太多。`
+        : `開場偏重（第一輪就吃了 ${usage.cacheCreation.toLocaleString("en-US")} token）；下方是可能來源，也可執行 task-tracker inspect 細看。`,
     },
   ];
 }
@@ -78,7 +88,7 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
   const estTokens = estimateTokensFromChars(toolResultChars.chars);
   if (estTokens <= FAT_TOOL_RESULT_TOKENS) return [];
   const tokens = estTokens.toLocaleString("en-US");
-  const pct = contextOccupancyPct(estTokens);
+  const pct = contextOccupancyPct(estTokens, stats.lastContextWindow);
   const isSubagent = toolResultChars.toolName === "Agent" || toolResultChars.toolName === "SubagentHandback";
   if (isSubagent) {
     return [
@@ -97,7 +107,9 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
       sessionId: stats.sessionId,
       kind: "fat-tool-result",
       at: step.event.timestamp ?? new Date().toISOString(),
-      message: `重跑剛剛那個 ${tool} 呼叫${pathPart}，加上 head/grep/limit 或 Read 的 offset/limit 把輸出縮小（原本回傳約 ${tokens} token，約占 context window ${pct}%）。`,
+      message: isCodex(stats)
+        ? `重跑剛剛那個 ${tool} 呼叫，加上 head/grep 把輸出縮小（原本回傳約 ${tokens} token，約占 context window ${pct}%）。`
+        : `重跑剛剛那個 ${tool} 呼叫${pathPart}，加上 head/grep/limit 或 Read 的 offset/limit 把輸出縮小（原本回傳約 ${tokens} token，約占 context window ${pct}%）。`,
     },
   ];
 }

@@ -143,3 +143,52 @@ test("detect：repeated-read 同 path 第 3 次才觸發一次", () => {
   const four = accumulate(three.next, reads(1));
   assert.equal(detect(three.next, four.next, four.steps).filter((a) => a.kind === "repeated-read").length, 0);
 });
+
+test("detect：Codex 的 long-session 不提 /clear，改說另開新 session", () => {
+  const stats0 = createSessionUsageStats("cx", "codex");
+  const events = Array.from({ length: 201 }, (_, i) => usageEvent(`m${i}`, 10, "2026-09-15T00:00:00.000Z"));
+  const { next, steps } = accumulate(stats0, events);
+  const msg = detect(stats0, next, steps).filter((a) => a.kind === "long-session")[0].message;
+  assert.match(msg, /另開新 session/);
+  assert.match(msg, /docs\/superpowers\/plans\//);
+  assert.doesNotMatch(msg, /\/clear/);
+});
+
+test("detect：Codex 的 cache-spike 說可能是閒置過期，不怪 MCP 設定", () => {
+  const stats0 = createSessionUsageStats("cx", "codex");
+  const events = [
+    ...Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 100, "t")),
+    usageEvent("spike", 50000, "t"),
+  ];
+  const { next, steps } = accumulate(stats0, events);
+  const msg = detect(stats0, next, steps).filter((a) => a.kind === "cache-spike")[0].message;
+  assert.match(msg, /閒置太久 cache 過期/);
+  assert.match(msg, /50,000/);
+  assert.doesNotMatch(msg, /MCP 設定/);
+});
+
+test("detect：Codex 的 heavy-baseline 不提 inspect", () => {
+  const stats0 = createSessionUsageStats("cx", "codex");
+  const { next, steps } = accumulate(stats0, [usageEvent("m0", 60001, "t")]);
+  const msg = detect(stats0, next, steps).filter((a) => a.kind === "heavy-baseline")[0].message;
+  assert.match(msg, /開場偏重/);
+  assert.doesNotMatch(msg, /inspect/);
+});
+
+test("detect：Codex 的 fat-tool-result 用 Codex 文案，佔用率用該 session 的視窗", () => {
+  const stats0 = createSessionUsageStats("cx", "codex");
+  const usage: ParsedEvent = {
+    messageId: "u1",
+    isSidechain: false,
+    timestamp: "t",
+    usage: { input: 0, cacheRead: 0, cacheCreation: 10, output: 0, contextWindow: 100_000 },
+    toolResultChars: undefined,
+  };
+  // 40,000 字元 ≈ 10,000 token（>8000 門檻）；視窗 100,000 → 10%
+  const { next, steps } = accumulate(stats0, [usage, toolResultEvent("exec", 40_000, "t")]);
+  const msg = detect(stats0, next, steps).filter((a) => a.kind === "fat-tool-result")[0].message;
+  assert.match(msg, /exec/);
+  assert.match(msg, /head\/grep/);
+  assert.match(msg, /約占 context window 10%/);
+  assert.doesNotMatch(msg, /offset\/limit/);
+});
