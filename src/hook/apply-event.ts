@@ -1,3 +1,4 @@
+import type { Agent } from "../agent.js";
 import { describeActivity } from "../describe-activity.js";
 import { resolveLocale } from "../locale.js";
 import { readFileSync } from "node:fs";
@@ -23,6 +24,7 @@ export interface ApplyHookDeps {
   writeTaskState: (state: TaskState) => void;
   appendDebugLog: (message: string) => void;
   now?: () => Date;
+  agent?: Agent;
 }
 
 function extractCreatedTaskId(toolResponse: unknown): string | undefined {
@@ -148,14 +150,18 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
       deps.writeTaskState({
         sessionId: payload.session_id,
         cwd,
-        claudeSessionDir: payload.transcript_path
-          ? sessionDirFromTranscript(payload.transcript_path)
-          : existing?.claudeSessionDir,
+        ...(deps.agent === "codex" ? { agent: "codex" as const } : {}),
+        claudeSessionDir:
+          deps.agent === "codex"
+            ? undefined
+            : payload.transcript_path
+              ? sessionDirFromTranscript(payload.transcript_path)
+              : existing?.claudeSessionDir,
         updatedAt,
         todos: todos ?? existing?.todos,
         tasks: tasks ?? existing?.tasks,
         activity,
-        workflow: seedWorkflow(payload, existing?.workflow),
+        workflow: deps.agent === "codex" ? undefined : seedWorkflow(payload, existing?.workflow),
       });
     } catch (err) {
       deps.appendDebugLog(`寫入狀態檔失敗: ${(err as Error).message}`);
@@ -216,6 +222,12 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
   };
 
   if (payload.hook_event_name === "PreToolUse") {
+    persist(undefined, undefined, activity);
+    return;
+  }
+
+  if (deps.agent === "codex") {
+    // Codex 沒有 TodoWrite／Task 系列工具；只更新活動句。
     persist(undefined, undefined, activity);
     return;
   }

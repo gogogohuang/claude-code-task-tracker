@@ -292,3 +292,41 @@ test("PostToolUse Workflow 從 script 種入 phase 清單與 journal 路徑", ()
   assert.equal(written[0].activity?.summary, "已啟動 workflow linego-feature-workflow");
 });
 
+
+test("codex：寫入 agent=codex，不寫 claudeSessionDir 與 workflow", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "cx1", cwd: "/work/proj", hook_event_name: "PreToolUse", tool_name: "Bash",
+      tool_input: { command: "echo hi" }, transcript_path: "/home/u/.codex/sessions/2026/09/19/rollout-x.jsonl",
+    },
+    { ...deps, agent: "codex" },
+  );
+  assert.equal(written[0].agent, "codex");
+  assert.equal(written[0].claudeSessionDir, undefined);
+  assert.equal(written[0].workflow, undefined);
+  assert.equal(written[0].activity?.toolName, "Bash");
+  assert.equal(written[0].activity?.phase, "running");
+});
+
+test("codex：PostToolUse 不解析 TodoWrite／Task 系列，只更新活動", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "cx2", cwd: "/work/proj", hook_event_name: "PostToolUse", tool_name: "TodoWrite",
+      tool_input: { todos: [{ content: "a", status: "pending" }] },
+    },
+    { ...deps, agent: "codex" },
+  );
+  assert.equal(written[0].todos, undefined);
+  assert.equal(written[0].activity?.phase, "done");
+});
+
+test("claude（沒帶 agent）：狀態檔不出現 agent 欄位，行為不變", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    { session_id: "cl1", cwd: "/proj", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } },
+    deps,
+  );
+  assert.equal("agent" in written[0], false);
+});
