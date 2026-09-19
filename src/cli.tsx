@@ -28,10 +28,16 @@ program.name("task-tracker").description("即時追蹤 Claude Code 自己開出�
 
 program
   .command("init")
-  .description("在 ~/.claude/settings.json 註冊 task-tracker hook（所有專案都生效）")
-  .option("--project", "改寫入目前專案的 .claude/settings.json")
-  .action((opts: { project?: boolean }) => {
-    runInit(opts.project ? "project" : "user");
+  .description("註冊 task-tracker hook（預設寫入 ~/.claude/settings.json；--agent codex 寫入 ~/.codex/hooks.json）")
+  .option("--project", "改寫入目前專案的設定（.claude/settings.json 或 .codex/hooks.json）")
+  .option("--agent <agent>", "要接哪個工具：claude（預設）｜codex", "claude")
+  .action((opts: { project?: boolean; agent: string }) => {
+    if (opts.agent !== "claude" && opts.agent !== "codex") {
+      console.error(`不支援的 --agent：${opts.agent}（可用值：claude、codex）`);
+      process.exitCode = 1;
+      return;
+    }
+    runInit(opts.project ? "project" : "user", opts.agent);
   });
 
 program
