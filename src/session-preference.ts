@@ -1,4 +1,5 @@
 import { basename, resolve } from "node:path";
+import type { Agent, TabAgent } from "./agent.js";
 import { formatRelativeAge } from "./format-relative-age.js";
 import {
   aggregatePresence,
@@ -11,6 +12,7 @@ export interface SessionHint {
   sessionId: string;
   cwd?: string;
   updatedAt: string;
+  agent?: Agent;
   title?: string;
   firstPrompt?: string;
   /** 該 session 目前的活動摘要（TaskState.activity.summary），只有用量建議面板需要顯示時才會帶。 */
@@ -100,7 +102,12 @@ export function clipLabelPart(value: string): string {
   return value.length > LABEL_PART_LIMIT ? `${value.slice(0, LABEL_PART_LIMIT)}…` : value;
 }
 
-function presenceForHint(session: SessionHint, now: number): SessionPresence {
+/** 缺省 agent 視為 claude；cursor 尚未接入，任何 session 都不屬於它。 */
+export function filterSessionsByAgent(sessions: SessionHint[], agent: TabAgent): SessionHint[] {
+  return sessions.filter((session) => (session.agent ?? "claude") === agent);
+}
+
+export function presenceForHint(session: SessionHint, now: number): SessionPresence {
   const activity =
     session.activityToolName && session.activityPhase
       ? { toolName: session.activityToolName, phase: session.activityPhase }

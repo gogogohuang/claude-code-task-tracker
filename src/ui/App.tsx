@@ -121,6 +121,7 @@ function hintsFor(sessionIds: string[]): SessionHint[] {
         sessionId: state.sessionId,
         cwd: state.cwd,
         updatedAt: state.updatedAt,
+        agent: state.agent,
         activitySummary: state.activity
           ? state.activity.summary
             ? `${state.activity.toolName} · ${state.activity.summary}`
