@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, statePathForSession } from "../store.js";
 import { TaskState } from "../schema.js";
+import { agentOf, CODEX_UNSUPPORTED_NOTICE } from "../agent.js";
 import {
   addedSessionIds,
   filterListableSessionIds,
@@ -726,9 +727,11 @@ export function App({
     const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
     const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
     const uncoveredHint =
-      selectedSessionId && !readTaskState(selectedSessionId)?.claudeSessionDir
-        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
-        : undefined;
+      selectedSessionId && agentOf(readTaskState(selectedSessionId)) === "codex"
+        ? CODEX_UNSUPPORTED_NOTICE
+        : selectedSessionId && !readTaskState(selectedSessionId)?.claudeSessionDir
+          ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+          : undefined;
     return withNotice(
       topNotice,
       <AdvicePanel
@@ -743,7 +746,10 @@ export function App({
   if (view === "cache" && selectedSessionId) {
     const shortId = shortSessionId(selectedSessionId);
     const latest = readTaskState(selectedSessionId) ?? taskState;
-    const lines = cachePanelLinesForSession(selectedSessionId, statePathForSession(selectedSessionId), latest);
+    const lines =
+      agentOf(latest) === "codex"
+        ? [CODEX_UNSUPPORTED_NOTICE]
+        : cachePanelLinesForSession(selectedSessionId, statePathForSession(selectedSessionId), latest);
     return withNotice(topNotice, <CachePanel lines={lines} shortId={shortId} />);
   }
 
@@ -752,9 +758,11 @@ export function App({
     const inventory = peek(selectedSessionId)?.toolInventory;
     const lines = inventory ? formatToolInventoryLines(inventory) : [];
     const uncoveredHint =
-      !readTaskState(selectedSessionId)?.claudeSessionDir
-        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
-        : undefined;
+      agentOf(readTaskState(selectedSessionId)) === "codex"
+        ? CODEX_UNSUPPORTED_NOTICE
+        : !readTaskState(selectedSessionId)?.claudeSessionDir
+          ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+          : undefined;
     return withNotice(
       topNotice,
       <ToolsPanel lines={lines} shortId={shortId} emptyHint={uncoveredHint} />,
