@@ -8,8 +8,8 @@ export function isActivityStuck(input: {
 }): boolean {
   const activity = input.activity;
   if (!activity || activity.phase !== "running") return false;
-  if (isWaitingForUser(activity)) return false;
   const now = input.now ?? Date.now();
+  if (isWaitingForUser(activity, now)) return false;
   const started = Date.parse(activity.at);
   if (Number.isNaN(started)) return false;
   return now - started >= STUCK_MS;

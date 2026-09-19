@@ -111,6 +111,29 @@ test("formatAlertBanner 文案", () => {
   );
 });
 
+test("collectAlertEvents：PermissionRequest 寬限期內不算 waiting 警報，滿期後才算（要用注入的 now）", () => {
+  const at = new Date().toISOString(); // 幾乎等於真實時鐘：若內部偷用 Date.now() 判斷會誤判成已過寬限期
+  const session: AlertSessionSnapshot = {
+    sessionId: "cx",
+    activity: { toolName: "PermissionRequest", phase: "running", at },
+  };
+  const withinGrace = collectAlertEvents({
+    sessions: [session],
+    selectedSessionId: undefined,
+    now: Date.parse(at) + 1_000,
+  });
+  assert.deepEqual(withinGrace, []);
+  const afterGrace = collectAlertEvents({
+    sessions: [session],
+    selectedSessionId: undefined,
+    now: Date.parse(at) + 5_000,
+  });
+  assert.deepEqual(
+    afterGrace.map((e) => e.sessionId),
+    ["cx"],
+  );
+});
+
 test("shouldRingAlertBell 同 edge 不響", () => {
   assert.equal(shouldRingAlertBell(undefined, "a"), true);
   assert.equal(shouldRingAlertBell("a", "a"), false);

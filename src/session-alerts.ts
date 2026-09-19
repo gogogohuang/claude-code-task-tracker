@@ -39,12 +39,14 @@ function sortAlertEvents(events: AlertEvent[]): AlertEvent[] {
 export function collectAlertEvents(input: {
   sessions: AlertSessionSnapshot[];
   selectedSessionId: string | undefined;
+  now?: number;
 }): AlertEvent[] {
+  const now = input.now ?? Date.now();
   const events: AlertEvent[] = [];
   for (const session of input.sessions) {
     if (session.sessionId === input.selectedSessionId) continue;
 
-    if (isWaitingForUser(session.activity)) {
+    if (isWaitingForUser(session.activity, now)) {
       const at = session.activity?.at ?? "";
       events.push({
         sessionId: session.sessionId,
