@@ -31,8 +31,8 @@
    in_progress / completed。巢狀 workflow 的 `▸ …` phase 不另開列，算進最近的父 phase。
 3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 狀態檔與 workflow journal，狀態一有變化就即時重繪。
 4. Codex 走同一支 hook 腳本：`task-tracker init --agent codex` 把它註冊進 `~/.codex/hooks.json`
-   （`SessionStart`、`PreToolUse`、`PostToolUse`，命令尾端帶 `--agent codex`），寫進同一個狀態目錄，
-   狀態檔多一個 `"agent": "codex"`。Codex 有活動句與用量／cache 建議，沒有 task 清單與 workflow，細節見〈Codex 支援〉。
+   （`SessionStart`、`PreToolUse`、`PostToolUse`、`PermissionRequest`、`Stop`，命令尾端帶 `--agent codex`），寫進同一個狀態目錄，
+   狀態檔多一個 `"agent": "codex"`。Codex 有活動句、用量／cache 建議與「等你」核可提示，沒有 task 清單與 workflow，細節見〈Codex 支援〉。
 
 ```
 Claude Code (SessionStart / 任何工具 / Workflow)
@@ -212,6 +212,10 @@ npx claude-code-task-tracker init --agent codex --project   # 改寫入 <專案>
   過肥的工具輸出、開場偏重四種建議，畫面也會顯示 context 佔用量表（用 Codex 回報的視窗大小）。
   **不支援**：重複讀檔建議、工具清單（`t`）、任務清單、`inspect`、workflow
   （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `t`／`s` 會顯示「Codex session 尚未支援此檢視」。
+- **等你（`PermissionRequest`）**：Codex 即將跳出核可提示時會觸發這個 hook；收到超過 5 秒仍未核可，
+  該 session 才算「等你」——`!` 標記、頂列提示、響鈴、`n` 跳轉都會生效，摘要會寫「等待核可 <工具名稱>」。
+  5 秒寬限期是為了濾掉自動核可（`auto_review`）等很快就結束的請求；Codex 官方目前沒有回報「核可已處理」的事件，
+  所以核可或拒絕後要等到下一個工具呼叫或 `Stop`（回合結束）才會清除等待狀態。
 - 狀態檔仍寫在 `~/.claude-task-tracker/<session_id>.json`，Codex session 會多一個 `"agent": "codex"`；
   舊狀態檔沒有這欄位，一律視為 Claude。
 
@@ -222,8 +226,8 @@ npx claude-code-task-tracker init --agent codex --project   # 改寫入 <專案>
 
 - `Tab`／`Shift+Tab` 切換分頁。**只在 session 列表畫面生效**；已進入某個 session 或在 advice／cache／tools／history／split
   檢視內不會切換，要換分頁請先按 `b` 回列表。切換分頁會回到該來源的專案清單。
-- 分頁上紅色的 `!` 代表該來源有 session 正在等你（正在跑的 `AskUserQuestion`／`ExitPlanMode`）。
-  Codex 不會產生這兩個工具，所以目前 Codex 分頁實際上不會亮。
+- 分頁上紅色的 `!` 代表該來源有 session 正在等你：Claude 是正在跑的 `AskUserQuestion`／`ExitPlanMode`，
+  Codex 是收到 `PermissionRequest` 超過 5 秒的核可請求（見〈Codex 支援〉）。
 - **Cursor 只是預留分頁**，選到只會顯示尚未支援的說明，還沒有任何 Cursor 整合。
 
 ## 重要注意事項
@@ -299,7 +303,6 @@ src/
 ## 之後可以擴充的方向
 
 - 歷史紀錄（每個 session 結束後保留一份完成率統計）
-- Codex 的「等你」提示：接 Codex 的 `PermissionRequest` hook，讓 Codex 分頁的 `!` 也會亮（目前不會）
 - Codex 的任務清單（Codex 0.155.1 沒有 `update_plan`，來源可能是它的 `goals` 功能，尚未調查）
 - 用量總覽把 Claude 子 agent（sidechain）的用量也算進去（目前不計入）
 - Cursor 接入（目前只有預留分頁；要先取樣 Cursor 的 hook payload）
