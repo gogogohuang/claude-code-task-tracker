@@ -1,6 +1,6 @@
 # Codex 支援設計
 
-日期：2026-09-19　狀態：草案（Codex payload 尚未實測，見「未驗證項目」）
+日期：2026-09-19　狀態：Phase 0 已完成（Codex 0.155.1 實測，見「Phase 0 結果」），待進入實作計畫
 
 ## 問題
 
@@ -84,23 +84,47 @@ transcript 與 `.claude/` 目錄。使用者希望在 Codex CLI 的 session 也�
 - Session 結束偵測（`session-ended`）目前依 Claude 的事件；Codex 沒有對應的 `SessionEnd` 註冊時，靠既有的
   presence／閒置判斷，第一版不新增註冊。
 
-## 未驗證項目（Phase 0 必須先做）
+## Phase 0 結果（2026-09-19，Codex 0.155.1 實測）
 
-我在本機找不到可用的 Codex 真實 payload（`~/.codex/sessions` 的 rollout 格式與 hook payload 不同），以下都是推測：
+樣本：`src/fixtures/codex-0.155.1-hook-samples.jsonl`（已去敏，`codex exec` 取得 9 筆：SessionStart、UserPromptSubmit、
+3×PreToolUse／PostToolUse、Stop）。
 
-1. PreToolUse／PostToolUse 的實際欄位名稱與 `tool_name` 值（`Bash`？`shell`？`apply_patch`？）。
-2. `tool_input` 對 shell 是字串還是陣列；`apply_patch` 的 patch 放在哪個欄位。
-3. `update_plan` 是否會觸發 hook，以及 input 形狀。
-4. Codex 是否對 hook 送 `transcript_path`、`source`（startup／resume）。
-5. Codex 專案層 hooks 檔的位置（決定是否做 `--project`）。
+已確認：
 
-Phase 0 做法：暫時在 `~/.codex/hooks.json` 加一個把 stdin 原樣寫到 `~/.claude-task-tracker/codex-sample.jsonl` 的 hook
-（合併、不覆蓋現有項目），跑幾個 Codex 指令（讀檔、跑 shell、改檔、觸發 plan），把樣本去敏後存成測試 fixture，
-再移除該 hook。Phase 0 的結論回寫到本文件「未驗證項目」。
+1. **欄位與 Claude 同構**：`session_id`、`cwd`、`hook_event_name`、`transcript_path`、`tool_name`、`tool_input`、`tool_response`、
+   `tool_use_id`，另有 `turn_id`、`model`、`permission_mode`。SessionStart 有 `source`（`startup`）；Stop 有
+   `last_assistant_message`、`stop_hook_active`。**不需要 normalize 層**，`HookPayloadSchema` 直接可用。
+2. **shell 的 `tool_name` 是 `Bash`**（不是 `shell`／`exec_command`），`tool_input` 為 `{ command: string }`（字串，非陣列），
+   `tool_response` 是輸出字串（`"hello\n"`）。既有 Bash 分支可直接沿用。
+3. **`apply_patch` 的 `tool_name` 是 `apply_patch`**，patch 全文在 `tool_input.command`（不是 `patch`），
+   標頭為 `*** Begin Patch` / `*** Update File: <絕對路徑>`。檔名要取路徑的 basename。
+4. **`update_plan` 在 0.155.1 不存在**：模型回報可用工具只有 `exec`、`wait`、`spawn_agent`、`followup_task`、
+   `interrupt_agent`、`list_agents`、`send_message`、`wait_agent`。`codex features list` 有 stable 的 `goals`
+   （`~/.codex/goals_1.sqlite`），可能才是 Codex 的任務／目標來源，尚未調查。**「`update_plan` → 任務清單」這一項作廢，
+   任務清單來源待定。**
+5. **專案層 hooks 位於 `<project>/.codex/hooks.json`**（`--project` 安裝可行）。
+6. **Codex 有 hook 信任機制（新發現，影響 `init`）**：`~/.codex/config.toml` 的 `[hooks.state."<檔案>:<事件>:<群組>:<index>"]`
+   記 `trusted_hash`。未信任的 hook 要在 TUI 啟動的 hooks review 核可後才會執行；`codex exec` 沒有 review 流程，
+   未信任的 hook 顯示 `Failed`。旗標 `--dangerously-bypass-hook-trust` 只能單次略過，不應由 `init` 使用。
+   雜湊演算法未公開，**`init --agent codex` 不應自己寫 `trusted_hash`**，而是寫入 hooks.json 後提示使用者
+   「開啟 Codex，在 hooks review 核可」。
+
+尚未驗證：`PermissionRequest`、`SessionEnd` 的 payload；互動式 TUI（非 exec）是否有 `update_plan` 或 `goals` 對應工具；
+Codex 是否一定會在 `SessionEnd` 觸發（本次只在 exec 模式取樣）。
+
+對本文設計的修正（以此為準，覆蓋上文）：
+
+- 範圍內 4（`update_plan` → 任務清單）暫時移出第一版，第一版只做活動句；任務清單待調查 `goals` 後另開項目。
+- 活動句表：`Bash` 沿用既有分支；`apply_patch` 從 `tool_input.command` 抽 `*** (Update|Add|Delete) File:` 的路徑取 basename；
+  `update_plan` 那列刪除；不需要處理 argv 陣列。
+- 「Hook 端」的 Codex → 內部格式 normalize 層不需要。
+- 「安裝端」增加信任提示：`init --agent codex` 完成後印出「請開啟 Codex 並在 hooks review 核可 task-tracker hook」；
+  `codex exec` 環境下 hook 不會執行，README 要註明。
+- 測試以上述 fixture 為準；README 註明測試過的 Codex 版本改為 0.155.1。
 
 ## 實作順序
 
-1. Phase 0：取樣、確認上列 5 點，更新本文件。
+1. ~~Phase 0：取樣~~ 已完成，結果見上。
 2. `install-hooks.ts` agent profile 參數化 ＋ 合併測試（含保留既有 hooks、冪等）。
 3. `init --agent` CLI 與訊息。
 4. `TaskState.agent` ＋ hook 入口讀 `--agent`。
