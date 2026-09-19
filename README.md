@@ -7,7 +7,7 @@
 目前在做什麼，例如「正在讀取 src/schema.ts」。也可以接 Codex CLI 的 session（目前只顯示
 活動句，見〈Codex 支援〉），並在 `watch` 依來源分頁檢視（見〈分頁檢視〉）。
 
-目前版本：**v0.24.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.24.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 ## 運作原理
 
 1. `task-tracker init` 會在 `~/.claude/settings.json` 註冊 `SessionStart`、
