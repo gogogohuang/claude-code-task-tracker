@@ -1006,4 +1006,25 @@ const emptyLines =
 
 ## 完成紀錄
 
-（執行後填寫：變更檔案、測試指令與結果、未實測項目。）
+日期：2026-09-19　分支：`gogogohuang/codex-support`　實作 commit：`40be593`..`8cbcf9c`（10 個，皆本地、未 push；PR #34 尚不含）。
+
+**驗證（控制端親自重跑）：** `pnpm typecheck` 乾淨；`pnpm test` 351/351 通過；`pnpm build` 成功。
+
+**Task → commit：** 1 `40be593` Agent 型別與 `TaskState.agent`　2 `02590fb` install-hooks agent profile　3 `54f3d55` `init --agent codex` 與提示　4 `ea8e9b7` hook 讀 `--agent`　5 `614d161` `apply_patch` 活動句　6 `f8373c3` 真實 payload 重放與停用提示　7 `7193cdb` `SessionHint.agent` 與過濾　8 `c73788e` 分頁邏輯與元件　9 `022e13d` App 整合分頁　10 `8cbcf9c` README。每個 task 都通過 spec＋品質審查，最終整支分支審查（範圍 `0032942..8cbcf9c`）無 Critical／Important。
+
+**對照兩份 spec 的完成條件：**
+- `init --agent codex` 寫入 `~/.codex/hooks.json`（`--project` 寫 `<cwd>/.codex/hooks.json`）：達成，單元測試＋暫存 HOME 端到端。
+- Codex 活動句出現在狀態檔／`watch`：狀態檔達成（真實 fixture 重放＋端到端）；`watch` 畫面經 subagent 在 pty 觀察分頁與清單，未由控制端目視。
+- 既有 Codex hooks 保留、重跑冪等、Claude `init` 行為不變：達成（測試涵蓋；Claude 狀態檔不寫 `agent`）。
+- 舊狀態檔相容、Codex 不觸發 Claude 專屬讀取：達成（`agent ?? "claude"`；三個檢視有守門）。
+- 三個分頁、Cursor 只留佔位、切換回專案清單、split 限同來源：達成（讀碼＋部分 pty 觀察）。
+
+**未實測 / 未達成：**
+- 真實 Codex session 端到端：需使用者先在 Codex hooks review 核可 hook；`codex exec` 不會執行未核可的 hook。
+- ink UI 的這些路徑沒有互動實測（僅讀碼推論）：完整 split 與第二個同來源 session、picker 開著時按 Tab、`n` 跨來源跳轉、`--session` 直接開 Codex session、待處理 `!` 標記。
+- Codex 分頁的「等待」提示色實際上不會亮（Codex 不產生 AskUserQuestion／ExitPlanMode），README 已如實說明。
+- Codex 任務清單：`update_plan` 在 0.155.1 不存在，擱置；`goals` 尚未調查。Cursor 接入未做。
+
+**延後的 Minor（最終審查判定皆可不擋合併）：** `src/show-session-cache.ts` 的 `sessionHintFromState` 未複製 `agent`（目前無消費者）；`[features]` TOML 掃描的邊角；`input === "\t"` 分支不可達；split 夥伴 picker 顯示無效的「Tab 切換」提示；跨分頁的新 session 通知未過濾；`codex-support-design.md:81` 仍提到 `[codex]` 標記（已由分頁取代）；agent-tabs 窄終端退路未實作；README 措辭三處；數個測試涵蓋缺口（見各 task 審查）。
+
+**控制端的 Rulings：** (1) subagent 逐 task 本地 commit、不 push（若不要：`git reset --soft 0032942`）。(2) subagent 回報依 `CLAUDE.md` 限制在 15 行內。(3) Task 10 順便修 agent-tabs spec 過時字樣（純文件）。(4) 最終審查範圍用 `0032942..8cbcf9c`，不含先前已由使用者看過的 docs／fixture／AGENTS.md commit。
