@@ -141,7 +141,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、按 `u` 開啟用量總覽（所有 session 依累計用量排序）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對該 session 回報的視窗（Claude 1M、Codex 258,400）的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
@@ -167,6 +167,23 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 畫面先顯示可捲動的清單（`↑↓` / `j` `k`），同一分組內依檔案大小（byte）由大到小排，並列出體積；按 Enter 進預覽、`b` 回清單、`q` 離開。
 
 用量建議（watch 按 `a`）會列出過肥 tool 回傳、同路徑反覆 Read 等可執行的減肥項；若開場底子偏重，同一則建議下方會嵌該 **session 專案** 的 launch／onDemand 熱力 Top-5（找不到大檔時會提示改跑 `inspect`）。
+
+### 用量總覽（`u`）
+
+`watch` 按 `u` 會列出所有已知 session（Claude 與 Codex 混合，標示來源），依累計用量由大到小排序，
+每列顯示累計 token、占全部的百分比與一條比例條：
+
+```text
+[Claude] my-project · 1a2b3c4d  2.3M  41%  █████░░░░░░░
+[Codex]  other-repo · 9f8e7d6c  1.1M  20%  ██░░░░░░░░░░
+```
+
+- **用量的算法**：累計「新增工作量」token = `input + cache creation + output`（Codex：`input − cached + output`），
+  **不含 cache 讀取**。Claude 每輪都會重讀整個 context，把 cache 讀取也累加會讓數字被灌爆，失去比較意義。
+- 百分比是占「有用量資料的 session 總和」的比例；還沒有用量資料的 session 顯示 `—`，不參與計算。
+- 累計值在每次啟動 `watch` 時由 transcript 重算，不另外存檔。
+- **限制**：Claude 子 agent（sidechain）用到的 token 不計入累計，重度使用子 agent 的 session 會被低估；
+  比較的是工作量，不是花費（不同來源的 token 單價不同）。
 
 ## Codex 支援
 
