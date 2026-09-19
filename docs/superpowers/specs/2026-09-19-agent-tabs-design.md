@@ -1,6 +1,6 @@
 # watch 依來源分頁檢視設計
 
-日期：2026-09-19　狀態：已核准（對話中），待寫實作計畫
+日期：2026-09-19　狀態：已核准（對話中），已實作於 gogogohuang/codex-support，待 review
 前置：`docs/superpowers/specs/2026-09-19-codex-support-design.md`（提供 `TaskState.agent`，見其「Phase 0 結果」）
 
 ## 問題
@@ -45,7 +45,7 @@
   `groupSessionsByProject`、`projectChoices`、`sessionChoicesInProject` 的輸入先過濾，不改它們內部邏輯，
   所以現有 picker 與 split 流程原樣可用。
 - **分頁元件**：新增 `src/ui/AgentTabs.tsx`，只負責畫分頁列（標題、數量、提示色、目前分頁標示）。
-  分頁順序與標籤集中在一個常數（`AGENTS`），Cursor 之後接入只需改這裡與狀態來源。
+  分頁順序與標籤集中在一個常數（`src/agent.ts` 的 `TAB_AGENTS`／`TAB_LABELS`），Cursor 之後接入只需改這裡與狀態來源。
 - **App 狀態**（`src/ui/App.tsx`）：新增 `activeAgent`（預設 `claude`）。切換時呼叫既有的「回專案清單」路徑：
   清 `selectedSessionId`、`projectKey`、split 狀態（`pickingSplitPartner`、`splitLeftId`、`splitRightId`）。
 - **按鍵**：App 現用 `[ ] a b c C d h n p q s t v Esc`；`Tab`／`Shift+Tab` 未使用。
