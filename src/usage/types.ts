@@ -5,6 +5,8 @@ export interface ParsedUsage {
   cacheRead: number;
   output: number;
   input: number;
+  /** Codex 才有：這次呼叫時模型的 context 視窗大小（rollout 的 model_context_window）。 */
+  contextWindow?: number;
 }
 
 export interface ToolResultChars {
