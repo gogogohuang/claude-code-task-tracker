@@ -35,6 +35,8 @@ function sentenceFor(
       return pathSentence(toolInput, cwd, phase, locale, "修改", "Editing", "Edited");
     case "Write":
       return pathSentence(toolInput, cwd, phase, locale, "寫入", "Writing", "Wrote");
+    case "apply_patch":
+      return patchSentence(toolInput, cwd, phase, locale);
     case "Glob":
       return spaced(phase, locale, "尋找", "Finding", "Found", pickFragment(toolInput, "pattern"));
     case "Grep":
@@ -198,6 +200,22 @@ function agentSentence(
     return labeled(phase, locale, "", `Handing to ${type}`, `Handed to ${type}`, description);
   }
   return labeled(phase, locale, `交給 ${type}`, "", "", description);
+}
+
+const PATCH_FILE_RE = /^\*\*\* (?:Update|Add|Delete) File: (.+)$/m;
+
+/** Codex apply_patch：patch 全文在 tool_input.command，只取第一個檔案標頭，不外流 patch 內容。 */
+function patchSentence(
+  toolInput: Record<string, unknown>,
+  cwd: string | undefined,
+  phase: ActivityPhase,
+  locale: Locale,
+): string {
+  const file = rawString(toolInput, "command")?.match(PATCH_FILE_RE)?.[1]?.trim();
+  const named = file ? spaced(phase, locale, "修改", "Editing", "Edited", displayPath(file, cwd)) : undefined;
+  if (named) return named;
+  if (locale === "en") return phase === "running" ? "Editing files" : "Edited files";
+  return phase === "running" ? "正在修改檔案" : "已修改檔案";
 }
 
 function shellFragment(toolInput: Record<string, unknown>): string | undefined {
