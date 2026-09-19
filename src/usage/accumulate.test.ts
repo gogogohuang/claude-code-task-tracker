@@ -185,3 +185,21 @@ test("accumulate 忽略 sidechain 的 toolUseName", () => {
   const { next } = accumulate(stats0, [toolUseEvent("Bash", true), toolUseEvent("Read")]);
   assert.deepEqual(next.toolInventory?.tools, { Read: 1 });
 });
+
+test("accumulate：usage 帶 contextWindow 時記成 lastContextWindow；沒帶就不出現這個鍵", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const withWindow = accumulate(stats0, [
+    { messageId: "a", isSidechain: false, timestamp: "t", usage: { input: 0, cacheRead: 1, cacheCreation: 2, output: 3, contextWindow: 258400 }, toolResultChars: undefined },
+  ]);
+  assert.equal(withWindow.next.lastContextWindow, 258400);
+
+  const without = accumulate(stats0, [
+    { messageId: "b", isSidechain: false, timestamp: "t", usage: { input: 0, cacheRead: 1, cacheCreation: 2, output: 3 }, toolResultChars: undefined },
+  ]);
+  assert.equal("lastContextWindow" in without.next, false);
+});
+
+test("createSessionUsageStats：只有 codex 才帶 agent 鍵", () => {
+  assert.equal("agent" in createSessionUsageStats("s1"), false);
+  assert.equal(createSessionUsageStats("s1", "codex").agent, "codex");
+});

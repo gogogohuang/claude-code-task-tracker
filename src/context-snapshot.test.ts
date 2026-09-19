@@ -44,6 +44,25 @@ test("formatLastTurnBreakdownLine 沒有上一輪時省略", () => {
   assert.equal(formatLastTurnBreakdownLine(undefined), undefined);
 });
 
+test("contextOccupancyPct 可指定視窗（Codex 258,400）", () => {
+  assert.equal(contextOccupancyPct(129_200, 258_400), 50);
+  assert.equal(contextOccupancyPct(500_000), 50); // 不傳＝1,000,000，Claude 不變
+});
+
+test("formatOccupiedTokensLine／formatContextGaugeBar 傳入視窗後用該視窗算比例", () => {
+  assert.equal(formatOccupiedTokensLine(129_200, 258_400), "窗口約 129,200 token（約 50%）");
+  assert.deepEqual(formatContextGaugeBar(129_200, 258_400), {
+    bar: `${"█".repeat(12)}${"░".repeat(12)}`,
+    color: "green",
+  });
+});
+
+test("formatLastTurnBreakdownLine：Codex 顯示 cached／新算，不出現 cache create", () => {
+  const usage = { occupiedTokens: 17111, cacheRead: 16128, cacheCreation: 983, input: 0 };
+  assert.equal(formatLastTurnBreakdownLine(usage, "codex"), "上一輪 cached 16,128 · 新算 983");
+  assert.match(formatLastTurnBreakdownLine(usage) ?? "", /cache create 983/); // 預設 claude 不變
+});
+
 test("lastTurnUsageFromStats 欄位齊全才組得出來", () => {
   assert.deepEqual(
     lastTurnUsageFromStats({

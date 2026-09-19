@@ -1,4 +1,5 @@
 import type { ToolInventory } from "./tool-inventory.js";
+import type { Agent } from "../agent.js";
 
 export interface ParsedUsage {
   cacheCreation: number;
@@ -67,9 +68,13 @@ export interface SessionUsageStats {
   toolInventory?: ToolInventory;
   /** 主線 Read 各 path 次數（供 repeated-read） */
   readPathCounts?: Record<string, number>;
+  /** 只有 Codex 才會設定；detect 依它切換建議文案。缺省視為 claude。 */
+  agent?: Agent;
+  /** 最近一次呼叫的模型 context 視窗（Codex 由 rollout 帶入；缺省時量表用 Claude 的 1,000,000）。 */
+  lastContextWindow?: number;
 }
 
-export function createSessionUsageStats(sessionId: string): SessionUsageStats {
+export function createSessionUsageStats(sessionId: string, agent: Agent = "claude"): SessionUsageStats {
   return {
     sessionId,
     mainThreadMsgCount: 0,
@@ -79,6 +84,7 @@ export function createSessionUsageStats(sessionId: string): SessionUsageStats {
     cacheCreationRollingAvg: 0,
     recentMessageIds: [],
     readPathCounts: {},
+    ...(agent === "codex" ? { agent } : {}),
   };
 }
 

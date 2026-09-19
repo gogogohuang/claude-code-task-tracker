@@ -79,7 +79,7 @@ accumulate / detect（重用）
     Codex 有統計後自然會顯示，但呼叫端 `formatContextGaugeBar`／`formatOccupiedTokensLine` 要改為傳入
     `stats.lastContextWindow`，否則會用 1,000,000 算出偏低的佔用率。
   - 上一輪明細標籤依來源切換：Claude 維持 `cache read · cache create · input`，Codex 顯示
-    `cached {n} · 新算 {n} · 輸出 {n}`（`cacheRead` → cached，`cacheCreation` → 新算，`output` → 輸出）。
+    `cached {n} · 新算 {n}`（`cacheRead` → cached，`cacheCreation` → 新算；`input` 恆為 0、`output` 不在明細內）。
   - cache 檢視（`c`，狀態檔 JSON）與 tools 檢視（`t`）維持對 Codex 顯示「尚未支援」：前者不屬於用量分析，
     後者依賴 Claude 工具名稱，兩者皆不在本次範圍。
 

@@ -60,6 +60,7 @@ export function accumulate(
       lastCacheRead: event.usage.cacheRead,
       lastCacheCreation: event.usage.cacheCreation,
       lastInput: event.usage.input,
+      ...(event.usage.contextWindow !== undefined ? { lastContextWindow: event.usage.contextWindow } : {}),
     };
 
     steps.push({ event, statsBefore, statsAfter: stats });
