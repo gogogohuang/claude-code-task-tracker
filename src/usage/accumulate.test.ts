@@ -203,3 +203,47 @@ test("createSessionUsageStats：只有 codex 才帶 agent 鍵", () => {
   assert.equal("agent" in createSessionUsageStats("s1"), false);
   assert.equal(createSessionUsageStats("s1", "codex").agent, "codex");
 });
+
+function workEvent(
+  messageId: string | undefined,
+  usage: { input: number; cacheCreation: number; cacheRead: number; output: number },
+  isSidechain = false,
+): ParsedEvent {
+  return { messageId, isSidechain, timestamp: "t", usage, toolResultChars: undefined };
+}
+
+test("accumulate：workTokensTotal 逐事件累加 input + cacheCreation + output，不含 cacheRead", () => {
+  const { next } = accumulate(createSessionUsageStats("s1"), [
+    workEvent("a", { input: 10, cacheCreation: 200, cacheRead: 5000, output: 30 }),
+    workEvent("b", { input: 1, cacheCreation: 2, cacheRead: 9000, output: 3 }),
+  ]);
+  assert.equal(next.workTokensTotal, 246); // (10 + 200 + 30) + (1 + 2 + 3)
+});
+
+test("accumulate：重複 messageId 不重複累加 workTokensTotal", () => {
+  const usage = { input: 0, cacheCreation: 200, cacheRead: 0, output: 40 };
+  const { next } = accumulate(createSessionUsageStats("s1"), [workEvent("a", usage), workEvent("a", usage)]);
+  assert.equal(next.workTokensTotal, 240);
+});
+
+test("accumulate：sidechain（子 agent）事件不計入 workTokensTotal", () => {
+  const { next } = accumulate(createSessionUsageStats("s1"), [
+    workEvent("a", { input: 0, cacheCreation: 100, cacheRead: 0, output: 0 }),
+    workEvent("b", { input: 0, cacheCreation: 9999, cacheRead: 0, output: 9999 }, true),
+  ]);
+  assert.equal(next.workTokensTotal, 100);
+});
+
+test("accumulate：沒有 usage 的事件不產生 workTokensTotal 這個鍵", () => {
+  const { next } = accumulate(createSessionUsageStats("s1"), [
+    { messageId: undefined, isSidechain: false, timestamp: "t", usage: undefined, toolResultChars: { toolName: "Bash", chars: 10 } },
+  ]);
+  assert.equal("workTokensTotal" in next, false);
+});
+
+test("accumulate：Codex 對應（input 0、cacheCreation = 沒命中 cache 的部分）也用同一條公式", () => {
+  const { next } = accumulate(createSessionUsageStats("cx", "codex"), [
+    workEvent("total:32900", { input: 0, cacheCreation: 983, cacheRead: 16128, output: 24 }),
+  ]);
+  assert.equal(next.workTokensTotal, 1007);
+});
