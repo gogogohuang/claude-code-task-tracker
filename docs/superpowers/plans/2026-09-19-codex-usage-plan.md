@@ -1016,7 +1016,7 @@ split 檢視兩行改成：
   （狀態檔的 `transcriptPath`）分析 token 用量：`a` 列出長 session、cache 暴增（沒命中 cache 而重算的 token 突然變多）、
   過肥的工具輸出、開場偏重四種建議，畫面也會顯示 context 佔用量表（用 Codex 回報的視窗大小）。
   **不支援**：重複讀檔建議、工具清單（`t`）、任務清單、`inspect`、workflow
-  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `t`／`c` 會顯示「Codex session 尚未支援此檢視」。
+  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `t`／`s` 會顯示「Codex session 尚未支援此檢視」。
 ```
 
 - 「Codex 只在啟動時讀取 hooks」那條（PR #36 加的）後面補一句：`且 session 要送出第一個 prompt 之後才會出現在 watch。`
@@ -1033,7 +1033,7 @@ Expected: typecheck 無錯；測試全數通過（原本 351 個 + 本計畫新�
 2. 開一個**新的** Codex session（hook 只在啟動時載入），送出一個會跑指令的 prompt，例如「執行 `echo hi`」。
 3. 在 `watch` 切到 Codex 分頁，選該 session：畫面應出現 context 量表與「窗口約 N token（約 X%）」（X 以 258,400 為分母），上一輪明細為 `上一輪 cached … · 新算 …`。
 4. 按 `a`：不再出現「Codex session 尚未支援此檢視」；有觸發時會列出 Codex 版文案。
-5. 按 `t`、`c`：仍顯示「Codex session 尚未支援此檢視」（預期行為）。
+5. 按 `t`、`s`：仍顯示「Codex session 尚未支援此檢視」（預期行為）。
 6. 同時開一個 Claude session，確認它的量表、明細與建議文案和以前一樣。
 
 - [ ] **Step 7: Commit**
