@@ -4,7 +4,8 @@
 
 終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（`TodoWrite`，以及新版 `TaskCreate` /
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
-目前在做什麼，例如「正在讀取 src/schema.ts」。
+目前在做什麼，例如「正在讀取 src/schema.ts」。也可以接 Codex CLI 的 session（目前只顯示
+活動句，見〈Codex 支援〉），並在 `watch` 依來源分頁檢視（見〈分頁檢視〉）。
 
 目前版本：**v0.24.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 ## 運作原理
@@ -29,11 +30,18 @@
    種出 phase 清單；`watch` 再盯 session 目錄裡的 `journal.jsonl`，把每列標成 pending /
    in_progress / completed。巢狀 workflow 的 `▸ …` phase 不另開列，算進最近的父 phase。
 3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 狀態檔與 workflow journal，狀態一有變化就即時重繪。
+4. Codex 走同一支 hook 腳本：`task-tracker init --agent codex` 把它註冊進 `~/.codex/hooks.json`
+   （`SessionStart`、`PreToolUse`、`PostToolUse`，命令尾端帶 `--agent codex`），寫進同一個狀態目錄，
+   狀態檔多一個 `"agent": "codex"`。Codex 只有活動句，沒有 task 清單、用量與 workflow，細節見〈Codex 支援〉。
 
 ```
 Claude Code (SessionStart / 任何工具 / Workflow)
   → hook → ~/.claude-task-tracker/<session>.json
   → journal.jsonl → TUI (watch)
+
+Codex (SessionStart / Bash / apply_patch …)
+  → hook --agent codex → ~/.claude-task-tracker/<session>.json（agent: "codex"）
+  → TUI (watch，Codex 分頁)
 ```
 
 ## 安裝與使用（npx）
@@ -133,7 +141,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對 1M 窗口的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
@@ -238,7 +246,7 @@ src/
 ├── commands/
 │   └── init.ts               # 寫入 .claude/settings.json 或 .codex/hooks.json 的 hook 設定
 ├── hook/
-│   └── task-tracker-hook.ts  # Claude Code 實際呼叫的 hook 腳本
+│   └── task-tracker-hook.ts  # Claude Code 與 Codex（--agent codex）實際呼叫的 hook 腳本
 ├── fixtures/                 # 真實 Codex 0.155.1 hook payload 樣本（測試重放用）
 ├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory、prompt 檔案）
 ├── workflow/                 # dynamic workflow 的 meta.phases 與 journal 解析
@@ -268,4 +276,6 @@ src/
 ## 之後可以擴充的方向
 
 - 歷史紀錄（每個 session 結束後保留一份完成率統計）
-- 多 session 同時並排顯示（split view）
+- Codex 的任務清單（Codex 0.155.1 沒有 `update_plan`，來源可能是它的 `goals` 功能，尚未調查）
+- Cursor 接入（目前只有預留分頁；要先取樣 Cursor 的 hook payload）
+- 用真實 Codex session 做端到端驗證（需先在 Codex hooks review 核可 hook）
