@@ -193,7 +193,7 @@ npx claude-code-task-tracker init --agent codex --project   # 改寫入 <專案>
   （狀態檔的 `transcriptPath`）分析 token 用量：`a` 列出長 session、cache 暴增（沒命中 cache 而重算的 token 突然變多）、
   過肥的工具輸出、開場偏重四種建議，畫面也會顯示 context 佔用量表（用 Codex 回報的視窗大小）。
   **不支援**：重複讀檔建議、工具清單（`t`）、任務清單、`inspect`、workflow
-  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `t`／`c` 會顯示「Codex session 尚未支援此檢視」。
+  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `t`／`s` 會顯示「Codex session 尚未支援此檢視」。
 - 狀態檔仍寫在 `~/.claude-task-tracker/<session_id>.json`，Codex session 會多一個 `"agent": "codex"`；
   舊狀態檔沒有這欄位，一律視為 Claude。
 
