@@ -19,7 +19,8 @@ function codexNotes(home: string): string[] {
     "Codex 會要求核可新的 hook：請開啟 Codex，在啟動時的 hooks review 核可 task-tracker 的 hook。",
     "尚未核可前 hook 不會執行；`codex exec` 沒有核可畫面，需先在互動模式核可一次。",
     "Codex 只在啟動時讀取 hooks：安裝前就已經開著的 Codex session 不會被偵測，請關掉重開。",
-    "已用 Codex 0.155.1 測試；目前只支援活動句，任務清單、用量、inspect 尚未支援 Codex。",
+    "已用 Codex 0.155.1 測試；目前支援活動句與用量／cache 建議，任務清單、inspect 尚未支援 Codex。",
+    "session 要送出第一個 prompt 才會出現在 watch。",
   );
   return notes;
 }

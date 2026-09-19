@@ -4,8 +4,8 @@
 
 終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（`TodoWrite`，以及新版 `TaskCreate` /
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
-目前在做什麼，例如「正在讀取 src/schema.ts」。也可以接 Codex CLI 的 session（目前只顯示
-活動句，見〈Codex 支援〉），並在 `watch` 依來源分頁檢視（見〈分頁檢視〉）。
+目前在做什麼，例如「正在讀取 src/schema.ts」。也可以接 Codex CLI 的 session（顯示活動句與
+用量／cache 建議，見〈Codex 支援〉），並在 `watch` 依來源分頁檢視（見〈分頁檢視〉）。
 
 目前版本：**v0.24.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 ## 運作原理
@@ -32,7 +32,7 @@
 3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 狀態檔與 workflow journal，狀態一有變化就即時重繪。
 4. Codex 走同一支 hook 腳本：`task-tracker init --agent codex` 把它註冊進 `~/.codex/hooks.json`
    （`SessionStart`、`PreToolUse`、`PostToolUse`，命令尾端帶 `--agent codex`），寫進同一個狀態目錄，
-   狀態檔多一個 `"agent": "codex"`。Codex 只有活動句，沒有 task 清單、用量與 workflow，細節見〈Codex 支援〉。
+   狀態檔多一個 `"agent": "codex"`。Codex 有活動句與用量／cache 建議，沒有 task 清單與 workflow，細節見〈Codex 支援〉。
 
 ```
 Claude Code (SessionStart / 任何工具 / Workflow)
@@ -188,11 +188,12 @@ npx claude-code-task-tracker init --agent codex --project   # 改寫入 <專案>
   不會（也不能）代寫 Codex 的信任紀錄。`codex exec` 沒有核可畫面，未核可的 hook 只會顯示失敗，
   所以請先開一次互動模式的 Codex 核可。
 - **Codex 只在啟動時讀取 hooks。** `init` 之前就已經開著的 Codex session 不會出現在 `watch`，
-  必須關掉重開；只有 `init` 之後新開的 session 才會被偵測。
-- **只支援活動句**：Codex session 的 `watch` 畫面會顯示目前在做什麼，範圍是 `Bash`（執行指令）與
-  `apply_patch`（修改檔案）。任務清單、usage 建議、`inspect`、workflow 都**不支援**
-  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `a`／`t`／cache 相關檢視，
-  會顯示「Codex session 尚未支援此檢視」。
+  必須關掉重開；只有 `init` 之後新開的 session 才會被偵測，且 session 要送出第一個 prompt 之後才會出現在 watch。
+- **支援活動句與用量／cache 建議**：`watch` 會顯示目前在做什麼（`Bash`、`apply_patch`），並從 Codex 的 rollout 檔
+  （狀態檔的 `transcriptPath`）分析 token 用量：`a` 列出長 session、cache 暴增（沒命中 cache 而重算的 token 突然變多）、
+  過肥的工具輸出、開場偏重四種建議，畫面也會顯示 context 佔用量表（用 Codex 回報的視窗大小）。
+  **不支援**：重複讀檔建議、工具清單（`t`）、任務清單、`inspect`、workflow
+  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `t`／`c` 會顯示「Codex session 尚未支援此檢視」。
 - 狀態檔仍寫在 `~/.claude-task-tracker/<session_id>.json`，Codex session 會多一個 `"agent": "codex"`；
   舊狀態檔沒有這欄位，一律視為 Claude。
 

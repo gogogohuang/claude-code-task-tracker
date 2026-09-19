@@ -48,7 +48,7 @@ import { adviceForSession } from "../usage/advice-groups.js";
 import { attachHeavyBaselineHeat } from "../usage/advice-heat.js";
 import { forget, peek, peekSubagents, prime, refresh } from "../usage/tail-runtime.js";
 import { formatToolInventoryLines, formatToolInventorySummary } from "../usage/tool-inventory.js";
-import { resolveTranscriptPath } from "../workflow/paths.js";
+import { transcriptSource } from "../usage/transcript-source.js";
 import {
   formatContextGaugeBar,
   formatLastTurnBreakdownLine,
@@ -527,12 +527,12 @@ export function App({
 
     for (const sessionId of sessionIds) {
       if (watchers.has(sessionId)) continue;
-      const state = readTaskState(sessionId);
-      if (!state?.claudeSessionDir) continue;
-      const transcriptPath = resolveTranscriptPath(state.claudeSessionDir, sessionId);
+      const source = transcriptSource(readTaskState(sessionId));
+      if (!source) continue;
+      const { agent, path: transcriptPath } = source;
 
       try {
-        applyAdvice(prime(sessionId, transcriptPath).advice);
+        applyAdvice(prime(sessionId, transcriptPath, agent).advice);
       } catch {
         // 用量分析出任何錯誤都不能拖垮主畫面
       }
@@ -540,7 +540,7 @@ export function App({
       const watcher = chokidar.watch(transcriptPath, { ignoreInitial: true, ignorePermissionErrors: true });
       const onTranscriptEvent = () => {
         try {
-          applyAdvice(refresh(sessionId, transcriptPath));
+          applyAdvice(refresh(sessionId, transcriptPath, agent));
         } catch {
           // 同上
         }
@@ -720,8 +720,8 @@ export function App({
         right={rightState}
         focus={splitFocus}
         pinned={pinned}
-        leftGauge={formatContextGaugeBar(leftUsage?.lastOccupiedTokens)}
-        rightGauge={formatContextGaugeBar(rightUsage?.lastOccupiedTokens)}
+        leftGauge={formatContextGaugeBar(leftUsage?.lastOccupiedTokens, leftUsage?.lastContextWindow)}
+        rightGauge={formatContextGaugeBar(rightUsage?.lastOccupiedTokens, rightUsage?.lastContextWindow)}
         leftScroll={leftScroll}
         rightScroll={rightScroll}
         onScrollFocus={(delta) => {
@@ -750,11 +750,9 @@ export function App({
     const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
     const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
     const uncoveredHint =
-      selectedSessionId && agentOf(readTaskState(selectedSessionId)) === "codex"
-        ? CODEX_UNSUPPORTED_NOTICE
-        : selectedSessionId && !readTaskState(selectedSessionId)?.claudeSessionDir
-          ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
-          : undefined;
+      selectedSessionId && !transcriptSource(readTaskState(selectedSessionId))
+        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+        : undefined;
     return withNotice(
       topNotice,
       <AdvicePanel
@@ -903,9 +901,9 @@ export function App({
   const usage = peek(taskState.sessionId);
   const lastTurn = lastTurnUsageFromStats(usage);
   const contextSnapshot = {
-    occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
-    breakdownLine: formatLastTurnBreakdownLine(lastTurn),
-    gauge: formatContextGaugeBar(usage?.lastOccupiedTokens),
+    occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens, usage?.lastContextWindow),
+    breakdownLine: formatLastTurnBreakdownLine(lastTurn, agentOf(taskState)),
+    gauge: formatContextGaugeBar(usage?.lastOccupiedTokens, usage?.lastContextWindow),
   };
   const toolInventorySummary = usage?.toolInventory
     ? formatToolInventorySummary(usage.toolInventory)
