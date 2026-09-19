@@ -43,12 +43,19 @@ import { AdvicePanel } from "./AdvicePanel.js";
 import { CachePanel } from "./CachePanel.js";
 import { ToolsPanel } from "./ToolsPanel.js";
 import { HistoryPanel } from "./HistoryPanel.js";
+import { UsagePanel } from "./UsagePanel.js";
 import { cachePanelLinesForSession } from "../cache-panel-lines.js";
 import { adviceForSession } from "../usage/advice-groups.js";
 import { attachHeavyBaselineHeat } from "../usage/advice-heat.js";
 import { forget, peek, peekSubagents, prime, refresh } from "../usage/tail-runtime.js";
 import { formatToolInventoryLines, formatToolInventorySummary } from "../usage/tool-inventory.js";
 import { transcriptSource } from "../usage/transcript-source.js";
+import {
+  buildUsageOverview,
+  formatTokenCount,
+  formatUsageOverviewLine,
+  summarizeUsageOverview,
+} from "../usage-overview.js";
 import {
   formatContextGaugeBar,
   formatLastTurnBreakdownLine,
@@ -423,6 +430,11 @@ export function App({
         setView("history");
         return;
       }
+      if (input === "u" && (view === "main" || view === "split")) {
+        setPendingDeleteSessionId(undefined);
+        setView("usage");
+        return;
+      }
       if (input === "p" && (view === "main" || view === "split") && actionSessionId) {
         setPendingDeleteSessionId(undefined);
         setSelectedSessionId(actionSessionId);
@@ -448,7 +460,7 @@ export function App({
         setNotice(undefined);
         return;
       }
-      if (view === "advice" || view === "cache" || view === "tools" || view === "history") {
+      if (view === "advice" || view === "cache" || view === "tools" || view === "history" || view === "usage") {
         if (splitLeftId && splitRightId) {
           setView("split");
           setSelectedSessionId(focusedSessionId(splitLeftId, splitRightId, splitFocus));
@@ -796,6 +808,32 @@ export function App({
     return withNotice(
       topNotice,
       <HistoryPanel entries={timeline} shortId={shortSessionId(selectedSessionId)} />,
+    );
+  }
+
+  if (view === "usage") {
+    const rows = buildUsageOverview(
+      hintsFor(sessionIds).flatMap((hint) =>
+        hint.cwd
+          ? [
+              {
+                sessionId: hint.sessionId,
+                label: `${basename(hint.cwd)} · ${shortSessionId(hint.sessionId)}`,
+                agent: hint.agent ?? ("claude" as const),
+                workTokens: peek(hint.sessionId)?.workTokensTotal,
+              },
+            ]
+          : [],
+      ),
+    );
+    const summary = summarizeUsageOverview(rows);
+    return withNotice(
+      topNotice,
+      <UsagePanel
+        header={`用量總覽 · ${summary.sessions} 個 session（${summary.measured} 個有用量資料）· 合計 ${formatTokenCount(summary.totalTokens)} token`}
+        lines={rows.map(formatUsageOverviewLine)}
+        emptyHint="還沒有可列出的 session"
+      />,
     );
   }
 
