@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import type { Agent } from "./agent.js";
 import { writeFileAtomic } from "./fs-atomic.js";
 
 export const HOOK_MATCHER = "*";
@@ -31,8 +32,30 @@ export interface ClaudeSettings {
 
 export type HookScope = "user" | "project";
 
-const MATCHER_EVENTS = ["PreToolUse", "PostToolUse", "SessionStart"] as const;
-const BARE_EVENTS = ["TaskCreated", "TaskCompleted"] as const;
+type HookEvent = "PreToolUse" | "PostToolUse" | "SessionStart" | "TaskCreated" | "TaskCompleted";
+
+interface AgentProfile {
+  configDir: string;
+  configFile: string;
+  matcherEvents: readonly HookEvent[];
+  bareEvents: readonly HookEvent[];
+}
+
+const AGENT_PROFILES: Record<Agent, AgentProfile> = {
+  claude: {
+    configDir: ".claude",
+    configFile: "settings.json",
+    matcherEvents: ["PreToolUse", "PostToolUse", "SessionStart"],
+    bareEvents: ["TaskCreated", "TaskCompleted"],
+  },
+  // Codex 現有 hooks.json 條目都沒有 matcher；Task 系列事件 Codex 不存在。
+  codex: {
+    configDir: ".codex",
+    configFile: "hooks.json",
+    matcherEvents: [],
+    bareEvents: ["SessionStart", "PreToolUse", "PostToolUse"],
+  },
+};
 
 const ClaudeHookEntrySchema = z
   .object({ type: z.string(), command: z.string(), timeout: z.number().optional() })
@@ -60,16 +83,22 @@ export function isTrackerHookCommand(command: string): boolean {
   return command.includes("task-tracker-hook");
 }
 
-export function buildHookCommand(execPath: string, hookScriptPath: string): string {
-  return `${JSON.stringify(execPath)} ${JSON.stringify(hookScriptPath)}`;
+export function buildHookCommand(execPath: string, hookScriptPath: string, agent: Agent = "claude"): string {
+  const base = `${JSON.stringify(execPath)} ${JSON.stringify(hookScriptPath)}`;
+  return agent === "codex" ? `${base} --agent codex` : base;
 }
 
 export function installedHookPath(stateDir: string): string {
   return join(stateDir, TRACKER_HOOK_FILENAME);
 }
 
-export function settingsPathFor(scope: HookScope, input: { home: string; cwd: string }): string {
-  return scope === "user" ? join(input.home, ".claude", "settings.json") : join(input.cwd, ".claude", "settings.json");
+export function settingsPathFor(
+  scope: HookScope,
+  input: { home: string; cwd: string },
+  agent: Agent = "claude",
+): string {
+  const { configDir, configFile } = AGENT_PROFILES[agent];
+  return join(scope === "user" ? input.home : input.cwd, configDir, configFile);
 }
 
 /**
@@ -99,15 +128,14 @@ function trackerGroup(hookCommand: string, matcher?: string): ClaudeHookGroup {
   return group;
 }
 
-export function mergeTrackerHooks(settings: ClaudeSettings, hookCommand: string): ClaudeSettings {
+export function mergeTrackerHooks(settings: ClaudeSettings, hookCommand: string, agent: Agent = "claude"): ClaudeSettings {
+  const profile = AGENT_PROFILES[agent];
   const hooks: NonNullable<ClaudeSettings["hooks"]> = { ...settings.hooks };
-  for (const event of MATCHER_EVENTS) {
-    const stripped = stripTrackerHooks(hooks[event]);
-    hooks[event] = [...stripped, trackerGroup(hookCommand, HOOK_MATCHER)];
+  for (const event of profile.matcherEvents) {
+    hooks[event] = [...stripTrackerHooks(hooks[event]), trackerGroup(hookCommand, HOOK_MATCHER)];
   }
-  for (const event of BARE_EVENTS) {
-    const stripped = stripTrackerHooks(hooks[event]);
-    hooks[event] = [...stripped, trackerGroup(hookCommand)];
+  for (const event of profile.bareEvents) {
+    hooks[event] = [...stripTrackerHooks(hooks[event]), trackerGroup(hookCommand)];
   }
   return { ...settings, hooks };
 }
@@ -131,8 +159,12 @@ export function writeSettingsFile(settingsPath: string, settings: ClaudeSettings
   writeFileAtomic(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
 }
 
-export function hasTrackerHookInstalled(scope: HookScope, input: { home: string; cwd: string }): boolean {
-  const loaded = readSettingsFile(settingsPathFor(scope, input));
+export function hasTrackerHookInstalled(
+  scope: HookScope,
+  input: { home: string; cwd: string },
+  agent: Agent = "claude",
+): boolean {
+  const loaded = readSettingsFile(settingsPathFor(scope, input, agent));
   if (!loaded.ok) return false;
   const hooks = loaded.settings.hooks;
   if (!hooks) return false;
@@ -154,19 +186,21 @@ export function installTrackerHooks(input: {
   execPath: string;
   bundledHookPath: string;
   stateDir: string;
+  agent?: Agent;
 }): InstallResult {
+  const agent = input.agent ?? "claude";
   if (!existsSync(input.bundledHookPath)) {
     return { ok: false, error: `找不到 hook 腳本：${input.bundledHookPath}。請先執行 build。` };
   }
   mkdirSync(input.stateDir, { recursive: true });
   copyFileSync(input.bundledHookPath, installedHookPath(input.stateDir));
 
-  const settingsPath = settingsPathFor(input.scope, input);
+  const settingsPath = settingsPathFor(input.scope, input, agent);
   const loaded = readSettingsFile(settingsPath);
   if (!loaded.ok) return loaded;
 
-  const hookCommand = buildHookCommand(input.execPath, installedHookPath(input.stateDir));
-  const merged = mergeTrackerHooks(loaded.settings, hookCommand);
+  const hookCommand = buildHookCommand(input.execPath, installedHookPath(input.stateDir), agent);
+  const merged = mergeTrackerHooks(loaded.settings, hookCommand, agent);
   const already = JSON.stringify(loaded.settings.hooks) === JSON.stringify(merged.hooks);
   if (!already) writeSettingsFile(settingsPath, merged);
   return { ok: true, settingsPath, already };

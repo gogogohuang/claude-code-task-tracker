@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildHookCommand,
   hasTrackerHookInstalled,
+  installTrackerHooks,
   isTrackerHookCommand,
   mergeTrackerHooks,
   readSettingsFile,
@@ -184,5 +185,81 @@ test("writeSettingsFile 覆寫既有檔案時新內容完全取代舊內容，�
     assert.deepEqual(JSON.parse(raw), { theme: "light" });
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+const CODEX_COMMAND = buildHookCommand("/usr/bin/node", "/home/me/.claude-task-tracker/task-tracker-hook.js", "codex");
+
+test("buildHookCommand：claude 不變，codex 追加 --agent codex", () => {
+  assert.equal(COMMAND.includes("--agent"), false);
+  assert.equal(CODEX_COMMAND, `${COMMAND} --agent codex`);
+  assert.equal(isTrackerHookCommand(CODEX_COMMAND), true);
+});
+
+test("settingsPathFor：codex 指向 ~/.codex/hooks.json 與 <cwd>/.codex/hooks.json", () => {
+  const input = { home: "/h", cwd: "/p" };
+  assert.equal(settingsPathFor("user", input, "codex"), join("/h", ".codex", "hooks.json"));
+  assert.equal(settingsPathFor("project", input, "codex"), join("/p", ".codex", "hooks.json"));
+  assert.equal(settingsPathFor("user", input), join("/h", ".claude", "settings.json"));
+});
+
+test("mergeTrackerHooks codex：只註冊 SessionStart／PreToolUse／PostToolUse，且不設 matcher", () => {
+  const merged = mergeTrackerHooks({}, CODEX_COMMAND, "codex");
+  assert.deepEqual(Object.keys(merged.hooks ?? {}).sort(), ["PostToolUse", "PreToolUse", "SessionStart"]);
+  for (const event of ["PreToolUse", "PostToolUse", "SessionStart"] as const) {
+    const groups = merged.hooks?.[event];
+    assert.equal(groups?.length, 1);
+    assert.equal(groups?.[0].matcher, undefined);
+    assert.deepEqual(groups?.[0].hooks, [{ type: "command", command: CODEX_COMMAND, timeout: 5 }]);
+  }
+});
+
+test("mergeTrackerHooks codex：保留 TempoTerm、herdr 等既有 hook，重跑冪等", () => {
+  const existing = {
+    hooks: {
+      PreToolUse: [
+        { hooks: [{ type: "command", command: '"/Applications/TempoTerm.app/Contents/MacOS/tempo-term" --status-hook codex active' }] },
+      ],
+      SessionStart: [
+        { hooks: [{ type: "command", command: "bash '/Users/me/.codex/herdr-agent-state.sh' session", timeout: 10 }] },
+      ],
+      Stop: [{ hooks: [{ type: "command", command: "tempo stop" }] }],
+    },
+  };
+  const once = mergeTrackerHooks(existing, CODEX_COMMAND, "codex");
+  const twice = mergeTrackerHooks(once, CODEX_COMMAND, "codex");
+  assert.deepEqual(twice, once);
+  assert.equal(once.hooks?.PreToolUse?.length, 2);
+  assert.equal(once.hooks?.SessionStart?.length, 2);
+  assert.deepEqual(once.hooks?.Stop, existing.hooks.Stop);
+  assert.equal(once.hooks?.PreToolUse?.[0].hooks[0].command.includes("tempo-term"), true);
+});
+
+test("installTrackerHooks codex：寫入 ~/.codex/hooks.json，第二次回 already", () => {
+  const root = mkdtempSync(join(tmpdir(), "tt-codex-"));
+  try {
+    const home = join(root, "home");
+    const bundled = join(root, "bundled-hook.js");
+    writeFileSync(bundled, "// hook");
+    const input = {
+      scope: "user" as const, home, cwd: root, execPath: "/usr/bin/node",
+      bundledHookPath: bundled, stateDir: join(root, "state"), agent: "codex" as const,
+    };
+    mkdirSync(join(home, ".codex"), { recursive: true });
+    writeFileSync(
+      join(home, ".codex", "hooks.json"),
+      JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: "command", command: "tempo stop" }] }] } }),
+    );
+    const first = installTrackerHooks(input);
+    assert.deepEqual(first, { ok: true, settingsPath: join(home, ".codex", "hooks.json"), already: false });
+    const written = JSON.parse(readFileSync(join(home, ".codex", "hooks.json"), "utf-8"));
+    assert.equal(written.hooks.Stop[0].hooks[0].command, "tempo stop");
+    assert.equal(written.hooks.PreToolUse[0].hooks[0].command.endsWith("--agent codex"), true);
+    const second = installTrackerHooks(input);
+    assert.equal(second.ok && second.already, true);
+    assert.equal(hasTrackerHookInstalled("user", { home, cwd: root }, "codex"), true);
+    assert.equal(hasTrackerHookInstalled("user", { home, cwd: root }, "claude"), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

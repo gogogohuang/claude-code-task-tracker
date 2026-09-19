@@ -160,6 +160,43 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 
 用量建議（watch 按 `a`）會列出過肥 tool 回傳、同路徑反覆 Read 等可執行的減肥項；若開場底子偏重，同一則建議下方會嵌該 **session 專案** 的 launch／onDemand 熱力 Top-5（找不到大檔時會提示改跑 `inspect`）。
 
+## Codex 支援
+
+除了 Claude Code，也可以讓 Codex CLI 的 session 出現在同一個 `watch`。已用 **Codex 0.155.1** 測試。
+
+```bash
+npx claude-code-task-tracker init --agent codex             # 寫入 ~/.codex/hooks.json
+npx claude-code-task-tracker init --agent codex --project   # 改寫入 <專案>/.codex/hooks.json
+```
+
+- 需要在 `~/.codex/config.toml` 開啟 hooks：
+
+  ```toml
+  [features]
+  hooks = true
+  ```
+
+- **hook 必須由你在 Codex 啟動時的 hooks review 核可才會執行。** `init` 只寫 hooks.json，
+  不會（也不能）代寫 Codex 的信任紀錄。`codex exec` 沒有核可畫面，未核可的 hook 只會顯示失敗，
+  所以請先開一次互動模式的 Codex 核可。
+- **只支援活動句**：Codex session 的 `watch` 畫面會顯示目前在做什麼，範圍是 `Bash`（執行指令）與
+  `apply_patch`（修改檔案）。任務清單、usage 建議、`inspect`、workflow 都**不支援**
+  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `a`／`t`／cache 相關檢視，
+  會顯示「Codex session 尚未支援此檢視」。
+- 狀態檔仍寫在 `~/.claude-task-tracker/<session_id>.json`，Codex session 會多一個 `"agent": "codex"`；
+  舊狀態檔沒有這欄位，一律視為 Claude。
+
+## 分頁檢視
+
+`watch` 的 session 列表畫面上方有 `[Claude] [Codex] [Cursor]` 三個分頁，各自帶該來源的 session 數，
+列表與 split 只看目前分頁的 session。
+
+- `Tab`／`Shift+Tab` 切換分頁。**只在 session 列表畫面生效**；已進入某個 session 或在 advice／cache／tools／history／split
+  檢視內不會切換，要換分頁請先按 `b` 回列表。切換分頁會回到該來源的專案清單。
+- 分頁上紅色的 `!` 代表該來源有 session 正在等你（正在跑的 `AskUserQuestion`／`ExitPlanMode`）。
+  Codex 不會產生這兩個工具，所以目前 Codex 分頁實際上不會亮。
+- **Cursor 只是預留分頁**，選到只會顯示尚未支援的說明，還沒有任何 Cursor 整合。
+
 ## 重要注意事項
 
 - **新版模型預設沒有 TodoWrite**：Sonnet 5、Opus 4.8、Fable 5、Mythos 5 等模型，Claude Code
@@ -190,14 +227,19 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 
 ```
 src/
-├── cli.tsx                   # commander 進入點（init / watch / inspect / version）
-├── describe-activity.ts      # 把工具呼叫收成活動句
+├── cli.tsx                   # commander 進入點（init [--agent codex] / watch / inspect / version）
+├── agent.ts                  # 來源（claude / codex）與分頁常數 TAB_AGENTS / TAB_LABELS
+├── agent-tabs.ts             # 分頁純邏輯：各來源數量、提示色、canSwitchTab
+├── codex-config.ts           # 讀 ~/.codex/config.toml 判斷 hooks 是否被關掉
+├── install-hooks.ts          # 依 agent（claude / codex）合併 hook 設定
+├── describe-activity.ts      # 把工具呼叫收成活動句（含 Codex 的 Bash / apply_patch）
 ├── schema.ts                 # zod schema：TodoWrite 格式、hook payload、狀態檔
 ├── store.ts                  # 狀態檔案讀寫（write-then-rename 避免讀到半份資料）
 ├── commands/
-│   └── init.ts               # 寫入 .claude/settings.json 的 hook 設定
+│   └── init.ts               # 寫入 .claude/settings.json 或 .codex/hooks.json 的 hook 設定
 ├── hook/
 │   └── task-tracker-hook.ts  # Claude Code 實際呼叫的 hook 腳本
+├── fixtures/                 # 真實 Codex 0.155.1 hook payload 樣本（測試重放用）
 ├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory、prompt 檔案）
 ├── workflow/                 # dynamic workflow 的 meta.phases 與 journal 解析
 ├── usage/                    # 跨 session 用量分析（tail transcript、偵測、建議文字、sub-task 派發追蹤）
@@ -206,6 +248,7 @@ src/
     ├── SessionPicker.tsx     # 多 session 時的選單
     ├── TaskList.tsx          # task 清單、活動句與進度條
     ├── AdvicePanel.tsx       # 用量建議面板
+    ├── AgentTabs.tsx         # 來源分頁列
     ├── HistoryPanel.tsx      # 活動 timeline（按 h）
     ├── InspectApp.tsx        # inspect 的互動
     └── InspectView.tsx       # inspect 的排版

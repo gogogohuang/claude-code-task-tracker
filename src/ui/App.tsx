@@ -5,6 +5,8 @@ import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, statePathForSession } from "../store.js";
 import { TaskState } from "../schema.js";
+import { agentOf, CODEX_UNSUPPORTED_NOTICE, type TabAgent } from "../agent.js";
+import { canSwitchTab, nextTabAgent, summarizeTabs } from "../agent-tabs.js";
 import {
   addedSessionIds,
   filterListableSessionIds,
@@ -16,6 +18,7 @@ import {
   sessionChoicesInProject,
   shortSessionId,
   shouldAutoSelectSession,
+  filterSessionsByAgent,
   type SessionHint,
 } from "../session-preference.js";
 import {
@@ -24,6 +27,7 @@ import {
 } from "../session-pin.js";
 import { liveWorkflow } from "../workflow/paths.js";
 import { TaskList } from "./TaskList.js";
+import { AgentTabs } from "./AgentTabs.js";
 import { SplitView, clampSplitScroll } from "./SplitView.js";
 import {
   SPLIT_TASK_ROWS,
@@ -120,6 +124,7 @@ function hintsFor(sessionIds: string[]): SessionHint[] {
         sessionId: state.sessionId,
         cwd: state.cwd,
         updatedAt: state.updatedAt,
+        agent: state.agent,
         activitySummary: state.activity
           ? state.activity.summary
             ? `${state.activity.toolName} · ${state.activity.summary}`
@@ -168,6 +173,9 @@ export function App({
   const [stateRevision, setStateRevision] = useState(0);
   const [pinned, setPinned] = useState(false);
   const [pickingSplitPartner, setPickingSplitPartner] = useState(false);
+  const [activeAgent, setActiveAgent] = useState<TabAgent>(() =>
+    initialSessionId ? agentOf(readTaskState(initialSessionId)) : "claude",
+  );
   const [splitLeftId, setSplitLeftId] = useState<string | undefined>();
   const [splitRightId, setSplitRightId] = useState<string | undefined>();
   const [splitFocus, setSplitFocus] = useState<SplitFocus>("left");
@@ -245,6 +253,13 @@ export function App({
     setRightScroll(0);
   };
 
+  // 切換分頁一律回到該分頁的專案清單（清掉選中的 session、專案與 split 狀態）。
+  const switchAgentTab = (target: TabAgent) => {
+    if (target === activeAgent) return;
+    leaveSessionToList();
+    setActiveAgent(target);
+  };
+
   const exitSplit = () => {
     const ret = splitReturnSessionId;
     setView("main");
@@ -304,6 +319,14 @@ export function App({
     (input, key) => {
       if (input === "q") {
         exit();
+        return;
+      }
+
+      if (
+        (key.tab || input === "\t") &&
+        canSwitchTab({ view, hasSelectedSession: Boolean(selectedSessionId), pickingSplitPartner })
+      ) {
+        switchAgentTab(nextTabAgent(activeAgent, key.shift ? -1 : 1));
         return;
       }
 
@@ -372,6 +395,7 @@ export function App({
         setSplitRightId(undefined);
         setSplitReturnSessionId(undefined);
         setSelectedSessionId(target.sessionId);
+        setActiveAgent(agentOf(readTaskState(target.sessionId)));
         setBrowsing(false);
         if (target.kind === "advice") {
           markAdviceSeen(target.sessionId);
@@ -552,11 +576,11 @@ export function App({
     if (browsing || selectedSessionId || sessionIds.length === 0) return;
     if (pickingSplitPartner) return;
     if (shouldBlockAutoSelect(pinned)) return;
-    const hints = hintsFor(sessionIds);
+    const hints = filterSessionsByAgent(hintsFor(sessionIds), activeAgent);
     if (!shouldAutoSelectSession(hints, cwd)) return;
     const preferred = pickPreferredSession(hints, cwd);
     if (preferred) setSelectedSessionId(preferred);
-  }, [sessionIds, selectedSessionId, cwd, browsing, pinned, pickingSplitPartner]);
+  }, [sessionIds, selectedSessionId, cwd, browsing, pinned, pickingSplitPartner, activeAgent]);
 
   // 監控被選中 session 的檔案內容變化。
   // 寫入是 write-then-rename：直接 watch 最終路徑常會在 inode 換掉後漏事件，
@@ -726,9 +750,11 @@ export function App({
     const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
     const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
     const uncoveredHint =
-      selectedSessionId && !readTaskState(selectedSessionId)?.claudeSessionDir
-        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
-        : undefined;
+      selectedSessionId && agentOf(readTaskState(selectedSessionId)) === "codex"
+        ? CODEX_UNSUPPORTED_NOTICE
+        : selectedSessionId && !readTaskState(selectedSessionId)?.claudeSessionDir
+          ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+          : undefined;
     return withNotice(
       topNotice,
       <AdvicePanel
@@ -743,7 +769,10 @@ export function App({
   if (view === "cache" && selectedSessionId) {
     const shortId = shortSessionId(selectedSessionId);
     const latest = readTaskState(selectedSessionId) ?? taskState;
-    const lines = cachePanelLinesForSession(selectedSessionId, statePathForSession(selectedSessionId), latest);
+    const lines =
+      agentOf(latest) === "codex"
+        ? [CODEX_UNSUPPORTED_NOTICE]
+        : cachePanelLinesForSession(selectedSessionId, statePathForSession(selectedSessionId), latest);
     return withNotice(topNotice, <CachePanel lines={lines} shortId={shortId} />);
   }
 
@@ -752,9 +781,11 @@ export function App({
     const inventory = peek(selectedSessionId)?.toolInventory;
     const lines = inventory ? formatToolInventoryLines(inventory) : [];
     const uncoveredHint =
-      !readTaskState(selectedSessionId)?.claudeSessionDir
-        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
-        : undefined;
+      agentOf(readTaskState(selectedSessionId)) === "codex"
+        ? CODEX_UNSUPPORTED_NOTICE
+        : !readTaskState(selectedSessionId)?.claudeSessionDir
+          ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+          : undefined;
     return withNotice(
       topNotice,
       <ToolsPanel lines={lines} shortId={shortId} emptyHint={uncoveredHint} />,
@@ -769,41 +800,56 @@ export function App({
   }
 
   if (!selectedSessionId) {
+    const allHints = hintsFor(sessionIds);
+    const withTabs = (child: ReactNode) => (
+      <Box flexDirection="column">
+        <AgentTabs tabs={summarizeTabs(allHints)} active={activeAgent} />
+        {child}
+      </Box>
+    );
+    if (activeAgent === "cursor") {
+      return withTabs(
+        <Box flexDirection="column">
+          <Text dimColor>Cursor 尚未支援。</Text>
+          <Text dimColor>接入需先取樣 Cursor 的 hook payload，之後會另開設計。</Text>
+        </Box>,
+      );
+    }
+    const emptyLines =
+      activeAgent === "codex"
+        ? ["請執行 `task-tracker init --agent codex`，並在 Codex 啟動時的 hooks review 核可 hook。"]
+        : (emptyHint ?? ["請確認已執行「task-tracker init」，且 Claude Code 正在執行中。"]);
     if (sessionIds.length === 0) {
-      return withNotice(
+      return withTabs(withNotice(
         notice,
         <Box flexDirection="column">
           <Text dimColor>還沒有偵測到任何 session 資料。</Text>
-          {(emptyHint ?? [
-            "請確認已執行「task-tracker init」，且 Claude Code 正在執行中。",
-          ]).map((line) => (
+          {emptyLines.map((line) => (
             <Text key={line} dimColor>
               {line}
             </Text>
           ))}
         </Box>,
-      );
+      ));
     }
-    const hints = hintsFor(sessionIds);
+    const hints = filterSessionsByAgent(allHints, activeAgent);
     void stateRevision;
     const groups = groupSessionsByProject(hints, cwd);
     if (groups.length === 0) {
-      return withNotice(
+      return withTabs(withNotice(
         notice,
         <Box flexDirection="column">
           <Text dimColor>還沒有偵測到任何 session 資料。</Text>
-          {(emptyHint ?? [
-            "請確認已執行「task-tracker init」，且 Claude Code 正在執行中。",
-          ]).map((line) => (
+          {emptyLines.map((line) => (
             <Text key={line} dimColor>
               {line}
             </Text>
           ))}
         </Box>,
-      );
+      ));
     }
     if (!projectKey) {
-      return withNotice(
+      return withTabs(withNotice(
         notice,
         <SessionPicker
           heading={pickingSplitPartner ? "選擇並排 session 的專案" : "選擇專案"}
@@ -823,10 +869,10 @@ export function App({
             setProjectKey(key);
           }}
         />,
-      );
+      ));
     }
     const group = groups.find((item) => item.key === projectKey);
-    return withNotice(
+    return withTabs(withNotice(
       topNotice,
       <SessionPicker
         heading={
@@ -844,7 +890,7 @@ export function App({
           setSelectedSessionId(id);
         }}
       />,
-    );
+    ));
   }
 
   if (!taskState) {

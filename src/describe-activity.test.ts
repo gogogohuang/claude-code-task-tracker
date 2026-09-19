@@ -320,3 +320,30 @@ test("en locale：主要工具句", () => {
   );
 });
 
+
+const PATCH = "*** Begin Patch\n*** Update File: /work/proj/src/a.ts\n@@\n hello\n+world\n*** End Patch";
+
+test("apply_patch 取第一個檔案標頭，路徑相對 cwd", () => {
+  assert.equal(describe({ toolName: "apply_patch", toolInput: { command: PATCH }, cwd: "/work/proj" }), "正在修改 src/a.ts");
+  assert.equal(describe({ toolName: "apply_patch", toolInput: { command: PATCH }, cwd: "/work/proj", phase: "done" }), "已修改 src/a.ts");
+  assert.equal(
+    describe({ toolName: "apply_patch", toolInput: { command: PATCH }, cwd: "/work/proj", locale: "en" }),
+    "Editing src/a.ts",
+  );
+});
+
+test("apply_patch 支援 Add／Delete File，多檔取第一個", () => {
+  const add = "*** Begin Patch\n*** Add File: /w/new.txt\n+x\n*** Delete File: /w/old.txt\n*** End Patch";
+  assert.equal(describe({ toolName: "apply_patch", toolInput: { command: add }, cwd: "/w" }), "正在修改 new.txt");
+});
+
+test("apply_patch 抽不到檔名時退回不帶檔名的句子，且不含 patch 內容", () => {
+  const text = describe({ toolName: "apply_patch", toolInput: { command: "garbage +secret" } });
+  assert.equal(text, "正在修改檔案");
+  assert.equal(text.includes("secret"), false);
+  assert.equal(describe({ toolName: "apply_patch", toolInput: {}, phase: "done", locale: "en" }), "Edited files");
+});
+
+test("Codex 的 Bash 沿用 command 字串", () => {
+  assert.equal(describe({ toolName: "Bash", toolInput: { command: "echo hi" } }), "正在執行 echo hi");
+});

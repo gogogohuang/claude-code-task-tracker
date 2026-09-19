@@ -1,3 +1,4 @@
+import { parseAgentArg } from "../agent.js";
 import { applyHookEvent } from "./apply-event.js";
 import { HookPayloadSchema } from "../schema.js";
 import { appendDebugLog, readTaskState, withSessionLock, writeTaskState } from "../store.js";
@@ -9,6 +10,8 @@ import { appendDebugLog, readTaskState, withSessionLock, writeTaskState } from "
  *
  * 原則：無論發生什麼事都要 exit 0，絕不能讓 hook 失敗而打斷使用者的
  * Claude Code session；所有錯誤都寫進 debug log，不往外拋。
+ *
+ * Codex 以 `--agent codex` 參數呼叫，同一支腳本。
  */
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -35,8 +38,9 @@ async function main(): Promise<void> {
     return;
   }
 
+  const agent = parseAgentArg(process.argv);
   await withSessionLock(payloadResult.data.session_id, () => {
-    applyHookEvent(payloadResult.data, { readTaskState, writeTaskState, appendDebugLog });
+    applyHookEvent(payloadResult.data, { readTaskState, writeTaskState, appendDebugLog, agent });
   });
 }
 

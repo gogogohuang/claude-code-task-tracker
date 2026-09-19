@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AgentSchema } from "./agent.js";
 
 /**
  * Claude Code TodoWrite 工具的單一 task 結構。
@@ -156,6 +157,8 @@ export type WorkflowRun = z.infer<typeof WorkflowRunSchema>;
 export const TaskStateSchema = z.object({
   sessionId: z.string(),
   cwd: z.string().optional(),
+  /** 狀態來源。只有 Codex 寫入 "codex"；缺省視為 claude（舊檔不需遷移）。 */
+  agent: AgentSchema.optional(),
   claudeSessionDir: z.string().optional(),
   updatedAt: z.string(),
   todos: z.array(TodoItemSchema).optional(),

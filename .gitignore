@@ -5,3 +5,5 @@ dist/
 .devlog/
 .superpowers/
 .worktrees/
+.codex/
+.devlog-tracker/

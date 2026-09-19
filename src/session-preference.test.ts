@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   addedSessionIds,
   filterListableSessionIds,
+  filterSessionsByAgent,
   formatNewSessionNotice,
   groupSessionsByProject,
   normalizeOptionalCwd,
@@ -306,3 +307,15 @@ test("formatNewSessionNotice 帶專案名與回到列表提示", () => {
   );
 });
 
+
+test("filterSessionsByAgent 依來源過濾，缺省視為 claude，cursor 目前必為空", () => {
+  const mixed = [
+    { sessionId: "a", cwd: "/p", updatedAt: "2026-09-19T01:00:00.000Z" },
+    { sessionId: "b", cwd: "/p", updatedAt: "2026-09-19T01:00:00.000Z", agent: "codex" as const },
+    { sessionId: "c", cwd: "/p", updatedAt: "2026-09-19T01:00:00.000Z", agent: "claude" as const },
+  ];
+  assert.deepEqual(filterSessionsByAgent(mixed, "claude").map((s) => s.sessionId), ["a", "c"]);
+  assert.deepEqual(filterSessionsByAgent(mixed, "codex").map((s) => s.sessionId), ["b"]);
+  assert.deepEqual(filterSessionsByAgent(mixed, "cursor"), []);
+  assert.deepEqual(filterSessionsByAgent([], "claude"), []);
+});
