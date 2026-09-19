@@ -652,7 +652,8 @@ export function App({
       }
     }
     lastWaitingKey.current = nextKey;
-  }, [selectedSessionId, taskState?.activity?.toolName, taskState?.activity?.phase, taskState?.activity?.at]);
+    // clockRevision 讓 PermissionRequest 的寬限期到期（純時間變化、toolName/phase/at 都沒變）也能重算。
+  }, [selectedSessionId, taskState?.activity?.toolName, taskState?.activity?.phase, taskState?.activity?.at, clockRevision]);
 
   useEffect(() => {
     const events = currentAlertEvents();
@@ -677,7 +678,8 @@ export function App({
       });
     }
     lastAlertEdgeKey.current = nextEdge;
-  }, [sessionIds, selectedSessionId, adviceList, stateRevision, taskState?.updatedAt]);
+    // clockRevision 同理：其他 session 的 PermissionRequest 寬限期到期時，這裡也要重新算一次跨 session 警報。
+  }, [sessionIds, selectedSessionId, adviceList, stateRevision, taskState?.updatedAt, clockRevision]);
 
   useEffect(() => {
     setTimeline([]);
