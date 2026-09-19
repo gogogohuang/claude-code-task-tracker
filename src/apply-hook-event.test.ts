@@ -330,3 +330,34 @@ test("claude（沒帶 agent）：狀態檔不出現 agent 欄位，行為不變"
   );
   assert.equal("agent" in written[0], false);
 });
+
+test("codex：transcript_path 寫進 transcriptPath，後續事件沒帶也保留", () => {
+  const { written, deps } = capture();
+  const codexDeps = { ...deps, agent: "codex" as const };
+  applyHookEvent(
+    {
+      session_id: "cx3", cwd: "/work/proj", hook_event_name: "SessionStart", source: "startup",
+      transcript_path: "/home/u/.codex/sessions/2026/09/19/rollout-x.jsonl",
+    },
+    codexDeps,
+  );
+  assert.equal(written[0].transcriptPath, "/home/u/.codex/sessions/2026/09/19/rollout-x.jsonl");
+
+  applyHookEvent(
+    { session_id: "cx3", cwd: "/work/proj", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } },
+    codexDeps,
+  );
+  assert.equal(written[1].transcriptPath, "/home/u/.codex/sessions/2026/09/19/rollout-x.jsonl");
+});
+
+test("claude：不寫 transcriptPath（鍵都不出現）", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "cl3", cwd: "/work/proj", hook_event_name: "SessionStart", source: "startup",
+      transcript_path: "/Users/me/.claude/projects/proj/cl3.jsonl",
+    },
+    deps,
+  );
+  assert.equal("transcriptPath" in written[0], false);
+});

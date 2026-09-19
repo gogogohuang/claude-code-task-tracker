@@ -157,6 +157,9 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
             : payload.transcript_path
               ? sessionDirFromTranscript(payload.transcript_path)
               : existing?.claudeSessionDir,
+        ...(deps.agent === "codex"
+          ? { transcriptPath: payload.transcript_path ?? existing?.transcriptPath }
+          : {}),
         updatedAt,
         todos: todos ?? existing?.todos,
         tasks: tasks ?? existing?.tasks,
