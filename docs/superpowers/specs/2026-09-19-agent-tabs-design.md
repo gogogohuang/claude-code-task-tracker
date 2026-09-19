@@ -25,8 +25,8 @@
 ### 範圍內
 
 - 分頁列、`activeAgent` 狀態、依 `agent` 過濾專案／session 清單。
-- 切換：`Tab` 循環（Claude → Codex → Cursor → Claude）、`1`／`2`／`3` 直接跳。
-- 分頁標題顯示該來源的 session 數，以及是否有需要注意的 session（等待中、卡住）的提示色。
+- 切換：`Tab` 往後、`Shift+Tab` 往前循環（Claude → Codex → Cursor → Claude）。不提供 `1`／`2`／`3` 直接跳：`ink-select-input` 會攔截數字鍵 1–9（`node_modules/ink-select-input/build/SelectInput.js`），在 picker 內按數字會變成選項跳選。
+- 分頁標題顯示該來源的 session 數，以及是否有 session 正在等待使用者的提示色。卡住偵測不做：`SessionHint` 沒有活動時間戳。
 - 既有 split（`v`）限制在同一分頁內：選第二個 session 時只列同來源的 session。
 - Codex 分頁對 usage／inspect／cache 顯示「Codex 尚未支援」（codex spec 已定）。
 
@@ -48,17 +48,17 @@
   分頁順序與標籤集中在一個常數（`AGENTS`），Cursor 之後接入只需改這裡與狀態來源。
 - **App 狀態**（`src/ui/App.tsx`）：新增 `activeAgent`（預設 `claude`）。切換時呼叫既有的「回專案清單」路徑：
   清 `selectedSessionId`、`projectKey`、split 狀態（`pickingSplitPartner`、`splitLeftId`、`splitRightId`）。
-- **按鍵**：App 現用 `[ ] a b c C d h n p q s t v Esc`；`Tab`、`1`／`2`／`3` 未使用。
-  只在 `view === "main"` 且處於 picker（尚未選定 session）時，或選定 session 的 main 檢視時生效；
-  advice／cache／tools／history／split 檢視內不切換，避免與該檢視的按鍵混淆。
-  實作時需實測 `ink-select-input` 是否攔截數字鍵，若攔截則 `1`／`2`／`3` 退為只在 main 檢視生效。
+- **按鍵**：App 現用 `[ ] a b c C d h n p q s t v Esc`；`Tab`／`Shift+Tab` 未使用。
+  只在 session 列表畫面生效：`view === "main"`、尚未選定 session、且不在挑選 split 夥伴時
+  （純函式 `canSwitchTab`）。已選定 session 或在 advice／cache／tools／history／split 檢視內不切換，
+  避免與該檢視的按鍵混淆；要從 session 內換分頁，先按 `b` 回列表。
 - **Cursor 分頁內容**：不讀任何資料，直接顯示一行說明與「接入請見 README」。
 
 ## 實作順序
 
 1. 階段 A：Codex 第一版，依 codex spec「實作順序」步驟 2–5（不含已移出的 `update_plan`），並補 `TaskState.agent`。
 2. `SessionHint.agent` ＋ `filterSessionsByAgent` ＋ 測試（缺省視為 claude、三種來源、空清單）。
-3. `AgentTabs` 元件 ＋ 標題計數／提示色的純函式與測試。
+3. `AgentTabs` 元件 ＋ 標題計數／等待提示色的純函式（`src/agent-tabs.ts`）與測試。
 4. App 整合：`activeAgent`、切換鍵、切換時回專案清單、split 限同來源。
 5. Codex／Cursor 分頁的停用提示。
 6. README「分頁檢視」說明，含 Cursor 尚未支援。
@@ -74,6 +74,6 @@
 
 ## 風險
 
-- `ink-select-input` 可能攔截數字鍵：以實測決定 `1`／`2`／`3` 的生效範圍，`Tab` 為主要切換鍵。
+- `ink-select-input` 會攔截數字鍵 1–9（已驗證，見 `SelectInput.js`），所以不使用 `1`／`2`／`3`，切換只用 `Tab`／`Shift+Tab`。
 - 窄終端分頁列換行：分頁標籤用短名並限制單行，寬度不足時只顯示目前分頁與數量。
 - 階段 A 未完成前 Codex 分頁必為空：計畫中明確以階段 A 為前置，不單獨發布階段 B。
