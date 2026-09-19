@@ -381,3 +381,56 @@ test("codex：後續事件的 transcript_path 是空字串時，保留先前的�
   );
   assert.equal(written[1].transcriptPath, "/home/u/.codex/sessions/2026/09/19/rollout-y.jsonl");
 });
+
+test("codex：PermissionRequest 寫入 running 的 PermissionRequest 活動，摘要帶被要求核可的工具", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "cx5", cwd: "/work/proj", hook_event_name: "PermissionRequest", turn_id: "t1",
+      tool_name: "Bash", tool_input: { command: "rm -rf build" },
+    },
+    { ...deps, agent: "codex" },
+  );
+  assert.equal(written.length, 1);
+  assert.equal(written[0].activity?.toolName, "PermissionRequest");
+  assert.equal(written[0].activity?.phase, "running");
+  assert.equal(written[0].activity?.summary, "等待核可 Bash");
+});
+
+test("codex：PermissionRequest 不會被 tool_name 缺失擋掉（PermissionRequest 不進一般工具流程）", () => {
+  const { written, logs, deps } = capture();
+  applyHookEvent(
+    { session_id: "cx6", cwd: "/work/proj", hook_event_name: "PermissionRequest", turn_id: "t1" },
+    { ...deps, agent: "codex" },
+  );
+  assert.equal(written[0].activity?.toolName, "PermissionRequest");
+  assert.equal(written[0].activity?.summary, "等待核可");
+  assert.equal(logs.length, 0);
+});
+
+test("codex：Stop 在 PermissionRequest 等待中時把它清成 done", () => {
+  const { written, deps } = capture();
+  const codexDeps = { ...deps, agent: "codex" as const };
+  applyHookEvent(
+    { session_id: "cx7", cwd: "/work/proj", hook_event_name: "PermissionRequest", turn_id: "t1", tool_name: "Bash" },
+    codexDeps,
+  );
+  applyHookEvent(
+    { session_id: "cx7", hook_event_name: "Stop", turn_id: "t1", stop_hook_active: false },
+    codexDeps,
+  );
+  assert.equal(written.length, 2);
+  assert.equal(written[1].activity?.toolName, "PermissionRequest");
+  assert.equal(written[1].activity?.phase, "done");
+});
+
+test("codex：Stop 在沒有等待中的 PermissionRequest 時不寫入任何東西", () => {
+  const { written, deps } = capture();
+  const codexDeps = { ...deps, agent: "codex" as const };
+  applyHookEvent(
+    { session_id: "cx8", cwd: "/work/proj", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } },
+    codexDeps,
+  );
+  applyHookEvent({ session_id: "cx8", hook_event_name: "Stop", turn_id: "t1" }, codexDeps);
+  assert.equal(written.length, 1);
+});
