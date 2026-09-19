@@ -187,6 +187,8 @@ npx claude-code-task-tracker init --agent codex --project   # 改寫入 <專案>
 - **hook 必須由你在 Codex 啟動時的 hooks review 核可才會執行。** `init` 只寫 hooks.json，
   不會（也不能）代寫 Codex 的信任紀錄。`codex exec` 沒有核可畫面，未核可的 hook 只會顯示失敗，
   所以請先開一次互動模式的 Codex 核可。
+- **Codex 只在啟動時讀取 hooks。** `init` 之前就已經開著的 Codex session 不會出現在 `watch`，
+  必須關掉重開；只有 `init` 之後新開的 session 才會被偵測。
 - **只支援活動句**：Codex session 的 `watch` 畫面會顯示目前在做什麼，範圍是 `Bash`（執行指令）與
   `apply_patch`（修改檔案）。任務清單、usage 建議、`inspect`、workflow 都**不支援**
   （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `a`／`t`／cache 相關檢視，
