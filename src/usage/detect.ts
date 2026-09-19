@@ -1,4 +1,4 @@
-import { contextOccupancyPct } from "../context-snapshot.js";
+import { CODEX_CONTEXT_WINDOW_TOKENS, contextOccupancyPct } from "../context-snapshot.js";
 import { AccumulateStep, Advice, SessionUsageStats } from "./types.js";
 
 const LONG_SESSION_MSG_THRESHOLD = 200;
@@ -88,7 +88,10 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
   const estTokens = estimateTokensFromChars(toolResultChars.chars);
   if (estTokens <= FAT_TOOL_RESULT_TOKENS) return [];
   const tokens = estTokens.toLocaleString("en-US");
-  const pct = contextOccupancyPct(estTokens, stats.lastContextWindow);
+  const pct = contextOccupancyPct(
+    estTokens,
+    stats.lastContextWindow ?? (isCodex(stats) ? CODEX_CONTEXT_WINDOW_TOKENS : undefined),
+  );
   const isSubagent = toolResultChars.toolName === "Agent" || toolResultChars.toolName === "SubagentHandback";
   if (isSubagent) {
     return [

@@ -744,7 +744,9 @@ export function App({
       taskState?.cwd ??
       cwd;
     const enriched =
-      filtered.some((item) => item.kind === "heavy-baseline")
+      // 熱力行來源（CLAUDE.md、.claude/skills…）與「task-tracker inspect」提示都只適用 Claude；Codex 不附。
+      filtered.some((item) => item.kind === "heavy-baseline") &&
+      agentOf(selectedSessionId ? readTaskState(selectedSessionId) : taskState) !== "codex"
         ? attachHeavyBaselineHeat(filtered, launchHeatLines(heatCwd))
         : filtered;
     const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;

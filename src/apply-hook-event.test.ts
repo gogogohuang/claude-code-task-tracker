@@ -361,3 +361,23 @@ test("claude：不寫 transcriptPath（鍵都不出現）", () => {
   );
   assert.equal("transcriptPath" in written[0], false);
 });
+
+test("codex：後續事件的 transcript_path 是空字串時，保留先前的路徑", () => {
+  const { written, deps } = capture();
+  const codexDeps = { ...deps, agent: "codex" as const };
+  applyHookEvent(
+    {
+      session_id: "cx4", cwd: "/work/proj", hook_event_name: "SessionStart", source: "startup",
+      transcript_path: "/home/u/.codex/sessions/2026/09/19/rollout-y.jsonl",
+    },
+    codexDeps,
+  );
+  applyHookEvent(
+    {
+      session_id: "cx4", cwd: "/work/proj", hook_event_name: "PreToolUse", tool_name: "Bash",
+      tool_input: { command: "ls" }, transcript_path: "",
+    },
+    codexDeps,
+  );
+  assert.equal(written[1].transcriptPath, "/home/u/.codex/sessions/2026/09/19/rollout-y.jsonl");
+});

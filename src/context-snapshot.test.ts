@@ -108,3 +108,8 @@ test("formatSnapshotActivityLine 沒有活動且任務總數為 0 時整行省�
 test("formatSnapshotActivityLine 沒有活動但有任務時仍顯示任務數", () => {
   assert.equal(formatSnapshotActivityLine({ done: 1, total: 2 }), "任務 1/2");
 });
+
+test("contextOccupancyPct 視窗為 0 或負數時退回 1,000,000", () => {
+  assert.equal(contextOccupancyPct(500_000, 0), 50);
+  assert.equal(contextOccupancyPct(500_000, -1), 50);
+});

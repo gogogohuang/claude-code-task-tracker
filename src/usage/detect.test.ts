@@ -192,3 +192,11 @@ test("detect：Codex 的 fat-tool-result 用 Codex 文案，佔用率用該 sess
   assert.match(msg, /約占 context window 10%/);
   assert.doesNotMatch(msg, /offset\/limit/);
 });
+
+test("detect：Codex 第一個事件就是肥 tool result（還沒有視窗資訊）時，以 258,400 當分母", () => {
+  const stats0 = createSessionUsageStats("cx", "codex");
+  // 40,000 字元 ≈ 10,000 token；258,400 視窗 → 4%
+  const { next, steps } = accumulate(stats0, [toolResultEvent("exec", 40_000, "t")]);
+  const msg = detect(stats0, next, steps).filter((a) => a.kind === "fat-tool-result")[0].message;
+  assert.match(msg, /約占 context window 4%/);
+});

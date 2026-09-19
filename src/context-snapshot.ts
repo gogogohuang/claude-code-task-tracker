@@ -3,6 +3,7 @@ import { resolveLocale } from "./locale.js";
 import type { Agent } from "./agent.js";
 
 export const CONTEXT_WINDOW_TOKENS = 1_000_000;
+export const CODEX_CONTEXT_WINDOW_TOKENS = 258_400;
 
 export interface LastTurnUsage {
   occupiedTokens: number;
@@ -17,7 +18,8 @@ export function contextOccupancyPct(
   lastOccupiedTokens: number,
   contextWindow: number = CONTEXT_WINDOW_TOKENS,
 ): number {
-  return Math.round((lastOccupiedTokens / contextWindow) * 100);
+  const window = contextWindow > 0 ? contextWindow : CONTEXT_WINDOW_TOKENS;
+  return Math.round((lastOccupiedTokens / window) * 100);
 }
 
 export function formatContextGaugeBar(
