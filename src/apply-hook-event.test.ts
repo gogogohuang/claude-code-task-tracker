@@ -330,3 +330,107 @@ test("claude（沒帶 agent）：狀態檔不出現 agent 欄位，行為不變"
   );
   assert.equal("agent" in written[0], false);
 });
+
+test("codex：transcript_path 寫進 transcriptPath，後續事件沒帶也保留", () => {
+  const { written, deps } = capture();
+  const codexDeps = { ...deps, agent: "codex" as const };
+  applyHookEvent(
+    {
+      session_id: "cx3", cwd: "/work/proj", hook_event_name: "SessionStart", source: "startup",
+      transcript_path: "/home/u/.codex/sessions/2026/09/19/rollout-x.jsonl",
+    },
+    codexDeps,
+  );
+  assert.equal(written[0].transcriptPath, "/home/u/.codex/sessions/2026/09/19/rollout-x.jsonl");
+
+  applyHookEvent(
+    { session_id: "cx3", cwd: "/work/proj", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } },
+    codexDeps,
+  );
+  assert.equal(written[1].transcriptPath, "/home/u/.codex/sessions/2026/09/19/rollout-x.jsonl");
+});
+
+test("claude：不寫 transcriptPath（鍵都不出現）", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "cl3", cwd: "/work/proj", hook_event_name: "SessionStart", source: "startup",
+      transcript_path: "/Users/me/.claude/projects/proj/cl3.jsonl",
+    },
+    deps,
+  );
+  assert.equal("transcriptPath" in written[0], false);
+});
+
+test("codex：後續事件的 transcript_path 是空字串時，保留先前的路徑", () => {
+  const { written, deps } = capture();
+  const codexDeps = { ...deps, agent: "codex" as const };
+  applyHookEvent(
+    {
+      session_id: "cx4", cwd: "/work/proj", hook_event_name: "SessionStart", source: "startup",
+      transcript_path: "/home/u/.codex/sessions/2026/09/19/rollout-y.jsonl",
+    },
+    codexDeps,
+  );
+  applyHookEvent(
+    {
+      session_id: "cx4", cwd: "/work/proj", hook_event_name: "PreToolUse", tool_name: "Bash",
+      tool_input: { command: "ls" }, transcript_path: "",
+    },
+    codexDeps,
+  );
+  assert.equal(written[1].transcriptPath, "/home/u/.codex/sessions/2026/09/19/rollout-y.jsonl");
+});
+
+test("codex：PermissionRequest 寫入 running 的 PermissionRequest 活動，摘要帶被要求核可的工具", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "cx5", cwd: "/work/proj", hook_event_name: "PermissionRequest", turn_id: "t1",
+      tool_name: "Bash", tool_input: { command: "rm -rf build" },
+    },
+    { ...deps, agent: "codex" },
+  );
+  assert.equal(written.length, 1);
+  assert.equal(written[0].activity?.toolName, "PermissionRequest");
+  assert.equal(written[0].activity?.phase, "running");
+  assert.equal(written[0].activity?.summary, "等待核可 Bash");
+});
+
+test("codex：PermissionRequest 不會被 tool_name 缺失擋掉（PermissionRequest 不進一般工具流程）", () => {
+  const { written, logs, deps } = capture();
+  applyHookEvent(
+    { session_id: "cx6", cwd: "/work/proj", hook_event_name: "PermissionRequest", turn_id: "t1" },
+    { ...deps, agent: "codex" },
+  );
+  assert.equal(written[0].activity?.toolName, "PermissionRequest");
+  assert.equal(written[0].activity?.summary, "等待核可");
+  assert.equal(logs.length, 0);
+});
+
+test("codex：Stop 在 PermissionRequest 等待中時把它清成 done", () => {
+  const { written, deps } = capture();
+  const codexDeps = { ...deps, agent: "codex" as const };
+  applyHookEvent(
+    { session_id: "cx7", cwd: "/work/proj", hook_event_name: "PermissionRequest", turn_id: "t1", tool_name: "Bash" },
+    codexDeps,
+  );
+  applyHookEvent(
+    { session_id: "cx7", hook_event_name: "Stop", turn_id: "t1", stop_hook_active: false },
+    codexDeps,
+  );
+  assert.equal(written.length, 2);
+  assert.equal(written[1].activity?.toolName, "PermissionRequest");
+  assert.equal(written[1].activity?.phase, "done");
+});
+
+test("codex：Stop 在沒有等待中的 PermissionRequest 時不寫入任何東西", () => {
+  const { written, deps } = capture();
+  const codexDeps = { ...deps, agent: "codex" as const };
+  applyHookEvent(
+    { session_id: "cx8", cwd: "/work/proj", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "ls" } },
+    codexDeps,
+  );
+  applyHookEvent({ session_id: "cx8", hook_event_name: "Stop", turn_id: "t1" }, codexDeps);
+  assert.equal(written.length, 1);
+});

@@ -57,3 +57,7 @@ test("deleteSessionState 刪掉指定 json，不存在則回 false", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("shouldHandleDeleteKey 在用量總覽（usage）不處理刪除鍵", () => {
+  assert.equal(shouldHandleDeleteKey("usage", "s1"), false);
+});

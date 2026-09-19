@@ -157,6 +157,9 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
             : payload.transcript_path
               ? sessionDirFromTranscript(payload.transcript_path)
               : existing?.claudeSessionDir,
+        ...(deps.agent === "codex"
+          ? { transcriptPath: payload.transcript_path || existing?.transcriptPath }
+          : {}),
         updatedAt,
         todos: todos ?? existing?.todos,
         tasks: tasks ?? existing?.tasks,
@@ -198,6 +201,27 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
       }),
       lifecycleActivity(payload.hook_event_name === "TaskCreated" ? "created" : "completed", payload.task_subject, updatedAt),
     );
+    return;
+  }
+
+  if (payload.hook_event_name === "PermissionRequest") {
+    // Codex 即將跳出核可提示；tool_name 是「被要求核可的工具」，不是 task-tracker 自己的活動名稱，
+    // 所以另外標成 PermissionRequest，讓 isWaitingForUser 的寬限期邏輯認得。
+    const requestedTool = payload.tool_name;
+    persist(undefined, undefined, {
+      toolName: "PermissionRequest",
+      phase: "running",
+      summary: requestedTool ? `等待核可 ${requestedTool}` : "等待核可",
+      at: updatedAt,
+    });
+    return;
+  }
+
+  if (payload.hook_event_name === "Stop") {
+    // 只在剛好卡在「等待核可」時才清除；其餘情況 Stop 不該覆蓋更新鮮的活動句。
+    if (existing?.activity?.toolName === "PermissionRequest" && existing.activity.phase === "running") {
+      persist(undefined, undefined, { ...existing.activity, phase: "done", at: updatedAt });
+    }
     return;
   }
 

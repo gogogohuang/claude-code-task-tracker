@@ -43,12 +43,19 @@ import { AdvicePanel } from "./AdvicePanel.js";
 import { CachePanel } from "./CachePanel.js";
 import { ToolsPanel } from "./ToolsPanel.js";
 import { HistoryPanel } from "./HistoryPanel.js";
+import { UsagePanel } from "./UsagePanel.js";
 import { cachePanelLinesForSession } from "../cache-panel-lines.js";
 import { adviceForSession } from "../usage/advice-groups.js";
 import { attachHeavyBaselineHeat } from "../usage/advice-heat.js";
 import { forget, peek, peekSubagents, prime, refresh } from "../usage/tail-runtime.js";
 import { formatToolInventoryLines, formatToolInventorySummary } from "../usage/tool-inventory.js";
-import { resolveTranscriptPath } from "../workflow/paths.js";
+import { transcriptSource } from "../usage/transcript-source.js";
+import {
+  buildUsageOverview,
+  formatTokenCount,
+  formatUsageOverviewLine,
+  summarizeUsageOverview,
+} from "../usage-overview.js";
 import {
   formatContextGaugeBar,
   formatLastTurnBreakdownLine,
@@ -423,6 +430,11 @@ export function App({
         setView("history");
         return;
       }
+      if (input === "u" && (view === "main" || view === "split") && !pickingSplitPartner) {
+        setPendingDeleteSessionId(undefined);
+        setView("usage");
+        return;
+      }
       if (input === "p" && (view === "main" || view === "split") && actionSessionId) {
         setPendingDeleteSessionId(undefined);
         setSelectedSessionId(actionSessionId);
@@ -448,7 +460,7 @@ export function App({
         setNotice(undefined);
         return;
       }
-      if (view === "advice" || view === "cache" || view === "tools" || view === "history") {
+      if (view === "advice" || view === "cache" || view === "tools" || view === "history" || view === "usage") {
         if (splitLeftId && splitRightId) {
           setView("split");
           setSelectedSessionId(focusedSessionId(splitLeftId, splitRightId, splitFocus));
@@ -527,12 +539,12 @@ export function App({
 
     for (const sessionId of sessionIds) {
       if (watchers.has(sessionId)) continue;
-      const state = readTaskState(sessionId);
-      if (!state?.claudeSessionDir) continue;
-      const transcriptPath = resolveTranscriptPath(state.claudeSessionDir, sessionId);
+      const source = transcriptSource(readTaskState(sessionId));
+      if (!source) continue;
+      const { agent, path: transcriptPath } = source;
 
       try {
-        applyAdvice(prime(sessionId, transcriptPath).advice);
+        applyAdvice(prime(sessionId, transcriptPath, agent).advice);
       } catch {
         // 用量分析出任何錯誤都不能拖垮主畫面
       }
@@ -540,7 +552,7 @@ export function App({
       const watcher = chokidar.watch(transcriptPath, { ignoreInitial: true, ignorePermissionErrors: true });
       const onTranscriptEvent = () => {
         try {
-          applyAdvice(refresh(sessionId, transcriptPath));
+          applyAdvice(refresh(sessionId, transcriptPath, agent));
         } catch {
           // 同上
         }
@@ -573,14 +585,14 @@ export function App({
   // 沒指定 session 時：cwd 對得上就自動選當下專案；只有一個也直接選。
   // 使用者按 b 回到列表後不再自動跳回去。
   useEffect(() => {
-    if (browsing || selectedSessionId || sessionIds.length === 0) return;
+    if (browsing || selectedSessionId || sessionIds.length === 0 || view !== "main") return;
     if (pickingSplitPartner) return;
     if (shouldBlockAutoSelect(pinned)) return;
     const hints = filterSessionsByAgent(hintsFor(sessionIds), activeAgent);
     if (!shouldAutoSelectSession(hints, cwd)) return;
     const preferred = pickPreferredSession(hints, cwd);
     if (preferred) setSelectedSessionId(preferred);
-  }, [sessionIds, selectedSessionId, cwd, browsing, pinned, pickingSplitPartner, activeAgent]);
+  }, [sessionIds, selectedSessionId, cwd, browsing, pinned, pickingSplitPartner, activeAgent, view]);
 
   // 監控被選中 session 的檔案內容變化。
   // 寫入是 write-then-rename：直接 watch 最終路徑常會在 inode 換掉後漏事件，
@@ -640,7 +652,8 @@ export function App({
       }
     }
     lastWaitingKey.current = nextKey;
-  }, [selectedSessionId, taskState?.activity?.toolName, taskState?.activity?.phase, taskState?.activity?.at]);
+    // clockRevision 讓 PermissionRequest 的寬限期到期（純時間變化、toolName/phase/at 都沒變）也能重算。
+  }, [selectedSessionId, taskState?.activity?.toolName, taskState?.activity?.phase, taskState?.activity?.at, clockRevision]);
 
   useEffect(() => {
     const events = currentAlertEvents();
@@ -665,7 +678,8 @@ export function App({
       });
     }
     lastAlertEdgeKey.current = nextEdge;
-  }, [sessionIds, selectedSessionId, adviceList, stateRevision, taskState?.updatedAt]);
+    // clockRevision 同理：其他 session 的 PermissionRequest 寬限期到期時，這裡也要重新算一次跨 session 警報。
+  }, [sessionIds, selectedSessionId, adviceList, stateRevision, taskState?.updatedAt, clockRevision]);
 
   useEffect(() => {
     setTimeline([]);
@@ -720,8 +734,8 @@ export function App({
         right={rightState}
         focus={splitFocus}
         pinned={pinned}
-        leftGauge={formatContextGaugeBar(leftUsage?.lastOccupiedTokens)}
-        rightGauge={formatContextGaugeBar(rightUsage?.lastOccupiedTokens)}
+        leftGauge={formatContextGaugeBar(leftUsage?.lastOccupiedTokens, leftUsage?.lastContextWindow)}
+        rightGauge={formatContextGaugeBar(rightUsage?.lastOccupiedTokens, rightUsage?.lastContextWindow)}
         leftScroll={leftScroll}
         rightScroll={rightScroll}
         onScrollFocus={(delta) => {
@@ -744,17 +758,17 @@ export function App({
       taskState?.cwd ??
       cwd;
     const enriched =
-      filtered.some((item) => item.kind === "heavy-baseline")
+      // 熱力行來源（CLAUDE.md、.claude/skills…）與「task-tracker inspect」提示都只適用 Claude；Codex 不附。
+      filtered.some((item) => item.kind === "heavy-baseline") &&
+      agentOf(selectedSessionId ? readTaskState(selectedSessionId) : taskState) !== "codex"
         ? attachHeavyBaselineHeat(filtered, launchHeatLines(heatCwd))
         : filtered;
     const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
     const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
     const uncoveredHint =
-      selectedSessionId && agentOf(readTaskState(selectedSessionId)) === "codex"
-        ? CODEX_UNSUPPORTED_NOTICE
-        : selectedSessionId && !readTaskState(selectedSessionId)?.claudeSessionDir
-          ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
-          : undefined;
+      selectedSessionId && !transcriptSource(readTaskState(selectedSessionId))
+        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+        : undefined;
     return withNotice(
       topNotice,
       <AdvicePanel
@@ -796,6 +810,32 @@ export function App({
     return withNotice(
       topNotice,
       <HistoryPanel entries={timeline} shortId={shortSessionId(selectedSessionId)} />,
+    );
+  }
+
+  if (view === "usage") {
+    const rows = buildUsageOverview(
+      hintsFor(sessionIds).flatMap((hint) =>
+        hint.cwd
+          ? [
+              {
+                sessionId: hint.sessionId,
+                label: `${basename(hint.cwd)} · ${shortSessionId(hint.sessionId)}`,
+                agent: hint.agent ?? ("claude" as const),
+                workTokens: peek(hint.sessionId)?.workTokensTotal,
+              },
+            ]
+          : [],
+      ),
+    );
+    const summary = summarizeUsageOverview(rows);
+    return withNotice(
+      topNotice,
+      <UsagePanel
+        header={`用量總覽 · ${summary.sessions} 個 session（${summary.measured} 個有用量資料）· 合計 ${formatTokenCount(summary.totalTokens)} token`}
+        lines={rows.map(formatUsageOverviewLine)}
+        emptyHint="還沒有可列出的 session"
+      />,
     );
   }
 
@@ -903,9 +943,9 @@ export function App({
   const usage = peek(taskState.sessionId);
   const lastTurn = lastTurnUsageFromStats(usage);
   const contextSnapshot = {
-    occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens),
-    breakdownLine: formatLastTurnBreakdownLine(lastTurn),
-    gauge: formatContextGaugeBar(usage?.lastOccupiedTokens),
+    occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens, usage?.lastContextWindow),
+    breakdownLine: formatLastTurnBreakdownLine(lastTurn, agentOf(taskState)),
+    gauge: formatContextGaugeBar(usage?.lastOccupiedTokens, usage?.lastContextWindow),
   };
   const toolInventorySummary = usage?.toolInventory
     ? formatToolInventorySummary(usage.toolInventory)

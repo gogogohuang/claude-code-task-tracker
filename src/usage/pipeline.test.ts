@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { forget, prime } from "./tail-runtime.js";
+import { forget, peek, prime, refresh } from "./tail-runtime.js";
 import { adviceForSession } from "./advice-groups.js";
 
 function assistantLine(id: string, cacheCreation: number): string {
@@ -27,12 +27,55 @@ test("prime() 產生的 advice 接上 adviceForSession，只留下該 session", 
     writeFileSync(path, assistantLine("m0", 60001) + "\n"); // 觸發 heavy-baseline advice
     const primed = prime(sessionId, path);
     assert.equal(primed.advice.length > 0, true);
+    assert.equal(peek(sessionId)?.workTokensTotal, 60001); // cache creation 60001，無 input／output
 
     const filtered = adviceForSession(primed.advice, sessionId);
     assert.equal(filtered.length, primed.advice.length);
     assert.equal(filtered.every((item) => item.sessionId === sessionId), true);
     assert.equal(filtered.some((item) => item.kind === "heavy-baseline"), true);
     assert.deepEqual(adviceForSession(primed.advice, undefined), []);
+  } finally {
+    forget(sessionId);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function codexTokenLine(total: number, input: number, cached: number): string {
+  return JSON.stringify({
+    timestamp: new Date().toISOString(),
+    type: "event_msg",
+    payload: {
+      type: "token_count",
+      info: {
+        total_token_usage: { total_tokens: total },
+        last_token_usage: { input_tokens: input, cached_input_tokens: cached, output_tokens: 1 },
+        model_context_window: 258400,
+      },
+    },
+  });
+}
+
+test("Codex：prime／refresh 用 Codex 解析器，advice 為 Codex 文案，統計帶視窗", () => {
+  const dir = mkdtempSync(join(tmpdir(), "usage-advisor-codex-"));
+  const path = join(dir, "rollout.jsonl");
+  const sessionId = `codex-pipeline-${Date.now()}`;
+  try {
+    writeFileSync(path, codexTokenLine(60001, 60001, 0) + "\n"); // 第一輪 60001 個沒命中 → heavy-baseline
+    const primed = prime(sessionId, path, "codex");
+    const heavy = primed.advice.filter((a) => a.kind === "heavy-baseline");
+    assert.equal(heavy.length, 1);
+    assert.match(heavy[0].message, /開場偏重/);
+    assert.doesNotMatch(heavy[0].message, /inspect/);
+    assert.equal(peek(sessionId)?.lastContextWindow, 258400);
+    assert.equal(peek(sessionId)?.lastOccupiedTokens, 60001);
+    assert.equal(peek(sessionId)?.workTokensTotal, 60002); // 60001 未命中 + 1 output
+
+    writeFileSync(path, codexTokenLine(60001, 60001, 0) + "\n" + codexTokenLine(80000, 20000, 19000) + "\n");
+    refresh(sessionId, path, "codex");
+    assert.equal(peek(sessionId)?.mainThreadMsgCount, 2);
+    assert.equal(peek(sessionId)?.lastOccupiedTokens, 20000);
+    assert.equal(peek(sessionId)?.lastCacheRead, 19000);
+    assert.equal(peek(sessionId)?.workTokensTotal, 61003); // 60002 + (20000 − 19000) + 1
   } finally {
     forget(sessionId);
     rmSync(dir, { recursive: true, force: true });

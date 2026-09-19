@@ -249,7 +249,7 @@ export function TaskList({
 
       <Box marginTop={1}>
         <Text dimColor>
-          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 s 暫存 — 按 a 用量 — 按 t 工具 — 按 h 活動紀錄 — 按 b 回列表 — 按 d 清除暫存 — 按 q 離開
+          最後更新：{new Date(state.updatedAt).toLocaleTimeString()} — ↑↓ 捲動 — 按 s 暫存 — 按 a 用量 — 按 t 工具 — 按 h 活動紀錄 — 按 u 用量總覽 — 按 b 回列表 — 按 d 清除暫存 — 按 q 離開
         </Text>
       </Box>
     </Box>

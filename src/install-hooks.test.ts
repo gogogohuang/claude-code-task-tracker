@@ -203,10 +203,13 @@ test("settingsPathFor：codex 指向 ~/.codex/hooks.json 與 <cwd>/.codex/hooks.
   assert.equal(settingsPathFor("user", input), join("/h", ".claude", "settings.json"));
 });
 
-test("mergeTrackerHooks codex：只註冊 SessionStart／PreToolUse／PostToolUse，且不設 matcher", () => {
+test("mergeTrackerHooks codex：註冊 SessionStart／PreToolUse／PostToolUse／PermissionRequest／Stop，且不設 matcher", () => {
   const merged = mergeTrackerHooks({}, CODEX_COMMAND, "codex");
-  assert.deepEqual(Object.keys(merged.hooks ?? {}).sort(), ["PostToolUse", "PreToolUse", "SessionStart"]);
-  for (const event of ["PreToolUse", "PostToolUse", "SessionStart"] as const) {
+  assert.deepEqual(
+    Object.keys(merged.hooks ?? {}).sort(),
+    ["PermissionRequest", "PostToolUse", "PreToolUse", "SessionStart", "Stop"],
+  );
+  for (const event of ["PreToolUse", "PostToolUse", "SessionStart", "PermissionRequest", "Stop"] as const) {
     const groups = merged.hooks?.[event];
     assert.equal(groups?.length, 1);
     assert.equal(groups?.[0].matcher, undefined);
@@ -231,8 +234,11 @@ test("mergeTrackerHooks codex：保留 TempoTerm、herdr 等既有 hook，重跑
   assert.deepEqual(twice, once);
   assert.equal(once.hooks?.PreToolUse?.length, 2);
   assert.equal(once.hooks?.SessionStart?.length, 2);
-  assert.deepEqual(once.hooks?.Stop, existing.hooks.Stop);
   assert.equal(once.hooks?.PreToolUse?.[0].hooks[0].command.includes("tempo-term"), true);
+  // Stop 現在也是 task-tracker 會註冊的事件（清除等待核可狀態），既有的 tempo stop 要保留、tracker 的追加在後面。
+  assert.equal(once.hooks?.Stop?.length, 2);
+  assert.deepEqual(once.hooks?.Stop?.[0], existing.hooks.Stop[0]);
+  assert.deepEqual(once.hooks?.Stop?.[1].hooks, [{ type: "command", command: CODEX_COMMAND, timeout: 5 }]);
 });
 
 test("installTrackerHooks codex：寫入 ~/.codex/hooks.json，第二次回 already", () => {

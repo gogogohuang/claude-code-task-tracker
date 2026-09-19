@@ -25,6 +25,8 @@ export interface ClaudeSettings {
     SessionStart?: ClaudeHookGroup[];
     TaskCreated?: ClaudeHookGroup[];
     TaskCompleted?: ClaudeHookGroup[];
+    PermissionRequest?: ClaudeHookGroup[];
+    Stop?: ClaudeHookGroup[];
     [key: string]: unknown;
   };
   [key: string]: unknown;
@@ -32,7 +34,14 @@ export interface ClaudeSettings {
 
 export type HookScope = "user" | "project";
 
-type HookEvent = "PreToolUse" | "PostToolUse" | "SessionStart" | "TaskCreated" | "TaskCompleted";
+type HookEvent =
+  | "PreToolUse"
+  | "PostToolUse"
+  | "SessionStart"
+  | "TaskCreated"
+  | "TaskCompleted"
+  | "PermissionRequest"
+  | "Stop";
 
 interface AgentProfile {
   configDir: string;
@@ -49,11 +58,12 @@ const AGENT_PROFILES: Record<Agent, AgentProfile> = {
     bareEvents: ["TaskCreated", "TaskCompleted"],
   },
   // Codex 現有 hooks.json 條目都沒有 matcher；Task 系列事件 Codex 不存在。
+  // PermissionRequest／Stop 用來偵測「等你核可」：見 session-presence.ts 的寬限期邏輯。
   codex: {
     configDir: ".codex",
     configFile: "hooks.json",
     matcherEvents: [],
-    bareEvents: ["SessionStart", "PreToolUse", "PostToolUse"],
+    bareEvents: ["SessionStart", "PreToolUse", "PostToolUse", "PermissionRequest", "Stop"],
   },
 };
 
@@ -73,6 +83,8 @@ const ClaudeSettingsSchema = z
         SessionStart: z.array(ClaudeHookGroupSchema).optional(),
         TaskCreated: z.array(ClaudeHookGroupSchema).optional(),
         TaskCompleted: z.array(ClaudeHookGroupSchema).optional(),
+        PermissionRequest: z.array(ClaudeHookGroupSchema).optional(),
+        Stop: z.array(ClaudeHookGroupSchema).optional(),
       })
       .passthrough()
       .optional(),

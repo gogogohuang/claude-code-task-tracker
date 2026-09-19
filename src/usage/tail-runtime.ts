@@ -1,5 +1,7 @@
 import { closeSync, openSync, readSync, statSync } from "node:fs";
+import type { Agent } from "../agent.js";
 import { accumulate } from "./accumulate.js";
+import { parseCodexRollout } from "./codex-rollout.js";
 import { detect } from "./detect.js";
 import { applySubagentEvents, createSubagentsState, SubagentsState } from "./subagents.js";
 import { createTailState, parseNewContent } from "./tail-transcript.js";
@@ -52,16 +54,22 @@ function runOnce(
   prevSubagents: SubagentsState,
   content: string,
   bytesRead: number,
+  agent: Agent,
 ): { tailState: TailState; stats: SessionUsageStats; subagents: SubagentsState; advice: Advice[] } {
-  const parsed = parseNewContent(content, prevTailState, bytesRead);
+  const parse = agent === "codex" ? parseCodexRollout : parseNewContent;
+  const parsed = parse(content, prevTailState, bytesRead);
   const { next, steps } = accumulate(prevStats, parsed.events);
   const advice = detect(prevStats, next, steps);
   const subagents = applySubagentEvents(prevSubagents, parsed.events);
   return { tailState: parsed.state, stats: next, subagents, advice };
 }
 
-export function prime(sessionId: string, transcriptPath: string): { stats: SessionUsageStats; advice: Advice[] } {
-  const stats0 = createSessionUsageStats(sessionId);
+export function prime(
+  sessionId: string,
+  transcriptPath: string,
+  agent: Agent = "claude",
+): { stats: SessionUsageStats; advice: Advice[] } {
+  const stats0 = createSessionUsageStats(sessionId, agent);
   const subagents0 = createSubagentsState();
   const size = fileSize(transcriptPath);
   if (size === undefined) {
@@ -71,23 +79,23 @@ export function prime(sessionId: string, transcriptPath: string): { stats: Sessi
   // offset 要錨在「這次真正讀到多少 bytes」，不能用 size 這個意圖值 —— 讀取失敗時
   // readNewBytes 會回傳 bytesRead:0，offset 就該原地不動，等下一次再重試。
   const { content, bytesRead } = readNewBytes(transcriptPath, 0, size);
-  const result = runOnce(createTailState(), stats0, subagents0, content, bytesRead);
+  const result = runOnce(createTailState(), stats0, subagents0, content, bytesRead, agent);
   sessions.set(sessionId, { tailState: result.tailState, stats: result.stats, subagents: result.subagents });
   return { stats: result.stats, advice: result.advice };
 }
 
-export function refresh(sessionId: string, transcriptPath: string): Advice[] {
+export function refresh(sessionId: string, transcriptPath: string, agent: Agent = "claude"): Advice[] {
   const entry = sessions.get(sessionId);
-  if (!entry) return prime(sessionId, transcriptPath).advice;
+  if (!entry) return prime(sessionId, transcriptPath, agent).advice;
 
   const size = fileSize(transcriptPath);
   if (size === undefined) return [];
-  if (size < entry.tailState.offset) return prime(sessionId, transcriptPath).advice; // 檔案被截斷/換新，視同重新開始
+  if (size < entry.tailState.offset) return prime(sessionId, transcriptPath, agent).advice; // 檔案被截斷/換新，視同重新開始
   if (size === entry.tailState.offset) return [];
 
   // 同樣道理：offset 只能照 readNewBytes 實際回報的 bytesRead 推進，不是預先算好的 size - offset。
   const { content, bytesRead } = readNewBytes(transcriptPath, entry.tailState.offset, size);
-  const result = runOnce(entry.tailState, entry.stats, entry.subagents, content, bytesRead);
+  const result = runOnce(entry.tailState, entry.stats, entry.subagents, content, bytesRead, agent);
   sessions.set(sessionId, { tailState: result.tailState, stats: result.stats, subagents: result.subagents });
   return result.advice;
 }

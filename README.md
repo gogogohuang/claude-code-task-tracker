@@ -4,8 +4,8 @@
 
 終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（`TodoWrite`，以及新版 `TaskCreate` /
 `TaskUpdate` / `TaskList` 系列工具）。就算 session 完全沒開 todo/task 清單，也能看到它
-目前在做什麼，例如「正在讀取 src/schema.ts」。也可以接 Codex CLI 的 session（目前只顯示
-活動句，見〈Codex 支援〉），並在 `watch` 依來源分頁檢視（見〈分頁檢視〉）。
+目前在做什麼，例如「正在讀取 src/schema.ts」。也可以接 Codex CLI 的 session（顯示活動句與
+用量／cache 建議，見〈Codex 支援〉），並在 `watch` 依來源分頁檢視（見〈分頁檢視〉）。
 
 目前版本：**v0.24.1**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 ## 運作原理
@@ -31,8 +31,8 @@
    in_progress / completed。巢狀 workflow 的 `▸ …` phase 不另開列，算進最近的父 phase。
 3. `task-tracker watch` 啟動一個 Ink 打造的 TUI，watch 狀態檔與 workflow journal，狀態一有變化就即時重繪。
 4. Codex 走同一支 hook 腳本：`task-tracker init --agent codex` 把它註冊進 `~/.codex/hooks.json`
-   （`SessionStart`、`PreToolUse`、`PostToolUse`，命令尾端帶 `--agent codex`），寫進同一個狀態目錄，
-   狀態檔多一個 `"agent": "codex"`。Codex 只有活動句，沒有 task 清單、用量與 workflow，細節見〈Codex 支援〉。
+   （`SessionStart`、`PreToolUse`、`PostToolUse`、`PermissionRequest`、`Stop`，命令尾端帶 `--agent codex`），寫進同一個狀態目錄，
+   狀態檔多一個 `"agent": "codex"`。Codex 有活動句、用量／cache 建議與「等你」核可提示，沒有 task 清單與 workflow，細節見〈Codex 支援〉。
 
 ```
 Claude Code (SessionStart / 任何工具 / Workflow)
@@ -141,10 +141,10 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、按 `u` 開啟用量總覽（所有 session 依累計用量排序）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
-主畫面會顯示 context 血條（依上一輪佔用 token 相對 1M 窗口的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
+主畫面會顯示 context 血條（依上一輪佔用 token 相對該 session 回報的視窗（Claude 1M、Codex 258,400）的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
 `AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。其他 session 在等你或有新用量建議時，頂列也會彙總並響鈴（按 `n` 跳轉）。若設 `TASK_TRACKER_NOTIFY=1`，同一事件會再發一次 macOS 桌面通知（失敗静默）。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。有 workflow 時會多一條 Phase 進度條；活動列下方可顯示「下一個」pending 任務。若約 5 分鐘無更新且沒有進行中的工作，會提示「Session 似乎已結束」。專案／session 列表前綴：`!` 等你、
 `●` 忙碌、`○` 閒置；整列文字上色（紅＝等你、黃＝進行中、綠＝就緒），進入 session 後標題列同色。
 
@@ -168,6 +168,24 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 
 用量建議（watch 按 `a`）會列出過肥 tool 回傳、同路徑反覆 Read 等可執行的減肥項；若開場底子偏重，同一則建議下方會嵌該 **session 專案** 的 launch／onDemand 熱力 Top-5（找不到大檔時會提示改跑 `inspect`）。
 
+### 用量總覽（`u`）
+
+`watch` 按 `u` 會列出所有已知 session（Claude 與 Codex 混合，標示來源），依累計用量由大到小排序，
+每列顯示累計 token、占全部的百分比與一條比例條：
+
+```text
+[Claude] my-project · 1a2b3c4d  2.3M  41%  █████░░░░░░░
+[Codex]  other-repo · 9f8e7d6c  1.1M  20%  ██░░░░░░░░░░
+```
+
+- **用量的算法**：累計「新增工作量」token = `input + cache creation + output`（Codex：`input − cached + output`），
+  **不含 cache 讀取**。Claude 每輪都會重讀整個 context，把 cache 讀取也累加會讓數字被灌爆，失去比較意義。
+- 百分比是占「有用量資料的 session 總和」的比例；還沒有用量資料的 session 顯示 `—`，不參與計算。
+- 累計值在每次啟動 `watch` 時由 transcript 重算，不另外存檔。
+- **限制**：Claude 子 agent（sidechain）用到的 token 不計入累計，重度使用子 agent 的 session 會被低估；
+  比較的是工作量，不是花費（不同來源的 token 單價不同）。
+- 偶爾沒命中 prompt cache 的那幾輪，`input` 本身就帶著整份 context，會被完整計入；實務上 Claude Code 幾乎都有 cache，影響很小。
+
 ## Codex 支援
 
 除了 Claude Code，也可以讓 Codex CLI 的 session 出現在同一個 `watch`。已用 **Codex 0.155.1** 測試。
@@ -188,11 +206,16 @@ npx claude-code-task-tracker init --agent codex --project   # 改寫入 <專案>
   不會（也不能）代寫 Codex 的信任紀錄。`codex exec` 沒有核可畫面，未核可的 hook 只會顯示失敗，
   所以請先開一次互動模式的 Codex 核可。
 - **Codex 只在啟動時讀取 hooks。** `init` 之前就已經開著的 Codex session 不會出現在 `watch`，
-  必須關掉重開；只有 `init` 之後新開的 session 才會被偵測。
-- **只支援活動句**：Codex session 的 `watch` 畫面會顯示目前在做什麼，範圍是 `Bash`（執行指令）與
-  `apply_patch`（修改檔案）。任務清單、usage 建議、`inspect`、workflow 都**不支援**
-  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `a`／`t`／cache 相關檢視，
-  會顯示「Codex session 尚未支援此檢視」。
+  必須關掉重開；只有 `init` 之後新開的 session 才會被偵測，且 session 要送出第一個 prompt 之後才會出現在 watch。
+- **支援活動句與用量／cache 建議**：`watch` 會顯示目前在做什麼（`Bash`、`apply_patch`），並從 Codex 的 rollout 檔
+  （狀態檔的 `transcriptPath`）分析 token 用量：`a` 列出長 session、cache 暴增（沒命中 cache 而重算的 token 突然變多）、
+  過肥的工具輸出、開場偏重四種建議，畫面也會顯示 context 佔用量表（用 Codex 回報的視窗大小）。
+  **不支援**：重複讀檔建議、工具清單（`t`）、任務清單、`inspect`、workflow
+  （Codex 0.155.1 沒有 `update_plan` 工具，任務清單來源尚未定案）。在 Codex session 內按 `t`／`s` 會顯示「Codex session 尚未支援此檢視」。
+- **等你（`PermissionRequest`）**：Codex 即將跳出核可提示時會觸發這個 hook；收到超過 5 秒仍未核可，
+  該 session 才算「等你」——`!` 標記、頂列提示、響鈴、`n` 跳轉都會生效，摘要會寫「等待核可 <工具名稱>」。
+  5 秒寬限期是為了濾掉自動核可（`auto_review`）等很快就結束的請求；Codex 官方目前沒有回報「核可已處理」的事件，
+  所以核可或拒絕後要等到下一個工具呼叫或 `Stop`（回合結束）才會清除等待狀態。
 - 狀態檔仍寫在 `~/.claude-task-tracker/<session_id>.json`，Codex session 會多一個 `"agent": "codex"`；
   舊狀態檔沒有這欄位，一律視為 Claude。
 
@@ -203,8 +226,8 @@ npx claude-code-task-tracker init --agent codex --project   # 改寫入 <專案>
 
 - `Tab`／`Shift+Tab` 切換分頁。**只在 session 列表畫面生效**；已進入某個 session 或在 advice／cache／tools／history／split
   檢視內不會切換，要換分頁請先按 `b` 回列表。切換分頁會回到該來源的專案清單。
-- 分頁上紅色的 `!` 代表該來源有 session 正在等你（正在跑的 `AskUserQuestion`／`ExitPlanMode`）。
-  Codex 不會產生這兩個工具，所以目前 Codex 分頁實際上不會亮。
+- 分頁上紅色的 `!` 代表該來源有 session 正在等你：Claude 是正在跑的 `AskUserQuestion`／`ExitPlanMode`，
+  Codex 是收到 `PermissionRequest` 超過 5 秒的核可請求（見〈Codex 支援〉）。
 - **Cursor 只是預留分頁**，選到只會顯示尚未支援的說明，還沒有任何 Cursor 整合。
 
 ## 重要注意事項
@@ -243,21 +266,23 @@ src/
 ├── codex-config.ts           # 讀 ~/.codex/config.toml 判斷 hooks 是否被關掉
 ├── install-hooks.ts          # 依 agent（claude / codex）合併 hook 設定
 ├── describe-activity.ts      # 把工具呼叫收成活動句（含 Codex 的 Bash / apply_patch）
+├── usage-overview.ts         # 用量總覽的純函式：排序、占比、token 格式化、比例條（按 u）
 ├── schema.ts                 # zod schema：TodoWrite 格式、hook payload、狀態檔
 ├── store.ts                  # 狀態檔案讀寫（write-then-rename 避免讀到半份資料）
 ├── commands/
 │   └── init.ts               # 寫入 .claude/settings.json 或 .codex/hooks.json 的 hook 設定
 ├── hook/
 │   └── task-tracker-hook.ts  # Claude Code 與 Codex（--agent codex）實際呼叫的 hook 腳本
-├── fixtures/                 # 真實 Codex 0.155.1 hook payload 樣本（測試重放用）
+├── fixtures/                 # Codex 0.155.1 的 hook payload 與 rollout 樣本（測試重放用）
 ├── inspect/                  # inspect 的解析（CLAUDE.md、rules、auto memory、prompt 檔案）
 ├── workflow/                 # dynamic workflow 的 meta.phases 與 journal 解析
-├── usage/                    # 跨 session 用量分析（tail transcript、偵測、建議文字、sub-task 派發追蹤）
+├── usage/                    # 跨 session 用量分析（tail transcript／Codex rollout、累計用量、偵測、建議文字、sub-task 派發追蹤）
 └── ui/
     ├── App.tsx               # 主畫面，負責 session 偵測、檔案監控與用量建議通知
     ├── SessionPicker.tsx     # 多 session 時的選單
     ├── TaskList.tsx          # task 清單、活動句與進度條
     ├── AdvicePanel.tsx       # 用量建議面板
+    ├── UsagePanel.tsx        # 用量總覽面板（按 u）
     ├── AgentTabs.tsx         # 來源分頁列
     ├── HistoryPanel.tsx      # 活動 timeline（按 h）
     ├── InspectApp.tsx        # inspect 的互動
@@ -279,5 +304,6 @@ src/
 
 - 歷史紀錄（每個 session 結束後保留一份完成率統計）
 - Codex 的任務清單（Codex 0.155.1 沒有 `update_plan`，來源可能是它的 `goals` 功能，尚未調查）
+- 用量總覽把 Claude 子 agent（sidechain）的用量也算進去（目前不計入）
 - Cursor 接入（目前只有預留分頁；要先取樣 Cursor 的 hook payload）
-- 用真實 Codex session 做端到端驗證（需先在 Codex hooks review 核可 hook）
+- 用真實 Codex session 驗證用量建議與 context 量表（hook 偵測已在 Codex 0.155.1 驗證過；需先在 Codex hooks review 核可 hook）

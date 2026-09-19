@@ -60,6 +60,9 @@ export function accumulate(
       lastCacheRead: event.usage.cacheRead,
       lastCacheCreation: event.usage.cacheCreation,
       lastInput: event.usage.input,
+      workTokensTotal:
+        (stats.workTokensTotal ?? 0) + event.usage.input + event.usage.cacheCreation + event.usage.output,
+      ...(event.usage.contextWindow !== undefined ? { lastContextWindow: event.usage.contextWindow } : {}),
     };
 
     steps.push({ event, statsBefore, statsAfter: stats });

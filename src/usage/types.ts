@@ -1,10 +1,13 @@
 import type { ToolInventory } from "./tool-inventory.js";
+import type { Agent } from "../agent.js";
 
 export interface ParsedUsage {
   cacheCreation: number;
   cacheRead: number;
   output: number;
   input: number;
+  /** Codex 才有：這次呼叫時模型的 context 視窗大小（rollout 的 model_context_window）。 */
+  contextWindow?: number;
 }
 
 export interface ToolResultChars {
@@ -65,9 +68,18 @@ export interface SessionUsageStats {
   toolInventory?: ToolInventory;
   /** 主線 Read 各 path 次數（供 repeated-read） */
   readPathCounts?: Record<string, number>;
+  /** 只有 Codex 才會設定；detect 依它切換建議文案。缺省視為 claude。 */
+  agent?: Agent;
+  /** 最近一次呼叫的模型 context 視窗（Codex 由 rollout 帶入；缺省時量表用 Claude 的 1,000,000）。 */
+  lastContextWindow?: number;
+  /**
+   * 累計「新增工作量」token：input + cacheCreation + output，不含 cache 讀取。
+   * 只計主線、已通過 messageId 去重的 usage 事件（子 agent 的 sidechain 事件被 accumulate 略過，不計入）。
+   */
+  workTokensTotal?: number;
 }
 
-export function createSessionUsageStats(sessionId: string): SessionUsageStats {
+export function createSessionUsageStats(sessionId: string, agent: Agent = "claude"): SessionUsageStats {
   return {
     sessionId,
     mainThreadMsgCount: 0,
@@ -77,6 +89,7 @@ export function createSessionUsageStats(sessionId: string): SessionUsageStats {
     cacheCreationRollingAvg: 0,
     recentMessageIds: [],
     readPathCounts: {},
+    ...(agent === "codex" ? { agent } : {}),
   };
 }
 

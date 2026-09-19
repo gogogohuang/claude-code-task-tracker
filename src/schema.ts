@@ -160,6 +160,8 @@ export const TaskStateSchema = z.object({
   /** 狀態來源。只有 Codex 寫入 "codex"；缺省視為 claude（舊檔不需遷移）。 */
   agent: AgentSchema.optional(),
   claudeSessionDir: z.string().optional(),
+  /** Codex 的 rollout 檔路徑（hook payload 的 transcript_path）。只有 Codex 寫入；用量分析靠它 tail。 */
+  transcriptPath: z.string().optional(),
   updatedAt: z.string(),
   todos: z.array(TodoItemSchema).optional(),
   tasks: z.record(z.string(), TaskItemSchema).optional(),
