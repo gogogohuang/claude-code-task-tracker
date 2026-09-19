@@ -184,6 +184,7 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 - 累計值在每次啟動 `watch` 時由 transcript 重算，不另外存檔。
 - **限制**：Claude 子 agent（sidechain）用到的 token 不計入累計，重度使用子 agent 的 session 會被低估；
   比較的是工作量，不是花費（不同來源的 token 單價不同）。
+- 偶爾沒命中 prompt cache 的那幾輪，`input` 本身就帶著整份 context，會被完整計入；實務上 Claude Code 幾乎都有 cache，影響很小。
 
 ## Codex 支援
 

@@ -27,6 +27,7 @@ test("prime() 產生的 advice 接上 adviceForSession，只留下該 session", 
     writeFileSync(path, assistantLine("m0", 60001) + "\n"); // 觸發 heavy-baseline advice
     const primed = prime(sessionId, path);
     assert.equal(primed.advice.length > 0, true);
+    assert.equal(peek(sessionId)?.workTokensTotal, 60001); // cache creation 60001，無 input／output
 
     const filtered = adviceForSession(primed.advice, sessionId);
     assert.equal(filtered.length, primed.advice.length);
@@ -67,12 +68,14 @@ test("Codex：prime／refresh 用 Codex 解析器，advice 為 Codex 文案，�
     assert.doesNotMatch(heavy[0].message, /inspect/);
     assert.equal(peek(sessionId)?.lastContextWindow, 258400);
     assert.equal(peek(sessionId)?.lastOccupiedTokens, 60001);
+    assert.equal(peek(sessionId)?.workTokensTotal, 60002); // 60001 未命中 + 1 output
 
     writeFileSync(path, codexTokenLine(60001, 60001, 0) + "\n" + codexTokenLine(80000, 20000, 19000) + "\n");
     refresh(sessionId, path, "codex");
     assert.equal(peek(sessionId)?.mainThreadMsgCount, 2);
     assert.equal(peek(sessionId)?.lastOccupiedTokens, 20000);
     assert.equal(peek(sessionId)?.lastCacheRead, 19000);
+    assert.equal(peek(sessionId)?.workTokensTotal, 61003); // 60002 + (20000 − 19000) + 1
   } finally {
     forget(sessionId);
     rmSync(dir, { recursive: true, force: true });

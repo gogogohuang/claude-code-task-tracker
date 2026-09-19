@@ -430,7 +430,7 @@ export function App({
         setView("history");
         return;
       }
-      if (input === "u" && (view === "main" || view === "split")) {
+      if (input === "u" && (view === "main" || view === "split") && !pickingSplitPartner) {
         setPendingDeleteSessionId(undefined);
         setView("usage");
         return;
@@ -585,14 +585,14 @@ export function App({
   // 沒指定 session 時：cwd 對得上就自動選當下專案；只有一個也直接選。
   // 使用者按 b 回到列表後不再自動跳回去。
   useEffect(() => {
-    if (browsing || selectedSessionId || sessionIds.length === 0) return;
+    if (browsing || selectedSessionId || sessionIds.length === 0 || view !== "main") return;
     if (pickingSplitPartner) return;
     if (shouldBlockAutoSelect(pinned)) return;
     const hints = filterSessionsByAgent(hintsFor(sessionIds), activeAgent);
     if (!shouldAutoSelectSession(hints, cwd)) return;
     const preferred = pickPreferredSession(hints, cwd);
     if (preferred) setSelectedSessionId(preferred);
-  }, [sessionIds, selectedSessionId, cwd, browsing, pinned, pickingSplitPartner, activeAgent]);
+  }, [sessionIds, selectedSessionId, cwd, browsing, pinned, pickingSplitPartner, activeAgent, view]);
 
   // 監控被選中 session 的檔案內容變化。
   // 寫入是 write-then-rename：直接 watch 最終路徑常會在 inode 換掉後漏事件，
