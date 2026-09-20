@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Box, Text, useApp, useInput, useStdin } from "ink";
+import { Box, Text, useApp, useInput, useStdin, useStdout } from "ink";
 import chokidar from "chokidar";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
@@ -7,6 +7,7 @@ import { STATE_DIR, ensureStateDir, listSessionIds, readTaskState, statePathForS
 import { TaskState } from "../schema.js";
 import { agentOf, CODEX_UNSUPPORTED_NOTICE, type TabAgent } from "../agent.js";
 import { canSwitchTab, nextTabAgent, summarizeTabs } from "../agent-tabs.js";
+import { CLEAR_SCREEN_AND_HOME, pageKeyOf } from "../page-key.js";
 import {
   addedSessionIds,
   filterListableSessionIds,
@@ -161,6 +162,7 @@ export function App({
 }) {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
+  const { write: writeThroughInk } = useStdout();
   const [sessionIds, setSessionIds] = useState<string[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string | undefined>(initialSessionId);
   const [projectKey, setProjectKey] = useState<string | undefined>();
@@ -711,6 +713,19 @@ export function App({
     return () => clearInterval(timer);
   }, []);
 
+  // 換頁（view／分頁／session／專案／選並排夥伴任一改變）一律當成全新頁面：
+  // 捲動歸零、整棵子樹重掛（見下方 key）、終端機清畫面後從頂端重畫。
+  const pageKey = pageKeyOf({ view, activeAgent, selectedSessionId, projectKey, pickingSplitPartner });
+  const lastPageKey = useRef(pageKey);
+  useEffect(() => {
+    if (lastPageKey.current === pageKey) return;
+    lastPageKey.current = pageKey;
+    setLeftScroll(0);
+    setRightScroll(0);
+    // 經 Ink 寫入：它會先擦掉自己的輸出、寫入清屏序列、再重繪最新一幀，不會與它的 diff 狀態打架。
+    if (process.stdout.isTTY) writeThroughInk(CLEAR_SCREEN_AND_HOME);
+  }, [pageKey, writeThroughInk]);
+
   const actionActivity = actionSessionId
     ? view === "split"
       ? readTaskState(actionSessionId)?.activity
@@ -720,255 +735,263 @@ export function App({
   const alertBanner = formatAlertBanner(currentAlertEvents());
   const topNotice = waitingNotice ?? alertBanner ?? notice;
 
-  if (view === "split" && splitLeftId && splitRightId) {
-    void stateRevision;
-    void clockRevision;
-    const leftState = readTaskState(splitLeftId);
-    const rightState = readTaskState(splitRightId);
-    const leftUsage = peek(splitLeftId);
-    const rightUsage = peek(splitRightId);
-    return withNotice(
-      topNotice,
-      <SplitView
-        left={leftState}
-        right={rightState}
-        focus={splitFocus}
-        pinned={pinned}
-        leftGauge={formatContextGaugeBar(leftUsage?.lastOccupiedTokens, leftUsage?.lastContextWindow)}
-        rightGauge={formatContextGaugeBar(rightUsage?.lastOccupiedTokens, rightUsage?.lastContextWindow)}
-        leftScroll={leftScroll}
-        rightScroll={rightScroll}
-        onScrollFocus={(delta) => {
-          const id = focusedSessionId(splitLeftId, splitRightId, splitFocus);
-          const rows = taskRows(readTaskState(id) ?? { sessionId: id, updatedAt: "" });
-          if (splitFocus === "left") {
-            setLeftScroll((n) => clampSplitScroll(n + delta, rows.length, SPLIT_TASK_ROWS));
-          } else {
-            setRightScroll((n) => clampSplitScroll(n + delta, rows.length, SPLIT_TASK_ROWS));
-          }
-        }}
-      />,
-    );
-  }
-
-  if (view === "advice") {
-    const filtered = adviceForSession(adviceList, selectedSessionId);
-    const heatCwd =
-      (selectedSessionId ? readTaskState(selectedSessionId)?.cwd : undefined) ??
-      taskState?.cwd ??
-      cwd;
-    const enriched =
-      // 熱力行來源（CLAUDE.md、.claude/skills…）與「task-tracker inspect」提示都只適用 Claude；Codex 不附。
-      filtered.some((item) => item.kind === "heavy-baseline") &&
-      agentOf(selectedSessionId ? readTaskState(selectedSessionId) : taskState) !== "codex"
-        ? attachHeavyBaselineHeat(filtered, launchHeatLines(heatCwd))
-        : filtered;
-    const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
-    const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
-    const uncoveredHint =
-      selectedSessionId && !transcriptSource(readTaskState(selectedSessionId))
-        ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
-        : undefined;
-    return withNotice(
-      topNotice,
-      <AdvicePanel
-        advice={enriched}
-        shortId={shortId}
-        emptyHint={emptyHint}
-        uncoveredHint={uncoveredHint}
-      />,
-    );
-  }
-
-  if (view === "cache" && selectedSessionId) {
-    const shortId = shortSessionId(selectedSessionId);
-    const latest = readTaskState(selectedSessionId) ?? taskState;
-    const lines =
-      agentOf(latest) === "codex"
-        ? [CODEX_UNSUPPORTED_NOTICE]
-        : cachePanelLinesForSession(selectedSessionId, statePathForSession(selectedSessionId), latest);
-    return withNotice(topNotice, <CachePanel lines={lines} shortId={shortId} />);
-  }
-
-  if (view === "tools" && selectedSessionId) {
-    const shortId = shortSessionId(selectedSessionId);
-    const inventory = peek(selectedSessionId)?.toolInventory;
-    const lines = inventory ? formatToolInventoryLines(inventory) : [];
-    const uncoveredHint =
-      agentOf(readTaskState(selectedSessionId)) === "codex"
-        ? CODEX_UNSUPPORTED_NOTICE
-        : !readTaskState(selectedSessionId)?.claudeSessionDir
-          ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
-          : undefined;
-    return withNotice(
-      topNotice,
-      <ToolsPanel lines={lines} shortId={shortId} emptyHint={uncoveredHint} />,
-    );
-  }
-
-  if (view === "history" && selectedSessionId) {
-    return withNotice(
-      topNotice,
-      <HistoryPanel entries={timeline} shortId={shortSessionId(selectedSessionId)} />,
-    );
-  }
-
-  if (view === "usage") {
-    const rows = buildUsageOverview(
-      hintsFor(sessionIds).flatMap((hint) =>
-        hint.cwd
-          ? [
-              {
-                sessionId: hint.sessionId,
-                label: `${basename(hint.cwd)} · ${shortSessionId(hint.sessionId)}`,
-                agent: hint.agent ?? ("claude" as const),
-                workTokens: peek(hint.sessionId)?.workTokensTotal,
-              },
-            ]
-          : [],
-      ),
-    );
-    const summary = summarizeUsageOverview(rows);
-    return withNotice(
-      topNotice,
-      <UsagePanel
-        header={`用量總覽 · ${summary.sessions} 個 session（${summary.measured} 個有用量資料）· 合計 ${formatTokenCount(summary.totalTokens)} token`}
-        lines={rows.map(formatUsageOverviewLine)}
-        emptyHint="還沒有可列出的 session"
-      />,
-    );
-  }
-
-  if (!selectedSessionId) {
-    const allHints = hintsFor(sessionIds);
-    const withTabs = (child: ReactNode) => (
-      <Box flexDirection="column">
-        <AgentTabs tabs={summarizeTabs(allHints)} active={activeAgent} />
-        {child}
-      </Box>
-    );
-    if (activeAgent === "cursor") {
-      return withTabs(
-        <Box flexDirection="column">
-          <Text dimColor>Cursor 尚未支援。</Text>
-          <Text dimColor>接入需先取樣 Cursor 的 hook payload，之後會另開設計。</Text>
-        </Box>,
+  const renderPage = (): ReactNode => {
+    if (view === "split" && splitLeftId && splitRightId) {
+      void stateRevision;
+      void clockRevision;
+      const leftState = readTaskState(splitLeftId);
+      const rightState = readTaskState(splitRightId);
+      const leftUsage = peek(splitLeftId);
+      const rightUsage = peek(splitRightId);
+      return withNotice(
+        topNotice,
+        <SplitView
+          left={leftState}
+          right={rightState}
+          focus={splitFocus}
+          pinned={pinned}
+          leftGauge={formatContextGaugeBar(leftUsage?.lastOccupiedTokens, leftUsage?.lastContextWindow)}
+          rightGauge={formatContextGaugeBar(rightUsage?.lastOccupiedTokens, rightUsage?.lastContextWindow)}
+          leftScroll={leftScroll}
+          rightScroll={rightScroll}
+          onScrollFocus={(delta) => {
+            const id = focusedSessionId(splitLeftId, splitRightId, splitFocus);
+            const rows = taskRows(readTaskState(id) ?? { sessionId: id, updatedAt: "" });
+            if (splitFocus === "left") {
+              setLeftScroll((n) => clampSplitScroll(n + delta, rows.length, SPLIT_TASK_ROWS));
+            } else {
+              setRightScroll((n) => clampSplitScroll(n + delta, rows.length, SPLIT_TASK_ROWS));
+            }
+          }}
+        />,
       );
     }
-    const emptyLines =
-      activeAgent === "codex"
-        ? ["請執行 `task-tracker init --agent codex`，並在 Codex 啟動時的 hooks review 核可 hook。"]
-        : (emptyHint ?? ["請確認已執行「task-tracker init」，且 Claude Code 正在執行中。"]);
-    if (sessionIds.length === 0) {
-      return withTabs(withNotice(
-        notice,
-        <Box flexDirection="column">
-          <Text dimColor>還沒有偵測到任何 session 資料。</Text>
-          {emptyLines.map((line) => (
-            <Text key={line} dimColor>
-              {line}
-            </Text>
-          ))}
-        </Box>,
-      ));
+
+    if (view === "advice") {
+      const filtered = adviceForSession(adviceList, selectedSessionId);
+      const heatCwd =
+        (selectedSessionId ? readTaskState(selectedSessionId)?.cwd : undefined) ??
+        taskState?.cwd ??
+        cwd;
+      const enriched =
+        // 熱力行來源（CLAUDE.md、.claude/skills…）與「task-tracker inspect」提示都只適用 Claude；Codex 不附。
+        filtered.some((item) => item.kind === "heavy-baseline") &&
+        agentOf(selectedSessionId ? readTaskState(selectedSessionId) : taskState) !== "codex"
+          ? attachHeavyBaselineHeat(filtered, launchHeatLines(heatCwd))
+          : filtered;
+      const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
+      const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
+      const uncoveredHint =
+        selectedSessionId && !transcriptSource(readTaskState(selectedSessionId))
+          ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+          : undefined;
+      return withNotice(
+        topNotice,
+        <AdvicePanel
+          advice={enriched}
+          shortId={shortId}
+          emptyHint={emptyHint}
+          uncoveredHint={uncoveredHint}
+        />,
+      );
     }
-    const hints = filterSessionsByAgent(allHints, activeAgent);
-    void stateRevision;
-    const groups = groupSessionsByProject(hints, cwd);
-    if (groups.length === 0) {
-      return withTabs(withNotice(
-        notice,
-        <Box flexDirection="column">
-          <Text dimColor>還沒有偵測到任何 session 資料。</Text>
-          {emptyLines.map((line) => (
-            <Text key={line} dimColor>
-              {line}
-            </Text>
-          ))}
-        </Box>,
-      ));
+
+    if (view === "cache" && selectedSessionId) {
+      const shortId = shortSessionId(selectedSessionId);
+      const latest = readTaskState(selectedSessionId) ?? taskState;
+      const lines =
+        agentOf(latest) === "codex"
+          ? [CODEX_UNSUPPORTED_NOTICE]
+          : cachePanelLinesForSession(selectedSessionId, statePathForSession(selectedSessionId), latest);
+      return withNotice(topNotice, <CachePanel lines={lines} shortId={shortId} />);
     }
-    if (!projectKey) {
-      return withTabs(withNotice(
-        notice,
-        <SessionPicker
-          heading={pickingSplitPartner ? "選擇並排 session 的專案" : "選擇專案"}
-          hint={pickingSplitPartner ? "按 b 取消分割" : "按 q 離開"}
-          items={projectChoices(hints, cwd)}
-          onSelect={(key) => {
-            const group = groups.find((item) => item.key === key);
-            const preferred = group ? pickPreferredSession(group.sessions, cwd) : undefined;
-            if (group && group.sessions.length === 1 && preferred) {
-              if (pickingSplitPartner) {
-                enterSplitWithPartner(preferred);
+
+    if (view === "tools" && selectedSessionId) {
+      const shortId = shortSessionId(selectedSessionId);
+      const inventory = peek(selectedSessionId)?.toolInventory;
+      const lines = inventory ? formatToolInventoryLines(inventory) : [];
+      const uncoveredHint =
+        agentOf(readTaskState(selectedSessionId)) === "codex"
+          ? CODEX_UNSUPPORTED_NOTICE
+          : !readTaskState(selectedSessionId)?.claudeSessionDir
+            ? "這個 session 還沒有 transcript 路徑，尚未納入分析"
+            : undefined;
+      return withNotice(
+        topNotice,
+        <ToolsPanel lines={lines} shortId={shortId} emptyHint={uncoveredHint} />,
+      );
+    }
+
+    if (view === "history" && selectedSessionId) {
+      return withNotice(
+        topNotice,
+        <HistoryPanel entries={timeline} shortId={shortSessionId(selectedSessionId)} />,
+      );
+    }
+
+    if (view === "usage") {
+      const rows = buildUsageOverview(
+        hintsFor(sessionIds).flatMap((hint) =>
+          hint.cwd
+            ? [
+                {
+                  sessionId: hint.sessionId,
+                  label: `${basename(hint.cwd)} · ${shortSessionId(hint.sessionId)}`,
+                  agent: hint.agent ?? ("claude" as const),
+                  workTokens: peek(hint.sessionId)?.workTokensTotal,
+                },
+              ]
+            : [],
+        ),
+      );
+      const summary = summarizeUsageOverview(rows);
+      return withNotice(
+        topNotice,
+        <UsagePanel
+          header={`用量總覽 · ${summary.sessions} 個 session（${summary.measured} 個有用量資料）· 合計 ${formatTokenCount(summary.totalTokens)} token`}
+          lines={rows.map(formatUsageOverviewLine)}
+          emptyHint="還沒有可列出的 session"
+        />,
+      );
+    }
+
+    if (!selectedSessionId) {
+      const allHints = hintsFor(sessionIds);
+      const withTabs = (child: ReactNode) => (
+        <Box flexDirection="column">
+          <AgentTabs tabs={summarizeTabs(allHints)} active={activeAgent} />
+          {child}
+        </Box>
+      );
+      if (activeAgent === "cursor") {
+        return withTabs(
+          <Box flexDirection="column">
+            <Text dimColor>Cursor 尚未支援。</Text>
+            <Text dimColor>接入需先取樣 Cursor 的 hook payload，之後會另開設計。</Text>
+          </Box>,
+        );
+      }
+      const emptyLines =
+        activeAgent === "codex"
+          ? ["請執行 `task-tracker init --agent codex`，並在 Codex 啟動時的 hooks review 核可 hook。"]
+          : (emptyHint ?? ["請確認已執行「task-tracker init」，且 Claude Code 正在執行中。"]);
+      if (sessionIds.length === 0) {
+        return withTabs(withNotice(
+          notice,
+          <Box flexDirection="column">
+            <Text dimColor>還沒有偵測到任何 session 資料。</Text>
+            {emptyLines.map((line) => (
+              <Text key={line} dimColor>
+                {line}
+              </Text>
+            ))}
+          </Box>,
+        ));
+      }
+      const hints = filterSessionsByAgent(allHints, activeAgent);
+      void stateRevision;
+      const groups = groupSessionsByProject(hints, cwd);
+      if (groups.length === 0) {
+        return withTabs(withNotice(
+          notice,
+          <Box flexDirection="column">
+            <Text dimColor>還沒有偵測到任何 session 資料。</Text>
+            {emptyLines.map((line) => (
+              <Text key={line} dimColor>
+                {line}
+              </Text>
+            ))}
+          </Box>,
+        ));
+      }
+      if (!projectKey) {
+        return withTabs(withNotice(
+          notice,
+          <SessionPicker
+            heading={pickingSplitPartner ? "選擇並排 session 的專案" : "選擇專案"}
+            hint={pickingSplitPartner ? "按 b 取消分割" : "按 q 離開"}
+            items={projectChoices(hints, cwd)}
+            onSelect={(key) => {
+              const group = groups.find((item) => item.key === key);
+              const preferred = group ? pickPreferredSession(group.sessions, cwd) : undefined;
+              if (group && group.sessions.length === 1 && preferred) {
+                if (pickingSplitPartner) {
+                  enterSplitWithPartner(preferred);
+                  return;
+                }
+                setSelectedSessionId(preferred);
                 return;
               }
-              setSelectedSessionId(preferred);
+              setProjectKey(key);
+            }}
+          />,
+        ));
+      }
+      const group = groups.find((item) => item.key === projectKey);
+      return withTabs(withNotice(
+        topNotice,
+        <SessionPicker
+          heading={
+            pickingSplitPartner
+              ? `選擇並排 session · ${group?.label ?? "專案"}`
+              : `選擇 session · ${group?.label ?? "專案"}`
+          }
+          hint={pickingSplitPartner ? "按 b 取消分割" : "按 b 回專案列表"}
+          items={sessionChoicesInProject(group?.sessions ?? [], projectKey, cwd)}
+          onSelect={(id) => {
+            if (pickingSplitPartner) {
+              enterSplitWithPartner(id);
               return;
             }
-            setProjectKey(key);
+            setSelectedSessionId(id);
           }}
         />,
       ));
     }
-    const group = groups.find((item) => item.key === projectKey);
-    return withTabs(withNotice(
-      topNotice,
-      <SessionPicker
-        heading={
-          pickingSplitPartner
-            ? `選擇並排 session · ${group?.label ?? "專案"}`
-            : `選擇 session · ${group?.label ?? "專案"}`
-        }
-        hint={pickingSplitPartner ? "按 b 取消分割" : "按 b 回專案列表"}
-        items={sessionChoicesInProject(group?.sessions ?? [], projectKey, cwd)}
-        onSelect={(id) => {
-          if (pickingSplitPartner) {
-            enterSplitWithPartner(id);
-            return;
-          }
-          setSelectedSessionId(id);
-        }}
-      />,
-    ));
-  }
 
-  if (!taskState) {
-    return withNotice(topNotice, <Text dimColor>讀取 session {selectedSessionId} 資料中…</Text>);
-  }
+    if (!taskState) {
+      return withNotice(topNotice, <Text dimColor>讀取 session {selectedSessionId} 資料中…</Text>);
+    }
 
-  void usageRevision; // transcript 推進時 bump，確保 peek 後的 context 會重繪
-  void clockRevision; // running 時每秒 bump，重算卡住標籤
-  void stateRevision;
-  const usage = peek(taskState.sessionId);
-  const lastTurn = lastTurnUsageFromStats(usage);
-  const contextSnapshot = {
-    occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens, usage?.lastContextWindow),
-    breakdownLine: formatLastTurnBreakdownLine(lastTurn, agentOf(taskState)),
-    gauge: formatContextGaugeBar(usage?.lastOccupiedTokens, usage?.lastContextWindow),
-  };
-  const toolInventorySummary = usage?.toolInventory
-    ? formatToolInventorySummary(usage.toolInventory)
-    : undefined;
-  const stuckLabel =
-    taskState.activity && isActivityStuck({ activity: taskState.activity })
-      ? formatStuckLabel(taskState.activity.at)
+    void usageRevision; // transcript 推進時 bump，確保 peek 後的 context 會重繪
+    void clockRevision; // running 時每秒 bump，重算卡住標籤
+    void stateRevision;
+    const usage = peek(taskState.sessionId);
+    const lastTurn = lastTurnUsageFromStats(usage);
+    const contextSnapshot = {
+      occupiedLine: formatOccupiedTokensLine(usage?.lastOccupiedTokens, usage?.lastContextWindow),
+      breakdownLine: formatLastTurnBreakdownLine(lastTurn, agentOf(taskState)),
+      gauge: formatContextGaugeBar(usage?.lastOccupiedTokens, usage?.lastContextWindow),
+    };
+    const toolInventorySummary = usage?.toolInventory
+      ? formatToolInventorySummary(usage.toolInventory)
       : undefined;
-  const endedSummary = isSessionEnded(taskState)
-    ? formatEndedSummary(taskState)
-    : undefined;
+    const stuckLabel =
+      taskState.activity && isActivityStuck({ activity: taskState.activity })
+        ? formatStuckLabel(taskState.activity.at)
+        : undefined;
+    const endedSummary = isSessionEnded(taskState)
+      ? formatEndedSummary(taskState)
+      : undefined;
 
-  return withNotice(
-    topNotice,
-    <TaskList
-      state={taskState}
-      current={sameCwd(taskState.cwd, cwd)}
-      contextSnapshot={contextSnapshot}
-      toolInventorySummary={toolInventorySummary}
-      stuckLabel={stuckLabel}
-      endedSummary={endedSummary}
-      pinned={pinned}
-      subagents={peekSubagents(taskState.sessionId)}
-    />,
+    return withNotice(
+      topNotice,
+      <TaskList
+        state={taskState}
+        current={sameCwd(taskState.cwd, cwd)}
+        contextSnapshot={contextSnapshot}
+        toolInventorySummary={toolInventorySummary}
+        stuckLabel={stuckLabel}
+        endedSummary={endedSummary}
+        pinned={pinned}
+        subagents={peekSubagents(taskState.sessionId)}
+      />,
+    );
+  };
+
+  return (
+    <Box key={pageKey} flexDirection="column">
+      {renderPage()}
+    </Box>
   );
 }
