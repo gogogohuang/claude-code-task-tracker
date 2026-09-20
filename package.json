@@ -1,6 +1,6 @@
 {
   "name": "claude-code-task-tracker",
-  "version": "0.25.0",
+  "version": "0.25.1",
   "description": "終端機 TUI，即時追蹤 Claude Code 自己開出來的 task（TodoWrite / Tasks API）",
   "type": "module",
   "license": "MIT",
