@@ -141,7 +141,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、按 `u` 開啟用量總覽（所有 session 依累計用量排序）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、按 `u` 開啟用量總覽〔beta〕（所有 session 依累計用量排序）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對該 session 回報的視窗（Claude 1M、Codex 258,400）的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
@@ -168,7 +168,9 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 
 用量建議（watch 按 `a`）會列出過肥 tool 回傳、同路徑反覆 Read 等可執行的減肥項；若開場底子偏重，同一則建議下方會嵌該 **session 專案** 的 launch／onDemand 熱力 Top-5（找不到大檔時會提示改跑 `inspect`）。
 
-### 用量總覽（`u`）
+### 用量總覽（`u`）〔beta〕
+
+> **Beta**：用量占比功能尚未完成（例如 Claude 子 agent 用量還沒計入），數字僅供參考，行為與顯示之後可能調整。
 
 `watch` 按 `u` 會列出所有已知 session（Claude 與 Codex 混合，標示來源），依累計用量由大到小排序，
 每列顯示累計 token、占全部的百分比與一條比例條：
@@ -266,7 +268,7 @@ src/
 ├── codex-config.ts           # 讀 ~/.codex/config.toml 判斷 hooks 是否被關掉
 ├── install-hooks.ts          # 依 agent（claude / codex）合併 hook 設定
 ├── describe-activity.ts      # 把工具呼叫收成活動句（含 Codex 的 Bash / apply_patch）
-├── usage-overview.ts         # 用量總覽的純函式：排序、占比、token 格式化、比例條（按 u）
+├── usage-overview.ts         # 用量總覽〔beta〕的純函式：排序、占比、token 格式化、比例條（按 u）
 ├── schema.ts                 # zod schema：TodoWrite 格式、hook payload、狀態檔
 ├── store.ts                  # 狀態檔案讀寫（write-then-rename 避免讀到半份資料）
 ├── commands/
@@ -282,7 +284,7 @@ src/
     ├── SessionPicker.tsx     # 多 session 時的選單
     ├── TaskList.tsx          # task 清單、活動句與進度條
     ├── AdvicePanel.tsx       # 用量建議面板
-    ├── UsagePanel.tsx        # 用量總覽面板（按 u）
+    ├── UsagePanel.tsx        # 用量總覽〔beta〕面板（按 u）
     ├── AgentTabs.tsx         # 來源分頁列
     ├── HistoryPanel.tsx      # 活動 timeline（按 h）
     ├── InspectApp.tsx        # inspect 的互動
@@ -304,6 +306,6 @@ src/
 
 - 歷史紀錄（每個 session 結束後保留一份完成率統計）
 - Codex 的任務清單（Codex 0.155.1 沒有 `update_plan`，來源可能是它的 `goals` 功能，尚未調查）
-- 用量總覽把 Claude 子 agent（sidechain）的用量也算進去（目前不計入）
+- 用量總覽〔beta〕把 Claude 子 agent（sidechain）的用量也算進去（目前不計入）
 - Cursor 接入（目前只有預留分頁；要先取樣 Cursor 的 hook payload）
 - 用真實 Codex session 驗證用量建議與 context 量表（hook 偵測已在 Codex 0.155.1 驗證過；需先在 Codex hooks review 核可 hook）
