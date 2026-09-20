@@ -848,7 +848,7 @@ export function App({
       return withNotice(
         topNotice,
         <UsagePanel
-          header={`用量總覽 · ${summary.sessions} 個 session（${summary.measured} 個有用量資料）· 合計 ${formatTokenCount(summary.totalTokens)} token`}
+          header={`用量總覽 [beta] · ${summary.sessions} 個 session（${summary.measured} 個有用量資料）· 合計 ${formatTokenCount(summary.totalTokens)} token`}
           lines={rows.map(formatUsageOverviewLine)}
           emptyHint="還沒有可列出的 session"
         />,
