@@ -66,6 +66,16 @@ test("toolCallLogToTimeline：轉成 done phase 的 timeline，path 當 summary�
   );
 });
 
+test("toolCallLogToTimeline：summary 優先，沒有才退回 path", () => {
+  assert.deepEqual(
+    toolCallLogToTimeline([
+      { at: "t1", toolName: "Bash", summary: "已執行 npm test", path: "ignored" },
+      { at: "t2", toolName: "Read", path: "a.ts" },
+    ]),
+    [done("Bash", "t1", "已執行 npm test"), done("Read", "t2", "a.ts")],
+  );
+});
+
 test("toolCallLogToTimeline：帶過 context 占用；沒有就不出現這兩個鍵", () => {
   assert.deepEqual(
     toolCallLogToTimeline([

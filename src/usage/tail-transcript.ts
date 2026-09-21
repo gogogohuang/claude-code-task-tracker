@@ -1,5 +1,7 @@
 import { ParsedEvent, TailState } from "./types.js";
 import { detailToolLabel } from "./tool-inventory.js";
+import { describeActivity } from "../describe-activity.js";
+import { resolveLocale } from "../locale.js";
 
 export function createTailState(): TailState {
   return { offset: 0, toolUseNameById: new Map(), danglingLine: "" };
@@ -163,6 +165,12 @@ export function parseNewContent(
               toolResultChars: undefined,
               toolUseName: detailToolLabel(block.name, block.input),
               toolUsePath: path,
+              toolUseSummary: describeActivity({
+                toolName: block.name,
+                toolInput: block.input,
+                phase: "done",
+                locale: resolveLocale(process.env),
+              }),
               agentDispatch,
             });
           }

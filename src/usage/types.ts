@@ -39,6 +39,8 @@ export interface ParsedEvent {
   toolUseName?: string;
   /** tool_use 的檔案路徑（Read 等） */
   toolUsePath?: string;
+  /** 這次呼叫做了什麼的一句話（與 hook 活動句同一套，例如「已執行 npm test」） */
+  toolUseSummary?: string;
   /** 只在 tool_use 是 Agent 時才有值 */
   agentDispatch?: AgentDispatchInfo;
   title?: string;

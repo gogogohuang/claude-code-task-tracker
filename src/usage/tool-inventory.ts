@@ -12,6 +12,8 @@ export interface ToolCallLogEntry {
   at: string | undefined;
   toolName: string;
   path?: string;
+  /** 這次呼叫做了什麼的一句話；沒有時退回只顯示 path。 */
+  summary?: string;
   /** 發出這次呼叫時 context 窗口占用（input + cache read + cache create），來自該輪 assistant usage。 */
   occupiedTokens?: number;
   contextWindow?: number;

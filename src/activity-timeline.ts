@@ -23,7 +23,7 @@ export function toolCallLogToTimeline(log: ToolCallLogEntry[]): TimelineEntry[] 
       at: entry.at,
       toolName: entry.toolName,
       phase: "done",
-      summary: entry.path,
+      summary: entry.summary ?? entry.path,
       ...(entry.occupiedTokens !== undefined
         ? { occupiedTokens: entry.occupiedTokens, contextWindow: entry.contextWindow }
         : {}),

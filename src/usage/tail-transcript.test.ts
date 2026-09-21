@@ -132,6 +132,29 @@ test("parseNewContent 把 Read 的 file_path 帶到 toolResultChars.path 與 too
   assert.equal(result?.toolResultChars?.toolName, "Read");
 });
 
+test("parseNewContent 的 tool_use 事件帶上這次呼叫做了什麼的一句話", () => {
+  const prev = process.env.TASK_TRACKER_LOCALE;
+  process.env.TASK_TRACKER_LOCALE = "zh";
+  try {
+    const chunk =
+      assistantLine({
+        id: "m1",
+        cacheCreation: 100,
+        content: [
+          { type: "tool_use", id: "toolu_1", name: "Read", input: { file_path: "/proj/src/a.ts" } },
+          { type: "tool_use", id: "toolu_2", name: "Bash", input: { command: "npm test", description: "跑測試" } },
+        ],
+      }) + "\n";
+    const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
+    const summaries = events.filter((e) => e.toolUseName).map((e) => e.toolUseSummary);
+    assert.match(summaries[0] ?? "", /^已讀取 .*a\.ts$/);
+    assert.match(summaries[1] ?? "", /^已執行 /);
+  } finally {
+    if (prev === undefined) delete process.env.TASK_TRACKER_LOCALE;
+    else process.env.TASK_TRACKER_LOCALE = prev;
+  }
+});
+
 test("parseNewContent 對 tool_use block 另外發出 toolUseName 事件", () => {
   const state = createTailState();
   const chunk =

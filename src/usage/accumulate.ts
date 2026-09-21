@@ -32,6 +32,7 @@ export function accumulate(
         at: event.timestamp,
         toolName: event.toolUseName,
         path: event.toolUsePath,
+        summary: event.toolUseSummary,
         occupiedTokens: stats.lastOccupiedTokens,
         contextWindow: stats.lastContextWindow,
       });
