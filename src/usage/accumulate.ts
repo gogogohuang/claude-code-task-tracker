@@ -1,5 +1,5 @@
 import { AccumulateStep, ParsedEvent, SessionUsageStats } from "./types.js";
-import { emptyToolInventory, recordToolUse } from "./tool-inventory.js";
+import { appendToolCallLog, emptyToolInventory, recordToolUse } from "./tool-inventory.js";
 
 const RECENT_MESSAGE_ID_LIMIT = 30;
 
@@ -28,7 +28,14 @@ export function accumulate(
         const path = event.toolUsePath;
         readPathCounts = { ...readPathCounts, [path]: (readPathCounts[path] ?? 0) + 1 };
       }
-      stats = { ...stats, toolInventory, readPathCounts };
+      const toolCallLog = appendToolCallLog(stats.toolCallLog ?? [], {
+        at: event.timestamp,
+        toolName: event.toolUseName,
+        path: event.toolUsePath,
+        occupiedTokens: stats.lastOccupiedTokens,
+        contextWindow: stats.lastContextWindow,
+      });
+      stats = { ...stats, toolInventory, readPathCounts, toolCallLog };
       steps.push({ event, statsBefore, statsAfter: stats });
       continue;
     }

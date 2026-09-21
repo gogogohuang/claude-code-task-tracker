@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { TIMELINE_MAX, pushActivityToTimeline, type TimelineEntry } from "./activity-timeline.js";
+import { TIMELINE_MAX, pushActivityToTimeline, toolCallLogToTimeline, type TimelineEntry } from "./activity-timeline.js";
 
 const running = (toolName: string, at: string, summary?: string): TimelineEntry => ({
   toolName,
@@ -53,6 +53,27 @@ test("pushActivityToTimeline：不同 tool 但同 at+phase 不會被誤判成重
     running("Read", "t1"),
     running("Bash", "t1"),
   ]);
+});
+
+test("toolCallLogToTimeline：轉成 done phase 的 timeline，path 當 summary，跳過沒有 at 的項目", () => {
+  assert.deepEqual(
+    toolCallLogToTimeline([
+      { at: "t1", toolName: "Read", path: "a.ts" },
+      { at: undefined, toolName: "Bash" },
+      { at: "t2", toolName: "Bash" },
+    ]),
+    [done("Read", "t1", "a.ts"), done("Bash", "t2")],
+  );
+});
+
+test("toolCallLogToTimeline：帶過 context 占用；沒有就不出現這兩個鍵", () => {
+  assert.deepEqual(
+    toolCallLogToTimeline([
+      { at: "t1", toolName: "Read", occupiedTokens: 1210, contextWindow: 258400 },
+      { at: "t2", toolName: "Bash" },
+    ]),
+    [{ ...done("Read", "t1"), occupiedTokens: 1210, contextWindow: 258400 }, done("Bash", "t2")],
+  );
 });
 
 test("pushActivityToTimeline：超過上限丟最舊", () => {

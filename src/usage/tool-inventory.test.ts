@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  appendToolCallLog,
   detailToolLabel,
   emptyToolInventory,
   formatToolInventoryLines,
   formatToolInventorySummary,
   parseMcpToolName,
   recordToolUse,
+  TOOL_CALL_LOG_LIMIT,
+  type ToolCallLogEntry,
 } from "./tool-inventory.js";
 
 test("parseMcpToolName 拆出 server 與 tool", () => {
@@ -90,6 +93,26 @@ test("detailToolLabel Skill 用 skill／skillName，Agent 用 subagent_type", ()
   );
   assert.equal(detailToolLabel("Skill", { skillName: "commit" }), "Skill · commit");
   assert.equal(detailToolLabel("Agent", { subagent_type: "Explore" }), "Agent · Explore");
+});
+
+test("appendToolCallLog 依序 append", () => {
+  let log: ToolCallLogEntry[] = [];
+  log = appendToolCallLog(log, { at: "t1", toolName: "Read", path: "a.ts" });
+  log = appendToolCallLog(log, { at: "t2", toolName: "Bash" });
+  assert.deepEqual(log, [
+    { at: "t1", toolName: "Read", path: "a.ts" },
+    { at: "t2", toolName: "Bash" },
+  ]);
+});
+
+test("appendToolCallLog 超過上限丟最舊、留最近呼叫", () => {
+  let log: ToolCallLogEntry[] = [];
+  for (let i = 0; i < TOOL_CALL_LOG_LIMIT + 5; i++) {
+    log = appendToolCallLog(log, { at: `t${i}`, toolName: `T${i}` });
+  }
+  assert.equal(log.length, TOOL_CALL_LOG_LIMIT);
+  assert.equal(log[0]?.toolName, "T5");
+  assert.equal(log.at(-1)?.toolName, `T${TOOL_CALL_LOG_LIMIT + 4}`);
 });
 
 test("detailToolLabel 抽不到細節或非 Skill／Agent 時回工具本名", () => {

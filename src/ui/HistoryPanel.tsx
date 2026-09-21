@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Box, Text, useInput, useStdin } from "ink";
-import { activityLineLabel } from "../context-snapshot.js";
+import { activityLineLabel, contextOccupancyPct } from "../context-snapshot.js";
 import type { TimelineEntry } from "../activity-timeline.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 
@@ -48,7 +48,7 @@ export function HistoryPanel({
   if (entries.length === 0) {
     return (
       <Box flexDirection="column">
-        <Text dimColor>這個 session 還沒有活動紀錄（僅記憶體，重啟或換 session 會清空）。</Text>
+        <Text dimColor>這個 session 還沒有工具呼叫紀錄。</Text>
         <Box marginTop={1}>
           <Text dimColor>按 b 回上一頁</Text>
         </Box>
@@ -60,7 +60,7 @@ export function HistoryPanel({
     <Box flexDirection="column">
       <Box marginBottom={1}>
         <Text bold>活動紀錄 · {shortId}</Text>
-        <Text dimColor> （最近 {entries.length} 筆）</Text>
+        <Text dimColor> （共 {entries.length} 筆，依呼叫順序）</Text>
       </Box>
       {start > 0 ? <Text dimColor>↑ 還有 {start} 行</Text> : null}
       {visible.map((entry, index) => {
@@ -69,6 +69,11 @@ export function HistoryPanel({
           <Text key={`${entry.at}-${entry.phase}-${entry.toolName}-${start + index}`} wrap="truncate-end">
             <Text dimColor>{time} </Text>
             {activityLineLabel(entry)}
+            {entry.occupiedTokens !== undefined ? (
+              <Text dimColor>
+                {" "}· ctx {entry.occupiedTokens.toLocaleString("en-US")}（{contextOccupancyPct(entry.occupiedTokens, entry.contextWindow)}%）
+              </Text>
+            ) : null}
           </Text>
         );
       })}

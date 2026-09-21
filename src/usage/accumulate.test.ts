@@ -186,6 +186,36 @@ test("accumulate 忽略 sidechain 的 toolUseName", () => {
   assert.deepEqual(next.toolInventory?.tools, { Read: 1 });
 });
 
+test("accumulate 依呼叫順序寫入 toolCallLog，sidechain 不列入", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next } = accumulate(stats0, [
+    toolUseEvent("Read"),
+    toolUseEvent("Bash", true),
+    toolUseEvent("Bash"),
+  ]);
+  assert.deepEqual(next.toolCallLog?.map((e) => e.toolName), ["Read", "Bash"]);
+});
+
+test("accumulate 的 toolCallLog 帶上發出呼叫當下的 context 占用（同一輪重複 usage 不影響）", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next } = accumulate(stats0, [
+    usageEvent({ messageId: "m1", usage: { input: 10, cacheRead: 1000, cacheCreation: 200, output: 5 } }),
+    toolUseEvent("Read"),
+    usageEvent({ messageId: "m1", usage: { input: 10, cacheRead: 1000, cacheCreation: 200, output: 5 } }),
+    toolUseEvent("Bash"),
+    usageEvent({ messageId: "m2", usage: { input: 20, cacheRead: 1500, cacheCreation: 300, output: 5 } }),
+    toolUseEvent("Edit"),
+  ]);
+  assert.deepEqual(
+    next.toolCallLog?.map((e) => [e.toolName, e.occupiedTokens]),
+    [
+      ["Read", 1210],
+      ["Bash", 1210],
+      ["Edit", 1820],
+    ],
+  );
+});
+
 test("accumulate：usage 帶 contextWindow 時記成 lastContextWindow；沒帶就不出現這個鍵", () => {
   const stats0 = createSessionUsageStats("s1");
   const withWindow = accumulate(stats0, [

@@ -7,7 +7,7 @@
 目前在做什麼，例如「正在讀取 src/schema.ts」。也可以接 Codex CLI 的 session（顯示活動句與
 用量／cache 建議，見〈Codex 支援〉），並在 `watch` 依來源分頁檢視（見〈分頁檢視〉）。
 
-目前版本：**v0.26.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
+目前版本：**v0.27.0**。套件頁：[npm](https://www.npmjs.com/package/claude-code-task-tracker)。
 ## 運作原理
 
 1. `task-tracker init` 會在 `~/.claude/settings.json` 註冊 `SessionStart`、
@@ -141,7 +141,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄、按 `u` 開啟用量總覽〔beta〕（所有 session 依累計用量排序）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄（依呼叫順序回放整個 session，不是只從打開 watch 那刻起算；切走再切回或重開 task-tracker 都不會遺失；每筆後面附發出該次呼叫當下的 context 占用，例如 `ctx 123,456（12%）`）、按 `u` 開啟用量總覽〔beta〕（所有 session 依累計用量排序）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對該 session 回報的視窗（Claude 1M、Codex 258,400）的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在

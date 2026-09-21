@@ -69,7 +69,7 @@ import {
   waitingEdgeKey,
   waitingNoticeForActivity,
 } from "../session-presence.js";
-import { pushActivityToTimeline, type TimelineEntry } from "../activity-timeline.js";
+import { pushActivityToTimeline, toolCallLogToTimeline, type TimelineEntry } from "../activity-timeline.js";
 import { formatStuckLabel, isActivityStuck } from "../activity-stuck.js";
 import { formatEndedSummary, isSessionEnded } from "../session-ended.js";
 import {
@@ -684,8 +684,17 @@ export function App({
   }, [sessionIds, selectedSessionId, adviceList, stateRevision, taskState?.updatedAt, clockRevision]);
 
   useEffect(() => {
-    setTimeline([]);
+    // 回填整個 session 依呼叫順序的工具紀錄（來自 transcript），再讓下面的 effect 接上即時 push——
+    // 切走這個 session 再切回來，或整個 task-tracker 重開，都能還原完整順序，不會只剩重新累積的空清單。
+    setTimeline(selectedSessionId ? toolCallLogToTimeline(peek(selectedSessionId)?.toolCallLog ?? []) : []);
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    // transcript 每推進一次就重建，讓每筆都帶到發出呼叫當下的 context 占用；沒有 transcript 的 session 維持即時 push。
+    if (!selectedSessionId) return;
+    const log = peek(selectedSessionId)?.toolCallLog ?? [];
+    if (log.length > 0) setTimeline(toolCallLogToTimeline(log));
+  }, [selectedSessionId, usageRevision]);
 
   useEffect(() => {
     const activity = taskState?.activity;
