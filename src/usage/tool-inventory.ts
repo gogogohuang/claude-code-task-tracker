@@ -17,6 +17,8 @@ export interface ToolCallLogEntry {
   toolUseId?: string;
   /** 這次呼叫回傳給模型的內容量（tool_result 字元數粗估成 token），結果還沒回來時為 undefined。 */
   resultTokens?: number;
+  /** 工具回傳 is_error（執行失敗）。 */
+  isError?: boolean;
 }
 
 /** 上限：避免超長 session 讓這份 log 無限成長，超過時丟最舊的、留最近呼叫。 */

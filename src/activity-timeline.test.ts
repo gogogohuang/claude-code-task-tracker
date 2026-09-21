@@ -95,3 +95,9 @@ test("pushActivityToTimeline：超過上限丟最舊", () => {
   assert.equal(entries[0]?.toolName, "T5");
   assert.equal(entries.at(-1)?.toolName, `T${TIMELINE_MAX + 4}`);
 });
+
+test("toolCallLogToTimeline：帶出失敗標記", () => {
+  assert.deepEqual(toolCallLogToTimeline([{ at: "t1", toolName: "Bash", isError: true }]), [
+    { ...done("Bash", "t1"), isError: true },
+  ]);
+});

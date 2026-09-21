@@ -198,6 +198,7 @@ export function parseNewContent(
               chars: toolResultTextLength(block.content),
               path: ref?.path,
               toolUseId,
+              ...(block.is_error === true ? { isError: true } : {}),
             },
           });
         }

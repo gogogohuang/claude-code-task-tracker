@@ -68,7 +68,13 @@ export function HistoryPanel({
         return (
           <Text key={`${entry.at}-${entry.phase}-${entry.toolName}-${start + index}`} wrap="truncate-end">
             <Text dimColor>{time} </Text>
-            {activityLineLabel(entry)}
+            {entry.isError ? (
+              <Text color="red">
+                ✗ {activityLineLabel(entry)} · 失敗
+              </Text>
+            ) : (
+              activityLineLabel(entry)
+            )}
             {entry.resultTokens !== undefined ? (
               <Text dimColor> · ctx +{entry.resultTokens.toLocaleString("en-US")}</Text>
             ) : null}

@@ -49,7 +49,7 @@ export function accumulate(
         while (idx >= 0 && log[idx].toolUseId !== resultId) idx--;
         if (idx >= 0) {
           const resultTokens = estimateTokensFromChars(event.toolResultChars.chars);
-          stats = { ...stats, toolCallLog: log.map((entry, i) => (i === idx ? { ...entry, resultTokens } : entry)) };
+          stats = { ...stats, toolCallLog: log.map((entry, i) => (i === idx ? { ...entry, resultTokens, ...(event.toolResultChars?.isError ? { isError: true } : {}) } : entry)) };
         }
       }
       steps.push({ event, statsBefore: stats, statsAfter: stats });
