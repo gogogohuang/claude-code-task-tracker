@@ -15,6 +15,8 @@ export interface ToolResultChars {
   chars: number;
   path?: string;
   toolUseId?: string;
+  /** transcript 的 tool_result.is_error；工具執行失敗時為 true。 */
+  isError?: boolean;
 }
 
 export interface ToolUseRef {

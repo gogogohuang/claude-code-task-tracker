@@ -334,3 +334,17 @@ test("parseNewContent 缺少 input_tokens 時 usage.input 為 0", () => {
   const { events } = parseNewContent(chunk, createTailState(), Buffer.byteLength(chunk, "utf-8"));
   assert.equal(events[0].usage?.input, 0);
 });
+
+test("parseNewContent 把 tool_result.is_error 帶到 toolResultChars.isError", () => {
+  const state = createTailState();
+  const failed = JSON.stringify({
+    isSidechain: false,
+    timestamp: "2026-09-15T00:00:00.000Z",
+    message: { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu_1", content: "boom", is_error: true }] },
+  });
+  const chunk = failed + "\n" + toolResultLine({ toolUseId: "toolu_2", text: "ok" }) + "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  const results = events.filter((e) => e.toolResultChars);
+  assert.equal(results[0].toolResultChars?.isError, true);
+  assert.equal(results[1].toolResultChars?.isError, undefined);
+});

@@ -8,6 +8,7 @@ export interface TimelineEntry {
   phase: "running" | "done";
   summary?: string;
   resultTokens?: number;
+  isError?: boolean;
 }
 
 /**
@@ -24,6 +25,7 @@ export function toolCallLogToTimeline(log: ToolCallLogEntry[]): TimelineEntry[] 
       phase: "done",
       summary: entry.summary ?? entry.path,
       ...(entry.resultTokens !== undefined ? { resultTokens: entry.resultTokens } : {}),
+      ...(entry.isError ? { isError: true } : {}),
     });
   }
   return entries;

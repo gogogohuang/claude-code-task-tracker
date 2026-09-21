@@ -276,3 +276,20 @@ test("accumulate：Codex 對應（input 0、cacheCreation = 沒命中 cache 的�
   ]);
   assert.equal(next.workTokensTotal, 1007);
 });
+
+test("accumulate 把失敗的 tool_result 標記到對應的 toolCallLog 項目", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const { next } = accumulate(stats0, [
+    { ...toolUseEvent("Bash"), toolUseId: "u1" },
+    { ...toolUseEvent("Read"), toolUseId: "u2" },
+    { ...toolResultEventFixture("Bash", 40), toolResultChars: { toolName: "Bash", chars: 40, toolUseId: "u1", isError: true } },
+    { ...toolResultEventFixture("Read", 40), toolResultChars: { toolName: "Read", chars: 40, toolUseId: "u2" } },
+  ]);
+  assert.deepEqual(
+    next.toolCallLog?.map((e) => [e.toolName, e.isError]),
+    [
+      ["Bash", true],
+      ["Read", undefined],
+    ],
+  );
+});
