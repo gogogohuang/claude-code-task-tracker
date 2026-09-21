@@ -7,6 +7,27 @@ export function emptyToolInventory(): ToolInventory {
   return { tools: {}, mcpTools: {} };
 }
 
+/** 一次工具呼叫的時序紀錄，供 history 面板依呼叫順序回放整個 session。 */
+export interface ToolCallLogEntry {
+  at: string | undefined;
+  toolName: string;
+  path?: string;
+  /** 這次呼叫做了什麼的一句話；沒有時退回只顯示 path。 */
+  summary?: string;
+  toolUseId?: string;
+  /** 這次呼叫回傳給模型的內容量（tool_result 字元數粗估成 token），結果還沒回來時為 undefined。 */
+  resultTokens?: number;
+}
+
+/** 上限：避免超長 session 讓這份 log 無限成長，超過時丟最舊的、留最近呼叫。 */
+export const TOOL_CALL_LOG_LIMIT = 1000;
+
+export function appendToolCallLog(log: ToolCallLogEntry[], entry: ToolCallLogEntry): ToolCallLogEntry[] {
+  const next = [...log, entry];
+  if (next.length <= TOOL_CALL_LOG_LIMIT) return next;
+  return next.slice(next.length - TOOL_CALL_LOG_LIMIT);
+}
+
 export function parseMcpToolName(name: string): { server: string; tool: string } | undefined {
   if (!name.startsWith("mcp__")) return undefined;
   const rest = name.slice("mcp__".length);

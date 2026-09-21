@@ -1,4 +1,4 @@
-import type { ToolInventory } from "./tool-inventory.js";
+import type { ToolCallLogEntry, ToolInventory } from "./tool-inventory.js";
 import type { Agent } from "../agent.js";
 
 export interface ParsedUsage {
@@ -39,6 +39,9 @@ export interface ParsedEvent {
   toolUseName?: string;
   /** tool_use 的檔案路徑（Read 等） */
   toolUsePath?: string;
+  toolUseId?: string;
+  /** 這次呼叫做了什麼的一句話（與 hook 活動句同一套，例如「已執行 npm test」） */
+  toolUseSummary?: string;
   /** 只在 tool_use 是 Agent 時才有值 */
   agentDispatch?: AgentDispatchInfo;
   title?: string;
@@ -68,6 +71,8 @@ export interface SessionUsageStats {
   toolInventory?: ToolInventory;
   /** 主線 Read 各 path 次數（供 repeated-read） */
   readPathCounts?: Record<string, number>;
+  /** 主線工具呼叫的時序紀錄（依呼叫順序），供 history 面板回放整個 session。 */
+  toolCallLog?: ToolCallLogEntry[];
   /** 只有 Codex 才會設定；detect 依它切換建議文案。缺省視為 claude。 */
   agent?: Agent;
   /** 最近一次呼叫的模型 context 視窗（Codex 由 rollout 帶入；缺省時量表用 Claude 的 1,000,000）。 */
