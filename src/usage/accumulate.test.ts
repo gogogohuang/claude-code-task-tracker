@@ -196,22 +196,21 @@ test("accumulate 依呼叫順序寫入 toolCallLog，sidechain 不列入", () =>
   assert.deepEqual(next.toolCallLog?.map((e) => e.toolName), ["Read", "Bash"]);
 });
 
-test("accumulate 的 toolCallLog 帶上發出呼叫當下的 context 占用（同一輪重複 usage 不影響）", () => {
+test("accumulate 把每筆 tool_result 的大小對回各自的 toolCallLog（單筆，不是累計）", () => {
   const stats0 = createSessionUsageStats("s1");
   const { next } = accumulate(stats0, [
-    usageEvent({ messageId: "m1", usage: { input: 10, cacheRead: 1000, cacheCreation: 200, output: 5 } }),
-    toolUseEvent("Read"),
-    usageEvent({ messageId: "m1", usage: { input: 10, cacheRead: 1000, cacheCreation: 200, output: 5 } }),
-    toolUseEvent("Bash"),
-    usageEvent({ messageId: "m2", usage: { input: 20, cacheRead: 1500, cacheCreation: 300, output: 5 } }),
-    toolUseEvent("Edit"),
+    { ...toolUseEvent("Read"), toolUseId: "u1" },
+    { ...toolUseEvent("Bash"), toolUseId: "u2" },
+    { ...toolResultEventFixture("Bash", 400), toolResultChars: { toolName: "Bash", chars: 400, toolUseId: "u2" } },
+    { ...toolResultEventFixture("Read", 4000), toolResultChars: { toolName: "Read", chars: 4000, toolUseId: "u1" } },
+    { ...toolUseEvent("Edit"), toolUseId: "u3" },
   ]);
   assert.deepEqual(
-    next.toolCallLog?.map((e) => [e.toolName, e.occupiedTokens]),
+    next.toolCallLog?.map((e) => [e.toolName, e.resultTokens]),
     [
-      ["Read", 1210],
-      ["Bash", 1210],
-      ["Edit", 1820],
+      ["Read", 1000],
+      ["Bash", 100],
+      ["Edit", undefined],
     ],
   );
 });

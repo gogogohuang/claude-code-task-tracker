@@ -165,6 +165,7 @@ export function parseNewContent(
               toolResultChars: undefined,
               toolUseName: detailToolLabel(block.name, block.input),
               toolUsePath: path,
+              toolUseId: typeof block.id === "string" ? block.id : undefined,
               toolUseSummary: describeActivity({
                 toolName: block.name,
                 toolInput: block.input,

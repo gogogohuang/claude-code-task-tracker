@@ -12,7 +12,7 @@ const FAT_TOOL_RESULT_TOKENS = 8000;
 const HEAVY_BASELINE_TOKENS = 50000;
 const REPEATED_READ_THRESHOLD = 3;
 
-function estimateTokensFromChars(chars: number): number {
+export function estimateTokensFromChars(chars: number): number {
   return Math.round(chars / CHARS_PER_TOKEN_ESTIMATE);
 }
 

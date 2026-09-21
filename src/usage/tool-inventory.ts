@@ -14,9 +14,9 @@ export interface ToolCallLogEntry {
   path?: string;
   /** 這次呼叫做了什麼的一句話；沒有時退回只顯示 path。 */
   summary?: string;
-  /** 發出這次呼叫時 context 窗口占用（input + cache read + cache create），來自該輪 assistant usage。 */
-  occupiedTokens?: number;
-  contextWindow?: number;
+  toolUseId?: string;
+  /** 這次呼叫回傳給模型的內容量（tool_result 字元數粗估成 token），結果還沒回來時為 undefined。 */
+  resultTokens?: number;
 }
 
 /** 上限：避免超長 session 讓這份 log 無限成長，超過時丟最舊的、留最近呼叫。 */

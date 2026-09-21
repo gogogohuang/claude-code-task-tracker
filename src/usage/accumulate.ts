@@ -1,4 +1,5 @@
 import { AccumulateStep, ParsedEvent, SessionUsageStats } from "./types.js";
+import { estimateTokensFromChars } from "./detect.js";
 import { appendToolCallLog, emptyToolInventory, recordToolUse } from "./tool-inventory.js";
 
 const RECENT_MESSAGE_ID_LIMIT = 30;
@@ -33,8 +34,7 @@ export function accumulate(
         toolName: event.toolUseName,
         path: event.toolUsePath,
         summary: event.toolUseSummary,
-        occupiedTokens: stats.lastOccupiedTokens,
-        contextWindow: stats.lastContextWindow,
+        toolUseId: event.toolUseId,
       });
       stats = { ...stats, toolInventory, readPathCounts, toolCallLog };
       steps.push({ event, statsBefore, statsAfter: stats });
@@ -42,6 +42,16 @@ export function accumulate(
     }
 
     if (event.toolResultChars) {
+      const resultId = event.toolResultChars.toolUseId;
+      const log = stats.toolCallLog;
+      if (resultId && log) {
+        let idx = log.length - 1;
+        while (idx >= 0 && log[idx].toolUseId !== resultId) idx--;
+        if (idx >= 0) {
+          const resultTokens = estimateTokensFromChars(event.toolResultChars.chars);
+          stats = { ...stats, toolCallLog: log.map((entry, i) => (i === idx ? { ...entry, resultTokens } : entry)) };
+        }
+      }
       steps.push({ event, statsBefore: stats, statsAfter: stats });
       continue;
     }

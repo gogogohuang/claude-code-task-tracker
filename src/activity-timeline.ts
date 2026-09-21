@@ -7,8 +7,7 @@ export interface TimelineEntry {
   toolName: string;
   phase: "running" | "done";
   summary?: string;
-  occupiedTokens?: number;
-  contextWindow?: number;
+  resultTokens?: number;
 }
 
 /**
@@ -24,9 +23,7 @@ export function toolCallLogToTimeline(log: ToolCallLogEntry[]): TimelineEntry[] 
       toolName: entry.toolName,
       phase: "done",
       summary: entry.summary ?? entry.path,
-      ...(entry.occupiedTokens !== undefined
-        ? { occupiedTokens: entry.occupiedTokens, contextWindow: entry.contextWindow }
-        : {}),
+      ...(entry.resultTokens !== undefined ? { resultTokens: entry.resultTokens } : {}),
     });
   }
   return entries;

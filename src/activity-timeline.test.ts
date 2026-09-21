@@ -76,13 +76,13 @@ test("toolCallLogToTimeline：summary 優先，沒有才退回 path", () => {
   );
 });
 
-test("toolCallLogToTimeline：帶過 context 占用；沒有就不出現這兩個鍵", () => {
+test("toolCallLogToTimeline：帶過單筆回傳量；沒有就不出現這個鍵", () => {
   assert.deepEqual(
     toolCallLogToTimeline([
-      { at: "t1", toolName: "Read", occupiedTokens: 1210, contextWindow: 258400 },
+      { at: "t1", toolName: "Read", resultTokens: 1210 },
       { at: "t2", toolName: "Bash" },
     ]),
-    [{ ...done("Read", "t1"), occupiedTokens: 1210, contextWindow: 258400 }, done("Bash", "t2")],
+    [{ ...done("Read", "t1"), resultTokens: 1210 }, done("Bash", "t2")],
   );
 });
 

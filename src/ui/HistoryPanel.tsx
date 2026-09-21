@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Box, Text, useInput, useStdin } from "ink";
-import { activityLineLabel, contextOccupancyPct } from "../context-snapshot.js";
+import { activityLineLabel } from "../context-snapshot.js";
 import type { TimelineEntry } from "../activity-timeline.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 
@@ -69,10 +69,8 @@ export function HistoryPanel({
           <Text key={`${entry.at}-${entry.phase}-${entry.toolName}-${start + index}`} wrap="truncate-end">
             <Text dimColor>{time} </Text>
             {activityLineLabel(entry)}
-            {entry.occupiedTokens !== undefined ? (
-              <Text dimColor>
-                {" "}· ctx {entry.occupiedTokens.toLocaleString("en-US")}（{contextOccupancyPct(entry.occupiedTokens, entry.contextWindow)}%）
-              </Text>
+            {entry.resultTokens !== undefined ? (
+              <Text dimColor> · ctx +{entry.resultTokens.toLocaleString("en-US")}</Text>
             ) : null}
           </Text>
         );
