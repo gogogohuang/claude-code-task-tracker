@@ -1,4 +1,5 @@
-import { classifyPresence, presenceColor, presenceLabelPrefix, type SessionPresence } from "../session-presence.js";
+import { presenceColor, presenceLabelPrefix, type SessionPresence } from "../session-presence.js";
+import { resolvePresence } from "../status-detect.js";
 import { pickPreferredSession, shortSessionId } from "../session-preference.js";
 import type { TaskState } from "../schema.js";
 import { resolveSessionId, sessionHintFromState } from "../show-session-cache.js";
@@ -50,11 +51,7 @@ export function statusFromState(state: TaskState, now: number = Date.now()): Sta
   const counts = taskDoneTotal(state);
   return {
     sessionId: state.sessionId,
-    presence: classifyPresence({
-      activity: state.activity,
-      updatedAt: state.updatedAt,
-      now,
-    }),
+    presence: resolvePresence(state, now).presence,
     done: counts?.done,
     total: counts?.total,
     activitySummary: state.activity?.summary,

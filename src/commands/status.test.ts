@@ -29,7 +29,7 @@ const state: TaskState = {
 };
 
 test("statusFromState 組出 presence／任務數／活動", () => {
-  const payload = statusFromState(state);
+  const payload = statusFromState(state, Date.parse(state.updatedAt));
   assert.equal(payload.sessionId, state.sessionId);
   assert.equal(payload.presence, "idle");
   assert.equal(payload.done, 3);
@@ -40,7 +40,7 @@ test("statusFromState 組出 presence／任務數／活動", () => {
 
 test("formatStatusLine 寫死格式", () => {
   assert.equal(
-    formatStatusLine(statusFromState(state)),
+    formatStatusLine(statusFromState(state, Date.parse(state.updatedAt))),
     "idle · e9efe088 · ○ 3/5 · 正在讀取 src/schema.ts",
   );
 });
@@ -48,45 +48,57 @@ test("formatStatusLine 寫死格式", () => {
 test("無 task／todo 省略 ○ k/n；無活動省略活動欄", () => {
   assert.equal(
     formatStatusLine(
-      statusFromState({
-        sessionId: "abcdefgh-1111",
-        updatedAt: "t",
-      }),
+      statusFromState(
+        {
+          sessionId: "abcdefgh-1111",
+          updatedAt: "2026-09-16T10:00:00.000Z",
+        },
+        Date.parse("2026-09-16T10:00:00.000Z"),
+      ),
     ),
     "idle · abcdefgh",
   );
 });
 
 test("busy 當 activity running", () => {
-  const payload = statusFromState({
-    ...state,
-    activity: { toolName: "Bash", phase: "running", at: "t" },
-  });
+  const payload = statusFromState(
+    {
+      ...state,
+      activity: { toolName: "Bash", phase: "running", at: state.updatedAt },
+    },
+    Date.parse(state.updatedAt),
+  );
   assert.equal(payload.presence, "busy");
   assert.match(formatStatusLine(payload), /^busy ·/);
 });
 
 test("formatTmuxStatusLine：idle 用綠色徽章，不重複列 presence 文字", () => {
   assert.equal(
-    formatTmuxStatusLine(statusFromState(state)),
+    formatTmuxStatusLine(statusFromState(state, Date.parse(state.updatedAt))),
     "#[fg=green]○#[default] e9efe088 · ○ 3/5 · 正在讀取 src/schema.ts",
   );
 });
 
 test("formatTmuxStatusLine：waiting 用紅色徽章", () => {
-  const payload = statusFromState({
-    ...state,
-    activity: { toolName: "AskUserQuestion", phase: "running", at: "t" },
-  });
+  const payload = statusFromState(
+    {
+      ...state,
+      activity: { toolName: "AskUserQuestion", phase: "running", at: state.updatedAt },
+    },
+    Date.parse(state.updatedAt),
+  );
   assert.equal(payload.presence, "waiting");
   assert.match(formatTmuxStatusLine(payload), /^#\[fg=red\]!#\[default\] /);
 });
 
 test("formatTmuxStatusLine：busy 用黃色徽章", () => {
-  const payload = statusFromState({
-    ...state,
-    activity: { toolName: "Bash", phase: "running", at: "t" },
-  });
+  const payload = statusFromState(
+    {
+      ...state,
+      activity: { toolName: "Bash", phase: "running", at: state.updatedAt },
+    },
+    Date.parse(state.updatedAt),
+  );
   assert.match(formatTmuxStatusLine(payload), /^#\[fg=yellow\]●#\[default\] /);
 });
 

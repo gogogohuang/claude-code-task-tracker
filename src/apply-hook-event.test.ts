@@ -41,6 +41,32 @@ test("SessionStart 沒有 tool_name 也會建立 session 狀態檔", () => {
   assert.equal(written[0].activity?.summary, "工作階段已開始");
   assert.equal(written[0].activity?.toolName, "SessionStart");
   assert.equal(written[0].activity?.phase, "done");
+  assert.equal(written[0].pid, process.ppid);
+});
+
+test("SessionStart 可注入 parentPid，後續事件會保留 pid", () => {
+  const { written, deps } = capture();
+  applyHookEvent(
+    {
+      session_id: "pid-keep",
+      cwd: "/proj",
+      hook_event_name: "SessionStart",
+    },
+    { ...deps, parentPid: 99901 },
+  );
+  assert.equal(written[0].pid, 99901);
+
+  applyHookEvent(
+    {
+      session_id: "pid-keep",
+      cwd: "/proj",
+      hook_event_name: "PreToolUse",
+      tool_name: "Read",
+      tool_input: { file_path: "a.ts" },
+    },
+    deps,
+  );
+  assert.equal(written[1].pid, 99901);
 });
 
 test("空字串 cwd 正規化後改用 process.cwd()", () => {

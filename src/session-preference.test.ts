@@ -120,7 +120,7 @@ test("session／專案 label 前綴反映 presence（! 等你、● 忙碌、○
       {
         sessionId: "wait-1",
         cwd: "/proj/b",
-        updatedAt: "2026-09-16T11:59:00.000Z",
+        updatedAt: "2026-09-16T11:59:55.000Z",
         activityToolName: "AskUserQuestion",
         activityPhase: "running",
       },
@@ -137,7 +137,7 @@ test("session／專案 label 前綴反映 presence（! 等你、● 忙碌、○
       {
         sessionId: "busy-1",
         cwd: "/proj/b",
-        updatedAt: "2026-09-16T11:59:00.000Z",
+        updatedAt: "2026-09-16T11:59:55.000Z",
         activityToolName: "Read",
         activityPhase: "running",
       },
@@ -161,7 +161,7 @@ test("session／專案 label 前綴反映 presence（! 等你、● 忙碌、○
       {
         sessionId: "wait-2",
         cwd: "/proj/b",
-        updatedAt: "2026-09-16T11:59:00.000Z",
+        updatedAt: "2026-09-16T11:59:55.000Z",
         activityToolName: "ExitPlanMode",
         activityPhase: "running",
       },

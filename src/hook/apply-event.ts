@@ -25,6 +25,8 @@ export interface ApplyHookDeps {
   appendDebugLog: (message: string) => void;
   now?: () => Date;
   agent?: Agent;
+  /** SessionStart 寫入的父行程 pid；測試可注入，預設 process.ppid。 */
+  parentPid?: number;
 }
 
 function extractCreatedTaskId(toolResponse: unknown): string | undefined {
@@ -141,7 +143,12 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
   const updatedAt = (deps.now?.() ?? new Date()).toISOString();
   const existing = deps.readTaskState(payload.session_id);
 
-  const persist = (todos?: TodoItem[], tasks?: Record<string, TaskItem>, activity?: Activity) => {
+  const persist = (
+    todos?: TodoItem[],
+    tasks?: Record<string, TaskItem>,
+    activity?: Activity,
+    pid?: number,
+  ) => {
     try {
       const cwd =
         normalizeOptionalCwd(payload.cwd) ??
@@ -160,6 +167,7 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
         ...(deps.agent === "codex"
           ? { transcriptPath: payload.transcript_path || existing?.transcriptPath }
           : {}),
+        pid: pid ?? existing?.pid,
         updatedAt,
         todos: todos ?? existing?.todos,
         tasks: tasks ?? existing?.tasks,
@@ -173,12 +181,18 @@ export function applyHookEvent(payload: HookPayload, deps: ApplyHookDeps): void 
 
   if (payload.hook_event_name === "SessionStart") {
     const keepRunning = existing?.activity?.phase === "running" ? existing.activity : undefined;
-    persist(undefined, undefined, keepRunning ?? {
-      toolName: "SessionStart",
-      phase: "done",
-      summary: sessionStartSummary(payload),
-      at: updatedAt,
-    });
+    const parentPid = deps.parentPid ?? process.ppid;
+    persist(
+      undefined,
+      undefined,
+      keepRunning ?? {
+        toolName: "SessionStart",
+        phase: "done",
+        summary: sessionStartSummary(payload),
+        at: updatedAt,
+      },
+      parentPid,
+    );
     return;
   }
 

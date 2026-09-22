@@ -162,6 +162,11 @@ export const TaskStateSchema = z.object({
   claudeSessionDir: z.string().optional(),
   /** Codex 的 rollout 檔路徑（hook payload 的 transcript_path）。只有 Codex 寫入；用量分析靠它 tail。 */
   transcriptPath: z.string().optional(),
+  /**
+   * Claude Code／Codex 本體的 pid。SessionStart hook 寫入 `process.ppid`
+   *（hook 是被 spawn 的子行程）。給 status-detect Tier 2 判斷行程是否還活著。
+   */
+  pid: z.number().optional(),
   updatedAt: z.string(),
   todos: z.array(TodoItemSchema).optional(),
   tasks: z.record(z.string(), TaskItemSchema).optional(),
