@@ -9,7 +9,7 @@ const CACHE_SPIKE_MULTIPLIER = 5;
 const CACHE_SPIKE_MIN_PRIOR_MSGS = 5;
 /** tool_result 沒有 API 算好的 token 數，只能用字元數粗估；中英文混合實際比例會有出入。 */
 const CHARS_PER_TOKEN_ESTIMATE = 4;
-const FAT_TOOL_RESULT_TOKENS = 8000;
+export const FAT_TOOL_RESULT_TOKENS = 8000;
 const HEAVY_BASELINE_TOKENS = 50000;
 const REPEATED_READ_THRESHOLD = 3;
 /** 超過門檻多少倍才從 warn 升級成 critical，統一套用在所有 advice 種類。 */
@@ -22,6 +22,12 @@ function severityForOverage(actual: number, threshold: number): AdviceSeverity {
 
 export function estimateTokensFromChars(chars: number): number {
   return Math.round(chars / CHARS_PER_TOKEN_ESTIMATE);
+}
+
+/** 供 history 面板判斷單次工具呼叫是否過肥；未過門檻回 undefined。 */
+export function fatToolResultSeverity(estTokens: number): AdviceSeverity | undefined {
+  if (estTokens <= FAT_TOOL_RESULT_TOKENS) return undefined;
+  return severityForOverage(estTokens, FAT_TOOL_RESULT_TOKENS);
 }
 
 function isCodex(stats: SessionUsageStats): boolean {

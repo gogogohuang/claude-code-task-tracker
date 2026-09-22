@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { accumulate } from "./accumulate.js";
-import { detect } from "./detect.js";
+import { detect, FAT_TOOL_RESULT_TOKENS, fatToolResultSeverity } from "./detect.js";
 import { createSessionUsageStats, ParsedEvent } from "./types.js";
 
 function usageEvent(messageId: string, cacheCreation: number, timestamp: string): ParsedEvent {
@@ -248,4 +248,10 @@ test("detect：Codex 第一個事件就是肥 tool result（還沒有視窗資�
   const { next, steps } = accumulate(stats0, [toolResultEvent("exec", 40_000, "t")]);
   const advice = detect(stats0, next, steps).filter((a) => a.kind === "fat-tool-result")[0];
   assert.match(advice.summary, /約占 context window 4%/);
+});
+
+test("fatToolResultSeverity：未過門檻回 undefined，過門檻 warn，達 2 倍門檻 critical", () => {
+  assert.equal(fatToolResultSeverity(FAT_TOOL_RESULT_TOKENS), undefined);
+  assert.equal(fatToolResultSeverity(FAT_TOOL_RESULT_TOKENS + 1), "warn");
+  assert.equal(fatToolResultSeverity(FAT_TOOL_RESULT_TOKENS * 2), "critical");
 });
