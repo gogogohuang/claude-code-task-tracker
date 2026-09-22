@@ -6,7 +6,9 @@ import { join } from "node:path";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
   DELETE_SESSION_RUNNING_NOTICE,
+  DELETE_SESSION_STUCK_CONFIRM_NOTICE,
   armOrConfirmDelete,
+  deleteGuard,
   deleteSessionState,
   isSessionBusy,
   shouldHandleDeleteKey,
@@ -60,4 +62,30 @@ test("deleteSessionState 刪掉指定 json，不存在則回 false", () => {
 
 test("shouldHandleDeleteKey 在用量總覽（usage）不處理刪除鍵", () => {
   assert.equal(shouldHandleDeleteKey("usage", "s1"), false);
+});
+
+test("deleteGuard 忙碌但未達卡住門檻時 blocked", () => {
+  const now = Date.now();
+  const activity = { toolName: "Bash", phase: "running", at: new Date(now).toISOString() };
+  assert.equal(deleteGuard(activity, now), "blocked");
+});
+
+test("deleteGuard 忙碌且已卡住（running 超過 2 分鐘）時 ok", () => {
+  const now = Date.now();
+  const activity = { toolName: "Bash", phase: "running", at: new Date(now - 121_000).toISOString() };
+  assert.equal(deleteGuard(activity, now), "ok");
+});
+
+test("deleteGuard 非忙碌或沒有 activity 時一律 ok", () => {
+  const now = Date.now();
+  assert.equal(deleteGuard({ toolName: "Bash", phase: "done", at: new Date(now).toISOString() }, now), "ok");
+  assert.equal(deleteGuard(undefined, now), "ok");
+  assert.equal(deleteGuard(null, now), "ok");
+});
+
+test("DELETE_SESSION_STUCK_CONFIRM_NOTICE 文案固定", () => {
+  assert.equal(
+    DELETE_SESSION_STUCK_CONFIRM_NOTICE,
+    "此 session 可能卡住，再按 d 強制清除暫存（不影響 Claude context；按 b 取消）",
+  );
 });

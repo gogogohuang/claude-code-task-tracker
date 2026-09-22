@@ -90,7 +90,9 @@ import { defaultManagedPolicyPath } from "../inspect/paths.js";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
   DELETE_SESSION_RUNNING_NOTICE,
+  DELETE_SESSION_STUCK_CONFIRM_NOTICE,
   armOrConfirmDelete,
+  deleteGuard,
   deleteSessionState,
   isSessionBusy,
   shouldHandleDeleteKey,
@@ -364,7 +366,7 @@ export function App({
       const deleteTarget = actionSessionId;
       if (input === "d" && shouldHandleDeleteKey(view, deleteTarget) && deleteTarget) {
         const busyState = view === "split" ? readTaskState(deleteTarget) : taskState;
-        if (isSessionBusy(busyState?.activity)) {
+        if (deleteGuard(busyState?.activity) === "blocked") {
           setPendingDeleteSessionId(undefined);
           setNotice(DELETE_SESSION_RUNNING_NOTICE);
           return;
@@ -372,7 +374,11 @@ export function App({
         const step = armOrConfirmDelete(pendingDeleteSessionId, deleteTarget);
         if (step === "arm") {
           setPendingDeleteSessionId(deleteTarget);
-          setNotice(DELETE_SESSION_CONFIRM_NOTICE);
+          setNotice(
+            isSessionBusy(busyState?.activity)
+              ? DELETE_SESSION_STUCK_CONFIRM_NOTICE
+              : DELETE_SESSION_CONFIRM_NOTICE,
+          );
           return;
         }
         deleteSessionState(deleteTarget, STATE_DIR);
