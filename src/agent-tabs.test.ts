@@ -3,7 +3,7 @@ import test from "node:test";
 import { canSwitchTab, formatTabLabel, nextTabAgent, summarizeTabs } from "./agent-tabs.js";
 
 const now = Date.parse("2026-09-19T02:00:00.000Z");
-const at = "2026-09-19T01:59:30.000Z";
+const at = "2026-09-19T01:59:55.000Z";
 
 test("nextTabAgent 循環切換，支援反向", () => {
   assert.equal(nextTabAgent("claude"), "codex");

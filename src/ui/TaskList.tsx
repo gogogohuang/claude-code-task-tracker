@@ -3,7 +3,8 @@ import { Box, Text, useInput, useStdin } from "ink";
 import { activityLineLabel } from "../context-snapshot.js";
 import { pickNextTask } from "../next-task.js";
 import { Activity, TaskState } from "../schema.js";
-import { classifyPresence, presenceColor } from "../session-presence.js";
+import { presenceColor } from "../session-presence.js";
+import { resolvePresence } from "../status-detect.js";
 import { AgentDispatch, dispatchLabel, SubagentsState } from "../usage/subagents.js";
 import { phaseProgress } from "../workflow/phase-progress.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
@@ -122,10 +123,7 @@ export function TaskList({
   const done = workItems.filter((r) => r.status === "completed").length;
   const phases = phaseProgress(state.workflow);
   const next = pickNextTask(state);
-  const presence = classifyPresence({
-    activity: state.activity,
-    updatedAt: state.updatedAt,
-  });
+  const presence = resolvePresence(state).presence;
   const headerColor = presenceColor(presence);
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);

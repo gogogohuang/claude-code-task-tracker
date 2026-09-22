@@ -140,6 +140,8 @@ function hintsFor(sessionIds: string[]): SessionHint[] {
           : undefined,
         activityToolName: state.activity?.toolName,
         activityPhase: state.activity?.phase,
+        activityAt: state.activity?.at,
+        pid: state.pid,
         title: usage?.title,
         firstPrompt: usage?.firstPrompt,
       },

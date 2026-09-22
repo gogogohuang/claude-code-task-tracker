@@ -3,10 +3,11 @@ import type { Agent, TabAgent } from "./agent.js";
 import { formatRelativeAge } from "./format-relative-age.js";
 import {
   aggregatePresence,
-  classifyPresence,
   presenceLabelPrefix,
   type SessionPresence,
 } from "./session-presence.js";
+import type { ActivityPhase } from "./schema.js";
+import { resolvePresence } from "./status-detect.js";
 
 export interface SessionHint {
   sessionId: string;
@@ -18,7 +19,10 @@ export interface SessionHint {
   /** 該 session 目前的活動摘要（TaskState.activity.summary），只有用量建議面板需要顯示時才會帶。 */
   activitySummary?: string;
   activityToolName?: string;
-  activityPhase?: string;
+  activityPhase?: ActivityPhase | string;
+  activityAt?: string;
+  /** SessionStart 寫入的 Claude／Codex 本體 pid；給 resolvePresence Tier 2。 */
+  pid?: number;
 }
 
 export interface SessionChoice {
@@ -108,11 +112,19 @@ export function filterSessionsByAgent(sessions: SessionHint[], agent: TabAgent):
 }
 
 export function presenceForHint(session: SessionHint, now: number): SessionPresence {
+  const phase = session.activityPhase;
   const activity =
-    session.activityToolName && session.activityPhase
-      ? { toolName: session.activityToolName, phase: session.activityPhase }
+    session.activityToolName && (phase === "running" || phase === "done")
+      ? {
+          toolName: session.activityToolName,
+          phase,
+          ...(session.activityAt ? { at: session.activityAt } : {}),
+        }
       : undefined;
-  return classifyPresence({ activity, updatedAt: session.updatedAt, now });
+  return resolvePresence(
+    { updatedAt: session.updatedAt, activity, pid: session.pid },
+    now,
+  ).presence;
 }
 
 function formatSessionLabel(session: SessionHint, marker: "current" | "recent" | undefined, now: number): string {

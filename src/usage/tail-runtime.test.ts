@@ -245,3 +245,48 @@ test("prime 後 peekSubagents 拿得到派發清單", () => {
 test("peekSubagents 對沒 prime 過的 session 回 undefined", () => {
   assert.equal(peekSubagents("never-primed-session"), undefined);
 });
+
+test("prime 讀失敗不寫指紋，恢復可讀後 refresh 能 cold 讀到內容", () => {
+  const dir = mkdtempSync(join(tmpdir(), "usage-advisor-"));
+  const path = join(dir, "session.jsonl");
+  const sessionId = `test-${Date.now()}-prime-fail-fp`;
+  try {
+    writeFileSync(path, assistantLine("m0", 60001) + "\n");
+    chmodSync(path, 0o000);
+    const primed = prime(sessionId, path);
+    assert.equal(primed.stats.mainThreadMsgCount, 0);
+    chmodSync(path, 0o644);
+    const advice = refresh(sessionId, path);
+    assert.equal(peek(sessionId)?.mainThreadMsgCount, 1);
+    assert.equal(advice.some((a) => a.kind === "heavy-baseline"), true);
+  } finally {
+    try {
+      chmodSync(path, 0o644);
+    } catch {
+      // ignore
+    }
+    forget(sessionId);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refresh：fingerprint 未變時 warm skip；檔案變長才 cold", () => {
+  const dir = mkdtempSync(join(tmpdir(), "usage-advisor-"));
+  const path = join(dir, "session.jsonl");
+  const sessionId = `test-${Date.now()}-warm`;
+  try {
+    writeFileSync(path, assistantLine("m0", 100) + "\n");
+    prime(sessionId, path);
+    assert.equal(peek(sessionId)?.mainThreadMsgCount, 1);
+    assert.deepEqual(refresh(sessionId, path), []); // warm
+    assert.deepEqual(refresh(sessionId, path), []); // 再呼叫仍 warm
+    assert.equal(peek(sessionId)?.mainThreadMsgCount, 1);
+
+    appendFileSync(path, assistantLine("m1", 200) + "\n");
+    refresh(sessionId, path); // cold：有新內容
+    assert.equal(peek(sessionId)?.mainThreadMsgCount, 2);
+  } finally {
+    forget(sessionId);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -1,6 +1,7 @@
 import { closeSync, openSync, readSync, statSync } from "node:fs";
 import type { Agent } from "../agent.js";
 import { accumulate } from "./accumulate.js";
+import { fingerprintOf, isWarmFingerprint, type FileFingerprint } from "./cache.js";
 import { parseCodexRollout } from "./codex-rollout.js";
 import { detect } from "./detect.js";
 import { applySubagentEvents, createSubagentsState, SubagentsState } from "./subagents.js";
@@ -11,6 +12,8 @@ interface RuntimeEntry {
   tailState: TailState;
   stats: SessionUsageStats;
   subagents: SubagentsState;
+  /** 上次成功讀完後的檔指紋；refresh 前比對，沒變就 warm skip。 */
+  fingerprint?: FileFingerprint;
 }
 
 const sessions = new Map<string, RuntimeEntry>();
@@ -80,7 +83,16 @@ export function prime(
   // readNewBytes 會回傳 bytesRead:0，offset 就該原地不動，等下一次再重試。
   const { content, bytesRead } = readNewBytes(transcriptPath, 0, size);
   const result = runOnce(createTailState(), stats0, subagents0, content, bytesRead, agent);
-  sessions.set(sessionId, { tailState: result.tailState, stats: result.stats, subagents: result.subagents });
+  // 讀失敗（有內容但 bytesRead=0）不寫指紋，否則 refresh 會 warm skip 永遠讀不到。
+  // 空檔（size=0）可以寫指紋：沒有內容可讀。
+  const fingerprint =
+    bytesRead > 0 || size === 0 ? fingerprintOf(transcriptPath) : undefined;
+  sessions.set(sessionId, {
+    tailState: result.tailState,
+    stats: result.stats,
+    subagents: result.subagents,
+    fingerprint,
+  });
   return { stats: result.stats, advice: result.advice };
 }
 
@@ -88,15 +100,31 @@ export function refresh(sessionId: string, transcriptPath: string, agent: Agent 
   const entry = sessions.get(sessionId);
   if (!entry) return prime(sessionId, transcriptPath, agent).advice;
 
-  const size = fileSize(transcriptPath);
-  if (size === undefined) return [];
+  const currentFp = fingerprintOf(transcriptPath);
+  if (!currentFp) return [];
+  // warm：mtime + size 都沒變，不重讀（chokidar 誤觸／重繪觸發時幾乎零成本）
+  if (isWarmFingerprint(entry.fingerprint, currentFp)) return [];
+
+  const size = currentFp.size;
   if (size < entry.tailState.offset) return prime(sessionId, transcriptPath, agent).advice; // 檔案被截斷/換新，視同重新開始
-  if (size === entry.tailState.offset) return [];
+  if (size === entry.tailState.offset) {
+    // size 沒長但 mtime 變了（例如 touch）：更新指紋，仍不必讀內容
+    entry.fingerprint = currentFp;
+    return [];
+  }
 
   // 同樣道理：offset 只能照 readNewBytes 實際回報的 bytesRead 推進，不是預先算好的 size - offset。
   const { content, bytesRead } = readNewBytes(transcriptPath, entry.tailState.offset, size);
   const result = runOnce(entry.tailState, entry.stats, entry.subagents, content, bytesRead, agent);
-  sessions.set(sessionId, { tailState: result.tailState, stats: result.stats, subagents: result.subagents });
+  // 讀取失敗（bytesRead=0 但檔案比 offset 長）時不更新指紋，否則下次會被 warm skip 掉、永遠讀不到。
+  const fingerprint =
+    bytesRead > 0 ? fingerprintOf(transcriptPath) : entry.fingerprint;
+  sessions.set(sessionId, {
+    tailState: result.tailState,
+    stats: result.stats,
+    subagents: result.subagents,
+    fingerprint,
+  });
   return result.advice;
 }
 

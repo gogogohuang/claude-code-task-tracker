@@ -1,6 +1,7 @@
 import { Box, Text, useInput, useStdin } from "ink";
 import { activityLineLabel } from "../context-snapshot.js";
-import { classifyPresence, presenceColor, presenceLabelPrefix } from "../session-presence.js";
+import { presenceColor, presenceLabelPrefix } from "../session-presence.js";
+import { resolvePresence } from "../status-detect.js";
 import { shortSessionId } from "../session-preference.js";
 import type { SplitFocus } from "../split-layout.js";
 import { visibleSplitTaskRows } from "../split-tasks.js";
@@ -35,10 +36,7 @@ function SplitPane({
       </Box>
     );
   }
-  const presence = classifyPresence({
-    activity: state.activity,
-    updatedAt: state.updatedAt,
-  });
+  const presence = resolvePresence(state).presence;
   const color = presenceColor(presence);
   const rows = visibleSplitTaskRows(taskRows(state), scrollOffset);
   const marker = focused ? "▸ " : "  ";

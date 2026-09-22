@@ -9,9 +9,12 @@ export function sessionHintFromState(state: TaskState): SessionHint {
     sessionId: state.sessionId,
     cwd: normalizeOptionalCwd(state.cwd),
     updatedAt: state.updatedAt,
+    agent: state.agent,
     activitySummary: state.activity?.summary,
     activityToolName: state.activity?.toolName,
     activityPhase: state.activity?.phase,
+    activityAt: state.activity?.at,
+    pid: state.pid,
   };
 }
 
