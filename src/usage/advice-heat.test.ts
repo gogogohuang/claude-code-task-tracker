@@ -5,8 +5,8 @@ import type { Advice } from "./types.js";
 
 test("attachHeavyBaselineHeat：只幫 heavy-baseline 加 detailLines", () => {
   const advice: Advice[] = [
-    { sessionId: "s", kind: "fat-tool-result", at: "t", message: "fat" },
-    { sessionId: "s", kind: "heavy-baseline", at: "t", message: "heavy" },
+    { sessionId: "s", kind: "fat-tool-result", at: "t", severity: "warn", summary: "fat", action: "act" },
+    { sessionId: "s", kind: "heavy-baseline", at: "t", severity: "warn", summary: "heavy", action: "act" },
   ];
   const next = attachHeavyBaselineHeat(advice, ["A · 1.0 KB", "B · 2.0 KB"]);
   assert.equal(next[0]!.detailLines, undefined);
@@ -15,7 +15,7 @@ test("attachHeavyBaselineHeat：只幫 heavy-baseline 加 detailLines", () => {
 
 test("attachHeavyBaselineHeat：無熱力行仍給 fallback detailLines", () => {
   const advice: Advice[] = [
-    { sessionId: "s", kind: "heavy-baseline", at: "t", message: "heavy" },
+    { sessionId: "s", kind: "heavy-baseline", at: "t", severity: "warn", summary: "heavy", action: "act" },
   ];
   const next = attachHeavyBaselineHeat(advice, []);
   assert.ok(next[0]!.detailLines?.length);

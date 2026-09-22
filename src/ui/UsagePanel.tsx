@@ -4,19 +4,26 @@ import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-
 
 const PANEL_CHROME_ROWS = 6;
 
+export interface UsagePanelLine {
+  text: string;
+  color?: "red" | "yellow" | "green";
+}
+
 export function UsagePanel({
   header,
   lines,
   emptyHint,
+  footer,
 }: {
   header: string;
-  lines: string[];
+  lines: UsagePanelLine[];
   emptyHint: string;
+  footer: string;
 }) {
   const { isRawModeSupported } = useStdin();
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
   const [offset, setOffset] = useState(0);
-  const displayLines = lines.length > 0 ? lines : [emptyHint];
+  const displayLines = lines.length > 0 ? lines : [{ text: emptyHint }];
   const pageSize = pageSizeFromTerminal(termRows, PANEL_CHROME_ROWS);
   const start = clampScrollOffset(offset, displayLines.length, pageSize);
   const visible = visibleSlice(displayLines, start, pageSize);
@@ -54,14 +61,14 @@ export function UsagePanel({
       <Box flexDirection="column">
         {start > 0 ? <Text dimColor>↑ 還有 {start} 行</Text> : null}
         {visible.map((line, index) => (
-          <Text key={`${start + index}-${line.slice(0, 24)}`} wrap="truncate-end">
-            {line}
+          <Text key={`${start + index}-${line.text.slice(0, 24)}`} color={line.color} wrap="truncate-end">
+            {line.text}
           </Text>
         ))}
         {hiddenBelow > 0 ? <Text dimColor>↓ 還有 {hiddenBelow} 行</Text> : null}
       </Box>
       <Box marginTop={1}>
-        <Text dimColor>beta：占比仍在調整，數字僅供參考 · 累計新增工作量（不含 cache 讀取；Claude 不含子 agent）· ↑↓ 捲動 — 按 b 回上一頁</Text>
+        <Text dimColor>{footer}</Text>
       </Box>
     </Box>
   );

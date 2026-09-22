@@ -12,7 +12,7 @@ import {
 import { Activity } from "./schema.js";
 
 test("formatOccupiedTokensLine 用 1,000,000 當分母並標「約」", () => {
-  assert.equal(formatOccupiedTokensLine(686300), "窗口約 686,300 token（約 69%）");
+  assert.equal(formatOccupiedTokensLine(686300), "窗口約 686.3K token（約 69%）");
 });
 
 test("formatContextGaugeBar 沒有用量時不畫", () => {
@@ -50,7 +50,7 @@ test("contextOccupancyPct 可指定視窗（Codex 258,400）", () => {
 });
 
 test("formatOccupiedTokensLine／formatContextGaugeBar 傳入視窗後用該視窗算比例", () => {
-  assert.equal(formatOccupiedTokensLine(129_200, 258_400), "窗口約 129,200 token（約 50%）");
+  assert.equal(formatOccupiedTokensLine(129_200, 258_400), "窗口約 129.2K token（約 50%）");
   assert.deepEqual(formatContextGaugeBar(129_200, 258_400), {
     bar: `${"█".repeat(12)}${"░".repeat(12)}`,
     color: "green",
@@ -59,7 +59,7 @@ test("formatOccupiedTokensLine／formatContextGaugeBar 傳入視窗後用該視�
 
 test("formatLastTurnBreakdownLine：Codex 顯示 cached／新算，不出現 cache create", () => {
   const usage = { occupiedTokens: 17111, cacheRead: 16128, cacheCreation: 983, input: 0 };
-  assert.equal(formatLastTurnBreakdownLine(usage, "codex"), "上一輪 cached 16,128 · 新算 983");
+  assert.equal(formatLastTurnBreakdownLine(usage, "codex"), "上一輪 cached 16.1K · 新算 983");
   assert.match(formatLastTurnBreakdownLine(usage) ?? "", /cache create 983/); // 預設 claude 不變
 });
 

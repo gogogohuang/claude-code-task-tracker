@@ -1,6 +1,7 @@
 import { Activity } from "./schema.js";
 import { resolveLocale } from "./locale.js";
 import type { Agent } from "./agent.js";
+import { formatTokenCount } from "./usage-overview.js";
 
 export const CONTEXT_WINDOW_TOKENS = 1_000_000;
 export const CODEX_CONTEXT_WINDOW_TOKENS = 258_400;
@@ -37,15 +38,15 @@ export function formatContextGaugeBar(
 export function formatOccupiedTokensLine(lastOccupiedTokens: number | undefined, contextWindow?: number): string {
   if (lastOccupiedTokens === undefined) return "還沒有用量資料";
   const pct = contextOccupancyPct(lastOccupiedTokens, contextWindow);
-  return `窗口約 ${lastOccupiedTokens.toLocaleString("en-US")} token（約 ${pct}%）`;
+  return `窗口約 ${formatTokenCount(lastOccupiedTokens)} token（約 ${pct}%）`;
 }
 
 export function formatLastTurnBreakdownLine(usage: LastTurnUsage | undefined, agent: Agent = "claude"): string | undefined {
   if (!usage) return undefined;
   if (agent === "codex") {
-    return `上一輪 cached ${usage.cacheRead.toLocaleString("en-US")} · 新算 ${usage.cacheCreation.toLocaleString("en-US")}`;
+    return `上一輪 cached ${formatTokenCount(usage.cacheRead)} · 新算 ${formatTokenCount(usage.cacheCreation)}`;
   }
-  return `上一輪 cache read ${usage.cacheRead.toLocaleString("en-US")} · cache create ${usage.cacheCreation.toLocaleString("en-US")} · input ${usage.input.toLocaleString("en-US")}`;
+  return `上一輪 cache read ${formatTokenCount(usage.cacheRead)} · cache create ${formatTokenCount(usage.cacheCreation)} · input ${formatTokenCount(usage.input)}`;
 }
 
 export function lastTurnUsageFromStats(stats: {

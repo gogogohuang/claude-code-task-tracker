@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { SessionPresence } from "./session-presence.js";
 import {
   buildUsageOverview,
   formatShareBar,
@@ -9,8 +10,13 @@ import {
   type UsageOverviewInput,
 } from "./usage-overview.js";
 
-function input(sessionId: string, workTokens: number | undefined, agent: "claude" | "codex" = "claude"): UsageOverviewInput {
-  return { sessionId, label: `proj · ${sessionId}`, agent, workTokens };
+function input(
+  sessionId: string,
+  workTokens: number | undefined,
+  agent: "claude" | "codex" = "claude",
+  presence: SessionPresence = "idle",
+): UsageOverviewInput {
+  return { sessionId, label: `proj · ${sessionId}`, agent, workTokens, presence };
 }
 
 test("formatTokenCount：邊界值", () => {
@@ -58,11 +64,25 @@ test("formatShareBar：依百分比填滿 12 格，並夾在 0-12 之間", () =>
   assert.equal(formatShareBar(50, 4), "██░░");
 });
 
-test("formatUsageOverviewLine：有資料與無資料", () => {
-  const [row] = buildUsageOverview([{ sessionId: "s1", label: "p", agent: "codex", workTokens: 1_500 }]);
-  assert.equal(formatUsageOverviewLine(row), `[Codex] p  1.5K  100%  ${"█".repeat(12)}`);
-  const [empty] = buildUsageOverview([{ sessionId: "s2", label: "p", agent: "claude", workTokens: undefined }]);
-  assert.equal(formatUsageOverviewLine(empty), "[Claude] p  —");
+test("formatUsageOverviewLine：有資料與無資料，前面帶 presence 標記", () => {
+  const [row] = buildUsageOverview([
+    { sessionId: "s1", label: "p", agent: "codex", workTokens: 1_500, presence: "idle" },
+  ]);
+  assert.equal(formatUsageOverviewLine(row), `○ [Codex] p  1.5K  100%  ${"█".repeat(12)}`);
+  const [empty] = buildUsageOverview([
+    { sessionId: "s2", label: "p", agent: "claude", workTokens: undefined, presence: "waiting" },
+  ]);
+  assert.equal(formatUsageOverviewLine(empty), "! [Claude] p  —");
+});
+
+test("buildUsageOverview：presence 優先排序（等你 < 忙碌 < 閒置），同 presence 才比 token", () => {
+  const rows = buildUsageOverview([
+    input("busy-high", 900, "claude", "busy"),
+    input("waiting-low", 10, "claude", "waiting"),
+    input("idle-high", 500, "claude", "idle"),
+    input("waiting-high", 800, "claude", "waiting"),
+  ]);
+  assert.deepEqual(rows.map((row) => row.sessionId), ["waiting-high", "waiting-low", "busy-high", "idle-high"]);
 });
 
 test("summarizeUsageOverview：session 數、有資料數、合計", () => {

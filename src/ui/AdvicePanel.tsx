@@ -5,9 +5,9 @@ import { Advice } from "../usage/types.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 
 const PANEL_CHROME_ROWS = 6;
-// 每則 advice 實際佔用的終端機行數：建議內容行 + 相對時間行 + marginBottom={1} 留白，
+// 每則 advice 實際佔用的終端機行數：summary 行 + action 行 + 相對時間行 + marginBottom={1} 留白，
 // 捲動換算頁面大小時要除掉這個係數，不然每則 advice 只當 1 行算，六則以上就會塞爆終端機。
-const ROWS_PER_ADVICE = 3;
+const ROWS_PER_ADVICE = 4;
 
 export function AdvicePanel({
   advice,
@@ -75,7 +75,10 @@ export function AdvicePanel({
       {start > 0 ? <Text dimColor>↑ 還有 {start} 則</Text> : null}
       {visible.map((row, index) => (
         <Box key={`${row.kind}-${row.at}-${index}`} flexDirection="column" marginBottom={1}>
-          <Text color="yellow">⚠ {row.message}</Text>
+          <Text color={row.severity === "critical" ? "red" : "yellow"} bold={row.severity === "critical"}>
+            {row.severity === "critical" ? "✗" : "⚠"} {row.summary}
+          </Text>
+          <Text dimColor>{"  "}→ {row.action}</Text>
           {row.detailLines?.map((line, lineIndex) => (
             <Text key={`${line}-${lineIndex}`} dimColor>
               {"  "}· {line}

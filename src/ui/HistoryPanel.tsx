@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Box, Text, useInput, useStdin } from "ink";
 import { activityLineLabel } from "../context-snapshot.js";
 import type { TimelineEntry } from "../activity-timeline.js";
+import { fatToolResultSeverity } from "../usage/detect.js";
+import { formatTokenCount } from "../usage-overview.js";
 import { clampScrollOffset, pageSizeFromTerminal, visibleSlice } from "./scroll-window.js";
 
 const PANEL_CHROME_ROWS = 6;
@@ -65,6 +67,8 @@ export function HistoryPanel({
       {start > 0 ? <Text dimColor>↑ 還有 {start} 行</Text> : null}
       {visible.map((entry, index) => {
         const time = new Date(entry.at).toLocaleTimeString();
+        const severity = entry.resultTokens !== undefined ? fatToolResultSeverity(entry.resultTokens) : undefined;
+        const resultColor = severity === "critical" ? "red" : severity === "warn" ? "yellow" : undefined;
         return (
           <Text key={`${entry.at}-${entry.phase}-${entry.toolName}-${start + index}`} wrap="truncate-end">
             <Text dimColor>{time} </Text>
@@ -76,7 +80,10 @@ export function HistoryPanel({
               activityLineLabel(entry)
             )}
             {entry.resultTokens !== undefined ? (
-              <Text dimColor> · ctx +{entry.resultTokens.toLocaleString("en-US")}</Text>
+              <Text color={resultColor} dimColor={resultColor === undefined}>
+                {" "}
+                · ctx +{formatTokenCount(entry.resultTokens)}
+              </Text>
             ) : null}
           </Text>
         );

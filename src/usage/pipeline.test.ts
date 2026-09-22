@@ -64,8 +64,8 @@ test("Codex：prime／refresh 用 Codex 解析器，advice 為 Codex 文案，�
     const primed = prime(sessionId, path, "codex");
     const heavy = primed.advice.filter((a) => a.kind === "heavy-baseline");
     assert.equal(heavy.length, 1);
-    assert.match(heavy[0].message, /開場偏重/);
-    assert.doesNotMatch(heavy[0].message, /inspect/);
+    assert.match(heavy[0].summary, /開場偏重/);
+    assert.doesNotMatch(heavy[0].action, /inspect/);
     assert.equal(peek(sessionId)?.lastContextWindow, 258400);
     assert.equal(peek(sessionId)?.lastOccupiedTokens, 60001);
     assert.equal(peek(sessionId)?.workTokensTotal, 60002); // 60001 未命中 + 1 output

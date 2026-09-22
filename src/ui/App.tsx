@@ -57,6 +57,7 @@ import {
   formatUsageOverviewLine,
   summarizeUsageOverview,
 } from "../usage-overview.js";
+import { buildFocusOverview, focusLineColor, formatFocusLine, type FocusInput } from "../focus-overview.js";
 import {
   formatContextGaugeBar,
   formatLastTurnBreakdownLine,
@@ -64,7 +65,9 @@ import {
   lastTurnUsageFromStats,
 } from "../context-snapshot.js";
 import {
+  classifyPresence,
   isWaitingForUser,
+  presenceColor,
   shouldRingWaitingBell,
   waitingEdgeKey,
   waitingNoticeForActivity,
@@ -90,7 +93,9 @@ import { defaultManagedPolicyPath } from "../inspect/paths.js";
 import {
   DELETE_SESSION_CONFIRM_NOTICE,
   DELETE_SESSION_RUNNING_NOTICE,
+  DELETE_SESSION_STUCK_CONFIRM_NOTICE,
   armOrConfirmDelete,
+  deleteGuard,
   deleteSessionState,
   isSessionBusy,
   shouldHandleDeleteKey,
@@ -364,7 +369,7 @@ export function App({
       const deleteTarget = actionSessionId;
       if (input === "d" && shouldHandleDeleteKey(view, deleteTarget) && deleteTarget) {
         const busyState = view === "split" ? readTaskState(deleteTarget) : taskState;
-        if (isSessionBusy(busyState?.activity)) {
+        if (deleteGuard(busyState?.activity) === "blocked") {
           setPendingDeleteSessionId(undefined);
           setNotice(DELETE_SESSION_RUNNING_NOTICE);
           return;
@@ -372,7 +377,11 @@ export function App({
         const step = armOrConfirmDelete(pendingDeleteSessionId, deleteTarget);
         if (step === "arm") {
           setPendingDeleteSessionId(deleteTarget);
-          setNotice(DELETE_SESSION_CONFIRM_NOTICE);
+          setNotice(
+            isSessionBusy(busyState?.activity)
+              ? DELETE_SESSION_STUCK_CONFIRM_NOTICE
+              : DELETE_SESSION_CONFIRM_NOTICE,
+          );
           return;
         }
         deleteSessionState(deleteTarget, STATE_DIR);
@@ -439,6 +448,11 @@ export function App({
         setView("usage");
         return;
       }
+      if (input === "f" && (view === "main" || view === "split") && !pickingSplitPartner) {
+        setPendingDeleteSessionId(undefined);
+        setView("focus");
+        return;
+      }
       if (input === "p" && (view === "main" || view === "split") && actionSessionId) {
         setPendingDeleteSessionId(undefined);
         setSelectedSessionId(actionSessionId);
@@ -464,7 +478,14 @@ export function App({
         setNotice(undefined);
         return;
       }
-      if (view === "advice" || view === "cache" || view === "tools" || view === "history" || view === "usage") {
+      if (
+        view === "advice" ||
+        view === "cache" ||
+        view === "tools" ||
+        view === "history" ||
+        view === "usage" ||
+        view === "focus"
+      ) {
         if (splitLeftId && splitRightId) {
           setView("split");
           setSelectedSessionId(focusedSessionId(splitLeftId, splitRightId, splitFocus));
@@ -850,6 +871,13 @@ export function App({
                   label: `${basename(hint.cwd)} · ${shortSessionId(hint.sessionId)}`,
                   agent: hint.agent ?? ("claude" as const),
                   workTokens: peek(hint.sessionId)?.workTokensTotal,
+                  presence: classifyPresence({
+                    activity:
+                      hint.activityToolName && hint.activityPhase
+                        ? { toolName: hint.activityToolName, phase: hint.activityPhase, at: hint.activityAt }
+                        : undefined,
+                    updatedAt: hint.updatedAt,
+                  }),
                 },
               ]
             : [],
@@ -860,8 +888,42 @@ export function App({
         topNotice,
         <UsagePanel
           header={`用量總覽 [beta] · ${summary.sessions} 個 session（${summary.measured} 個有用量資料）· 合計 ${formatTokenCount(summary.totalTokens)} token`}
-          lines={rows.map(formatUsageOverviewLine)}
+          lines={rows.map((row) => ({ text: formatUsageOverviewLine(row), color: presenceColor(row.presence) }))}
           emptyHint="還沒有可列出的 session"
+          footer="beta：占比仍在調整，數字僅供參考 · 累計新增工作量（不含 cache 讀取；Claude 不含子 agent）· ↑↓ 捲動 — 按 b 回上一頁"
+        />,
+      );
+    }
+
+    if (view === "focus") {
+      const rows = buildFocusOverview(
+        hintsFor(sessionIds).flatMap((hint): FocusInput[] =>
+          hint.cwd
+            ? [
+                {
+                  sessionId: hint.sessionId,
+                  label: `${basename(hint.cwd)} · ${shortSessionId(hint.sessionId)}`,
+                  agent: hint.agent ?? ("claude" as const),
+                  presence: classifyPresence({
+                    activity:
+                      hint.activityToolName && hint.activityPhase
+                        ? { toolName: hint.activityToolName, phase: hint.activityPhase, at: hint.activityAt }
+                        : undefined,
+                    updatedAt: hint.updatedAt,
+                  }),
+                  advice: adviceForSession(adviceList, hint.sessionId)[0],
+                },
+              ]
+            : [],
+        ),
+      );
+      return withNotice(
+        topNotice,
+        <UsagePanel
+          header={`焦點 · ${rows.length} 個 session 需要處理`}
+          lines={rows.map((row) => ({ text: formatFocusLine(row), color: focusLineColor(row) }))}
+          emptyHint="目前沒有需要處理的 session"
+          footer="依 adviceForSession 的最嚴重建議與 presence 排序 · ↑↓ 捲動 — 按 b 回上一頁"
         />,
       );
     }
