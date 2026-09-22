@@ -18,10 +18,11 @@ function entry(
   };
 }
 
-test("formatByteSize：B／KB／MB", () => {
+test("formatByteSize：B／KB／MB／GB", () => {
   assert.equal(formatByteSize(500), "500 B");
   assert.equal(formatByteSize(12_400), "12.1 KB");
   assert.equal(formatByteSize(1_500_000), "1.4 MB");
+  assert.equal(formatByteSize(1_610_612_736), "1.5 GB");
 });
 
 test("sortEntriesByHeat：section 順序固定，同 section 內 byte 降序，無 size 置末", () => {

@@ -50,3 +50,8 @@ test("formatStuckLabel：未滿 60s 用秒，否則用分", () => {
   assert.equal(formatStuckLabel(new Date(now - 45_000).toISOString(), now), "可能卡住（已 45s）");
   assert.equal(formatStuckLabel(new Date(now - 120_000).toISOString(), now), "可能卡住（已 2m）");
 });
+
+test("formatStuckLabel：超過 1 分鐘且有剩餘秒數時一併顯示", () => {
+  const now = Date.parse("2026-09-16T12:00:00.000Z");
+  assert.equal(formatStuckLabel(new Date(now - 137_000).toISOString(), now), "可能卡住（已 2m17s）");
+});

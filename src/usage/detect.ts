@@ -1,4 +1,5 @@
 import { CODEX_CONTEXT_WINDOW_TOKENS, contextOccupancyPct } from "../context-snapshot.js";
+import { formatTokenCount } from "../usage-overview.js";
 import { AccumulateStep, Advice, SessionUsageStats } from "./types.js";
 
 const LONG_SESSION_MSG_THRESHOLD = 200;
@@ -29,6 +30,15 @@ function elapsedMinutes(stats: SessionUsageStats): number {
   return minutesBetween(stats.sessionStartedAt, stats.lastMsgAt);
 }
 
+/** 87 → "87 分鐘"、187 → "3 小時 7 分鐘"、180 → "3 小時"（整點不附「0 分鐘」）。 */
+function formatElapsedMinutes(minutes: number): string {
+  const totalMinutes = Math.round(minutes);
+  if (totalMinutes < 60) return `${totalMinutes.toLocaleString("en-US")} 分鐘`;
+  const hours = Math.floor(totalMinutes / 60);
+  const remainder = totalMinutes % 60;
+  return remainder === 0 ? `${hours} 小時` : `${hours} 小時 ${remainder} 分鐘`;
+}
+
 function isLongSession(stats: SessionUsageStats): boolean {
   return stats.mainThreadMsgCount > LONG_SESSION_MSG_THRESHOLD || elapsedMinutes(stats) > LONG_SESSION_MINUTES_THRESHOLD;
 }
@@ -41,8 +51,8 @@ function checkLongSession(before: SessionUsageStats, after: SessionUsageStats): 
       kind: "long-session",
       at: after.lastMsgAt ?? new Date().toISOString(),
       message: isCodex(after)
-        ? `先把進度寫進 docs/superpowers/plans/（結論、檔案清單、未完成項），再另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`
-        : `先把進度寫進 docs/superpowers/plans/（結論、檔案清單、未完成項），再執行 /clear 或另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${Math.round(elapsedMinutes(after)).toLocaleString("en-US")} 分鐘）。`,
+        ? `先把進度寫進 docs/superpowers/plans/（結論、檔案清單、未完成項），再另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${formatElapsedMinutes(elapsedMinutes(after))}）。`
+        : `先把進度寫進 docs/superpowers/plans/（結論、檔案清單、未完成項），再執行 /clear 或另開新 session（這個 session 已經 ${after.mainThreadMsgCount.toLocaleString("en-US")} 則訊息、開了 ${formatElapsedMinutes(elapsedMinutes(after))}）。`,
     },
   ];
 }
@@ -59,8 +69,8 @@ function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advic
       kind: "cache-spike",
       at: step.event.timestamp ?? new Date().toISOString(),
       message: isCodex(before)
-        ? `這一輪重算了 ${usage.cacheCreation.toLocaleString("en-US")} token（平常 ${Math.round(before.cacheCreationRollingAvg).toLocaleString("en-US")}），可能是閒置太久 cache 過期或 context 被改動；長時間離開後建議另開新 session。`
-        : `現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定（剛剛這一輪因此重算了 ${usage.cacheCreation.toLocaleString("en-US")} token，平常只要 ${Math.round(before.cacheCreationRollingAvg).toLocaleString("en-US")}）。`,
+        ? `這一輪重算了 ${formatTokenCount(usage.cacheCreation)} token（平常 ${formatTokenCount(before.cacheCreationRollingAvg)}），可能是閒置太久 cache 過期或 context 被改動；長時間離開後建議另開新 session。`
+        : `現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定（剛剛這一輪因此重算了 ${formatTokenCount(usage.cacheCreation)} token，平常只要 ${formatTokenCount(before.cacheCreationRollingAvg)}）。`,
     },
   ];
 }
@@ -76,8 +86,8 @@ function checkHeavyBaseline(before: SessionUsageStats, step: AccumulateStep): Ad
       kind: "heavy-baseline",
       at: step.event.timestamp ?? new Date().toISOString(),
       message: isCodex(before)
-        ? `開場偏重（第一輪就吃了 ${usage.cacheCreation.toLocaleString("en-US")} token）；檢查 AGENTS.md、啟用的 MCP／plugin 與 skill 有沒有太多。`
-        : `開場偏重（第一輪就吃了 ${usage.cacheCreation.toLocaleString("en-US")} token）；下方是可能來源，也可執行 task-tracker inspect 細看。`,
+        ? `開場偏重（第一輪就吃了 ${formatTokenCount(usage.cacheCreation)} token）；檢查 AGENTS.md、啟用的 MCP／plugin 與 skill 有沒有太多。`
+        : `開場偏重（第一輪就吃了 ${formatTokenCount(usage.cacheCreation)} token）；下方是可能來源，也可執行 task-tracker inspect 細看。`,
     },
   ];
 }
@@ -87,7 +97,7 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
   if (!toolResultChars) return [];
   const estTokens = estimateTokensFromChars(toolResultChars.chars);
   if (estTokens <= FAT_TOOL_RESULT_TOKENS) return [];
-  const tokens = estTokens.toLocaleString("en-US");
+  const tokens = formatTokenCount(estTokens);
   const pct = contextOccupancyPct(
     estTokens,
     stats.lastContextWindow ?? (isCodex(stats) ? CODEX_CONTEXT_WINDOW_TOKENS : undefined),

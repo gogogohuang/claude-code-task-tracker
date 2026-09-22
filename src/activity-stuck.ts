@@ -21,5 +21,8 @@ export function formatStuckLabel(activityAt: string, now: number = Date.now()): 
   if (elapsedMs < 60_000) {
     return `可能卡住（已 ${Math.floor(elapsedMs / 1000)}s）`;
   }
-  return `可能卡住（已 ${Math.floor(elapsedMs / 60_000)}m）`;
+  const minutes = Math.floor(elapsedMs / 60_000);
+  const seconds = Math.floor((elapsedMs % 60_000) / 1000);
+  const label = seconds === 0 ? `${minutes}m` : `${minutes}m${seconds}s`;
+  return `可能卡住（已 ${label}）`;
 }

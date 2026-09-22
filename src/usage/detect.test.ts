@@ -37,6 +37,14 @@ test("detect：long-session 時間跨過 90 分鐘也會觸發", () => {
   assert.equal(detect(stats0, next, steps).filter((a) => a.kind === "long-session").length, 1);
 });
 
+test("detect：long-session 超過 60 分鐘顯示「X 小時 Y 分鐘」", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const events = [usageEvent("m0", 10, "2026-09-15T00:00:00.000Z"), usageEvent("m1", 10, "2026-09-15T03:07:00.000Z")];
+  const { next, steps } = accumulate(stats0, events);
+  const msg = detect(stats0, next, steps).filter((a) => a.kind === "long-session")[0].message;
+  assert.match(msg, /3 小時 7 分鐘/);
+});
+
 test("detect：cache-spike 在 mainThreadMsgCount < 5 時不觸發，即使數字很大", () => {
   const stats0 = createSessionUsageStats("s1");
   const events = [usageEvent("m0", 100, "t0"), usageEvent("m1", 999999, "t1")];
@@ -51,7 +59,7 @@ test("detect：cache-spike 在累積 5 則後，單輪超過 max(20000, 5x平均
   const { next, steps } = accumulate(warmup.next, [usageEvent("spike", 30000, "tspike")]);
   const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
   assert.equal(spikeAdvice.length, 1);
-  assert.match(spikeAdvice[0].message, /30,000/);
+  assert.match(spikeAdvice[0].message, /30K/);
   assert.match(spikeAdvice[0].message, /\/clear/);
 });
 
@@ -82,7 +90,7 @@ test("detect：fat-tool-result 估算 token 剛好等於門檻（8000）不觸�
   assert.equal(overAdvice.length, 1);
   assert.equal(overAdvice[0].kind, "fat-tool-result");
   assert.match(overAdvice[0].message, /Bash/);
-  assert.match(overAdvice[0].message, /8,001 token/);
+  assert.match(overAdvice[0].message, /8K token/);
   assert.match(overAdvice[0].message, /context window/);
 });
 
@@ -101,7 +109,7 @@ test("detect：fat-tool-result 對 Agent 改叫只交結論與檔案路徑", () 
   assert.equal(advice[0].kind, "fat-tool-result");
   assert.match(advice[0].message, /結論與檔案路徑/);
   assert.equal(/head\/grep\/limit/.test(advice[0].message), false);
-  assert.match(advice[0].message, /10,000 token/);
+  assert.match(advice[0].message, /10K token/);
 });
 
 test("detect：fat-tool-result 有 path 時文案帶路徑", () => {
@@ -163,7 +171,7 @@ test("detect：Codex 的 cache-spike 說可能是閒置過期，不怪 MCP 設�
   const { next, steps } = accumulate(stats0, events);
   const msg = detect(stats0, next, steps).filter((a) => a.kind === "cache-spike")[0].message;
   assert.match(msg, /閒置太久 cache 過期/);
-  assert.match(msg, /50,000/);
+  assert.match(msg, /50K/);
   assert.doesNotMatch(msg, /MCP 設定/);
 });
 
