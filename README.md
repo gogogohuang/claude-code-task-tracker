@@ -76,8 +76,9 @@ npm install -g claude-code-task-tracker
 
 `watch` 也會持續分析每個已知 session 的 token 用量（讀 Claude Code 自己寫的 session transcript，
 不限目前正在看的那個），偵測到「session 拖太長」「單輪 cache 重算暴增」「單次工具回傳過肥」
-「開場底子就重」這四種狀況時，會用同一套提示 + 響鈴機制通知你，並直接告訴你現在該做的動作
-（例如先把進度寫進 plan 再 `/clear`、開新 session、子 agent 只交結論與路徑、或加 `head`/`limit` 重跑）。按 `a` 隨時查看目前所有建議，`b` 回上一頁。
+「開場底子就重」「同一檔案反覆 Read」這幾種狀況時，會用同一套提示 + 響鈴機制通知你，並直接告訴你現在該做的動作
+（例如先把進度寫進 plan 再 `/clear`、開新 session、子 agent 只交結論與路徑、或加 `head`/`limit` 重跑）。每則建議都依「超過門檻多少」分成
+warn（黃）／critical（紅）兩級，`a` 面板依嚴重度排序，最急的排最上面。按 `a` 隨時查看目前所有建議，`b` 回上一頁。
 主畫面也會顯示這個 session 實際用過的 tools／MCP 摘要（例如 `tools 5 · mcp 2`）；按 `t` 看完整清單與呼叫次數。
 
 ```bash
@@ -141,7 +142,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄（依呼叫順序回放整個 session，不是只從打開 watch 那刻起算；切走再切回或重開 task-tracker 都不會遺失；每筆寫明這次呼叫做了什麼（例如 `Bash · 已執行 npm test`，與活動列同一套句子），後面附這次呼叫回傳給模型的內容量（單筆、以字元數粗估 token，不是累計），例如 `ctx +1,234`；結果還沒回來就不顯示）、按 `u` 開啟用量總覽〔beta〕（所有 session 依累計用量排序）、按 `f` 開啟焦點（只列出「等你」「有用量建議」的 session，依嚴重度排序，每行顯示最需要處理的那筆建議）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄（依呼叫順序回放整個 session，不是只從打開 watch 那刻起算；切走再切回或重開 task-tracker 都不會遺失；每筆寫明這次呼叫做了什麼（例如 `Bash · 已執行 npm test`，與活動列同一套句子），後面附這次呼叫回傳給模型的內容量（單筆、以字元數粗估 token，不是累計），例如 `ctx +1.2K`；超過單次過肥門檻會標黃字，達 2 倍門檻標紅字，跟 `a` 面板用同一套判斷；結果還沒回來就不顯示）、按 `u` 開啟用量總覽〔beta〕（所有 session 依累計用量排序）、按 `f` 開啟焦點（只列出「等你」「有用量建議」的 session，依嚴重度排序，每行顯示最需要處理的那筆建議）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對該 session 回報的視窗（Claude 1M、Codex 258,400）的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
@@ -172,12 +173,13 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 
 > **Beta**：用量占比功能尚未完成（例如 Claude 子 agent 用量還沒計入），數字僅供參考，行為與顯示之後可能調整。
 
-`watch` 按 `u` 會列出所有已知 session（Claude 與 Codex 混合，標示來源），依累計用量由大到小排序，
-每列顯示累計 token、占全部的百分比與一條比例條：
+`watch` 按 `u` 會列出所有已知 session（Claude 與 Codex 混合，標示來源），依 presence（等你 `!` <
+忙碌 `●` < 閒置 `○`，跟 session 列表同一套分級）優先排序，同一層再依累計用量由大到小，
+每列顯示 presence 標記、累計 token、占全部的百分比與一條比例條，整行依 presence 上色：
 
 ```text
-[Claude] my-project · 1a2b3c4d  2.3M  41%  █████░░░░░░░
-[Codex]  other-repo · 9f8e7d6c  1.1M  20%  ██░░░░░░░░░░
+! [Claude] my-project · 1a2b3c4d  2.3M  41%  █████░░░░░░░
+○ [Codex]  other-repo · 9f8e7d6c  1.1M  20%  ██░░░░░░░░░░
 ```
 
 - **用量的算法**：累計「新增工作量」token = `input + cache creation + output`（Codex：`input − cached + output`），
@@ -187,6 +189,18 @@ agents、output-styles、workflows、agent-memory。如果檔案存在，但因�
 - **限制**：Claude 子 agent（sidechain）用到的 token 不計入累計，重度使用子 agent 的 session 會被低估；
   比較的是工作量，不是花費（不同來源的 token 單價不同）。
 - 偶爾沒命中 prompt cache 的那幾輪，`input` 本身就帶著整份 context，會被完整計入；實務上 Claude Code 幾乎都有 cache，影響很小。
+
+### 焦點（`f`）
+
+`watch` 按 `f` 會列出所有「現在該處理」的 session——presence 是等你／忙碌、或帶有 warn／critical
+用量建議的才會出現，沒事的 session 不列。依「等你 → critical 建議 → warn 建議 → 忙碌無建議」排序，
+每行直接顯示最需要處理的那件事，不用切換 `a`／`u`／`h` 三個面板分別確認：
+
+```text
+! my-project · 1a2b3c4d  等你
+✗ other-repo · 9f8e7d6c  這一輪重算了 45.0K token，是平常 7.5K 的 6 倍（門檻 5 倍）。 → 現在 /clear 或開新 session…
+● third-repo · 3c4d5e6f  進行中
+```
 
 ## Codex 支援
 
@@ -268,7 +282,9 @@ src/
 ├── codex-config.ts           # 讀 ~/.codex/config.toml 判斷 hooks 是否被關掉
 ├── install-hooks.ts          # 依 agent（claude / codex）合併 hook 設定
 ├── describe-activity.ts      # 把工具呼叫收成活動句（含 Codex 的 Bash / apply_patch）
-├── usage-overview.ts         # 用量總覽〔beta〕的純函式：排序、占比、token 格式化、比例條（按 u）
+├── usage-overview.ts         # 用量總覽〔beta〕的純函式：presence 優先排序、占比、token 格式化、比例條（按 u）
+├── focus-overview.ts         # 焦點的純函式：濾掉沒事的 session、依嚴重度／presence 排序與上色（按 f）
+├── session-presence.ts       # presence（等你/忙碌/閒置）分級、前綴符號與顏色，session 列表／split／usage/focus 共用
 ├── schema.ts                 # zod schema：TodoWrite 格式、hook payload、狀態檔
 ├── store.ts                  # 狀態檔案讀寫（write-then-rename 避免讀到半份資料）
 ├── commands/
@@ -283,8 +299,8 @@ src/
     ├── App.tsx               # 主畫面，負責 session 偵測、檔案監控與用量建議通知
     ├── SessionPicker.tsx     # 多 session 時的選單
     ├── TaskList.tsx          # task 清單、活動句與進度條
-    ├── AdvicePanel.tsx       # 用量建議面板
-    ├── UsagePanel.tsx        # 用量總覽〔beta〕面板（按 u）
+    ├── AdvicePanel.tsx       # 用量建議面板，依嚴重度上色排序
+    ├── UsagePanel.tsx        # 可重用的清單面板，用量總覽（按 u）與焦點（按 f）共用
     ├── AgentTabs.tsx         # 來源分頁列
     ├── HistoryPanel.tsx      # 活動 timeline（按 h）
     ├── InspectApp.tsx        # inspect 的互動
