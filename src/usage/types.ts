@@ -114,10 +114,16 @@ export type AdviceKind =
   | "heavy-baseline"
   | "repeated-read";
 
+export type AdviceSeverity = "warn" | "critical";
+
 export interface Advice {
   sessionId: string;
   kind: AdviceKind;
   at: string;
-  message: string;
+  severity: AdviceSeverity;
+  /** 發生了什麼，含數字。 */
+  summary: string;
+  /** 建議怎麼做。 */
+  action: string;
   detailLines?: string[];
 }
