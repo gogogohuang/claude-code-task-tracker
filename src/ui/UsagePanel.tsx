@@ -13,10 +13,12 @@ export function UsagePanel({
   header,
   lines,
   emptyHint,
+  footer,
 }: {
   header: string;
   lines: UsagePanelLine[];
   emptyHint: string;
+  footer: string;
 }) {
   const { isRawModeSupported } = useStdin();
   const [termRows, setTermRows] = useState(process.stdout.rows ?? 24);
@@ -66,7 +68,7 @@ export function UsagePanel({
         {hiddenBelow > 0 ? <Text dimColor>↓ 還有 {hiddenBelow} 行</Text> : null}
       </Box>
       <Box marginTop={1}>
-        <Text dimColor>beta：占比仍在調整，數字僅供參考 · 累計新增工作量（不含 cache 讀取；Claude 不含子 agent）· ↑↓ 捲動 — 按 b 回上一頁</Text>
+        <Text dimColor>{footer}</Text>
       </Box>
     </Box>
   );

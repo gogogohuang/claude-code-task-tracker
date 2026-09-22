@@ -8,7 +8,7 @@ export const DELETE_SESSION_RUNNING_NOTICE = "這個 session 正在執行中，�
 export const DELETE_SESSION_STUCK_CONFIRM_NOTICE =
   "此 session 可能卡住，再按 d 強制清除暫存（不影響 Claude context；按 b 取消）";
 
-export type WatchView = "main" | "advice" | "cache" | "tools" | "history" | "split" | "usage";
+export type WatchView = "main" | "advice" | "cache" | "tools" | "history" | "split" | "usage" | "focus";
 
 export function shouldHandleDeleteKey(view: WatchView, selectedSessionId: string | undefined): boolean {
   return (view === "main" || view === "split") && selectedSessionId !== undefined;
