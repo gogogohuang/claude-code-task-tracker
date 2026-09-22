@@ -1,6 +1,9 @@
 import { TAB_LABELS, type Agent } from "./agent.js";
+import { presenceLabelPrefix, type SessionPresence } from "./session-presence.js";
 
 export const SHARE_BAR_WIDTH = 12;
+
+const PRESENCE_RANK: Record<SessionPresence, number> = { waiting: 0, busy: 1, idle: 2 };
 
 export interface UsageOverviewInput {
   sessionId: string;
@@ -9,6 +12,8 @@ export interface UsageOverviewInput {
   agent: Agent;
   /** 累計新增工作量 token；undefined = 還沒有用量資料。 */
   workTokens: number | undefined;
+  /** 該 session 目前該不該先處理，跟 session 列表同一套分級。 */
+  presence: SessionPresence;
 }
 
 export interface UsageOverviewRow extends UsageOverviewInput {
@@ -33,7 +38,7 @@ export function formatShareBar(sharePct: number, width: number = SHARE_BAR_WIDTH
   return `${"█".repeat(filled)}${"░".repeat(width - filled)}`;
 }
 
-/** 有資料者依 workTokens 由大到小（同值依 sessionId），無資料者排最後；回傳新陣列，不改動輸入。 */
+/** 先依 presence（等你 < 忙碌 < 閒置），同 presence 才依 workTokens 由大到小（同值依 sessionId，無資料排最後）；回傳新陣列，不改動輸入。 */
 export function buildUsageOverview(inputs: readonly UsageOverviewInput[]): UsageOverviewRow[] {
   const total = inputs.reduce((sum, item) => sum + (item.workTokens ?? 0), 0);
   const rows: UsageOverviewRow[] = inputs.map((item) => ({
@@ -42,6 +47,8 @@ export function buildUsageOverview(inputs: readonly UsageOverviewInput[]): Usage
       item.workTokens === undefined ? undefined : total === 0 ? 0 : Math.round((item.workTokens / total) * 100),
   }));
   return rows.sort((left, right) => {
+    const presenceDiff = PRESENCE_RANK[left.presence] - PRESENCE_RANK[right.presence];
+    if (presenceDiff !== 0) return presenceDiff;
     if (left.workTokens === undefined && right.workTokens === undefined) {
       return left.sessionId.localeCompare(right.sessionId);
     }
@@ -53,9 +60,10 @@ export function buildUsageOverview(inputs: readonly UsageOverviewInput[]): Usage
 }
 
 export function formatUsageOverviewLine(row: UsageOverviewRow): string {
+  const prefix = presenceLabelPrefix(row.presence);
   const source = `[${TAB_LABELS[row.agent]}]`;
-  if (row.workTokens === undefined || row.sharePct === undefined) return `${source} ${row.label}  —`;
-  return `${source} ${row.label}  ${formatTokenCount(row.workTokens)}  ${row.sharePct}%  ${formatShareBar(row.sharePct)}`;
+  if (row.workTokens === undefined || row.sharePct === undefined) return `${prefix}${source} ${row.label}  —`;
+  return `${prefix}${source} ${row.label}  ${formatTokenCount(row.workTokens)}  ${row.sharePct}%  ${formatShareBar(row.sharePct)}`;
 }
 
 export function summarizeUsageOverview(rows: readonly UsageOverviewRow[]): {

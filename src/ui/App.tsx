@@ -64,7 +64,9 @@ import {
   lastTurnUsageFromStats,
 } from "../context-snapshot.js";
 import {
+  classifyPresence,
   isWaitingForUser,
+  presenceColor,
   shouldRingWaitingBell,
   waitingEdgeKey,
   waitingNoticeForActivity,
@@ -856,6 +858,13 @@ export function App({
                   label: `${basename(hint.cwd)} · ${shortSessionId(hint.sessionId)}`,
                   agent: hint.agent ?? ("claude" as const),
                   workTokens: peek(hint.sessionId)?.workTokensTotal,
+                  presence: classifyPresence({
+                    activity:
+                      hint.activityToolName && hint.activityPhase
+                        ? { toolName: hint.activityToolName, phase: hint.activityPhase, at: hint.activityAt }
+                        : undefined,
+                    updatedAt: hint.updatedAt,
+                  }),
                 },
               ]
             : [],
@@ -866,7 +875,7 @@ export function App({
         topNotice,
         <UsagePanel
           header={`用量總覽 [beta] · ${summary.sessions} 個 session（${summary.measured} 個有用量資料）· 合計 ${formatTokenCount(summary.totalTokens)} token`}
-          lines={rows.map(formatUsageOverviewLine)}
+          lines={rows.map((row) => ({ text: formatUsageOverviewLine(row), color: presenceColor(row.presence) }))}
           emptyHint="還沒有可列出的 session"
         />,
       );
