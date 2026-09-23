@@ -8,6 +8,15 @@ function usageEvent(messageId: string, cacheCreation: number, timestamp: string)
   return { messageId, isSidechain: false, timestamp, usage: { cacheCreation, cacheRead: 0, output: 0, input: 0 }, toolResultChars: undefined };
 }
 
+function usageEventWithReason(
+  messageId: string,
+  cacheCreation: number,
+  timestamp: string,
+  cacheMissReason: { type: string; cacheMissedInputTokens?: number },
+): ParsedEvent {
+  return { ...usageEvent(messageId, cacheCreation, timestamp), cacheMissReason };
+}
+
 function toolResultEvent(toolName: string | undefined, chars: number, timestamp: string): ParsedEvent {
   return { messageId: undefined, isSidechain: false, timestamp, usage: undefined, toolResultChars: { toolName, chars } };
 }
@@ -85,6 +94,46 @@ test("detect：cache-spike 達 2 倍門檻升級為 critical", () => {
   const { next, steps } = accumulate(warmup.next, [usageEvent("spike", 50000, "tspike")]);
   const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
   assert.equal(spikeAdvice[0].severity, "critical");
+});
+
+test("detect：cache-spike 有 cacheMissReason=messages_changed 時，detailLines 附上人話原因", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const warmup = accumulate(stats0, Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 1000, `t${i}`)));
+  const { next, steps } = accumulate(warmup.next, [
+    usageEventWithReason("spike", 30000, "tspike", { type: "messages_changed", cacheMissedInputTokens: 30000 }),
+  ]);
+  const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
+  assert.deepEqual(spikeAdvice[0].detailLines, ["原因（API 回報）：訊息內容跟快取版本不一致"]);
+});
+
+test("detect：cache-spike 有 cacheMissReason=previous_message_not_found 時，detailLines 附上人話原因", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const warmup = accumulate(stats0, Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 1000, `t${i}`)));
+  const { next, steps } = accumulate(warmup.next, [
+    usageEventWithReason("spike", 30000, "tspike", { type: "previous_message_not_found" }),
+  ]);
+  const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
+  assert.deepEqual(spikeAdvice[0].detailLines, [
+    "原因（API 回報）：找不到快取參照的上一則訊息（可能剛 /clear、開新 session、或快取已過期）",
+  ]);
+});
+
+test("detect：cache-spike 遇到未知 cacheMissReason type 時，用原始字串當保底文案", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const warmup = accumulate(stats0, Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 1000, `t${i}`)));
+  const { next, steps } = accumulate(warmup.next, [
+    usageEventWithReason("spike", 30000, "tspike", { type: "some_future_reason" }),
+  ]);
+  const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
+  assert.deepEqual(spikeAdvice[0].detailLines, ["原因（API 回報）：some_future_reason"]);
+});
+
+test("detect：cache-spike 沒有 cacheMissReason 時，detailLines 維持 undefined（不強行湊字）", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const warmup = accumulate(stats0, Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 1000, `t${i}`)));
+  const { next, steps } = accumulate(warmup.next, [usageEvent("spike", 30000, "tspike")]);
+  const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
+  assert.equal(spikeAdvice[0].detailLines, undefined);
 });
 
 test("detect：heavy-baseline 只在第一則訊息判斷，之後即使 cacheCreation 很大也不誤判", () => {

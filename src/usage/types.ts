@@ -44,6 +44,8 @@ export interface ParsedEvent {
   toolUseId?: string;
   /** 這次呼叫做了什麼的一句話（與 hook 活動句同一套，例如「已執行 npm test」） */
   toolUseSummary?: string;
+  /** API 回報的快取未命中原因（message.diagnostics.cache_miss_reason）；只在異常未命中時才有值。 */
+  cacheMissReason?: { type: string; cacheMissedInputTokens?: number };
   /** 只在 tool_use 是 Agent 時才有值 */
   agentDispatch?: AgentDispatchInfo;
   title?: string;
