@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { TaskState } from "./schema.js";
 import { ENDED_MS, formatEndedSummary, isSessionEnded } from "./session-ended.js";
+import type { Advice } from "./usage/types.js";
 
 const base: TaskState = {
   sessionId: "s1",
@@ -139,4 +140,43 @@ test("formatEndedSummary 全部都是 deleted task → 任務 —（視同沒有
     tasks: { a: { id: "a", status: "deleted", subject: "A" } },
   });
   assert.match(line, /任務 —/);
+});
+
+test("formatEndedSummary 沒有 advice 參數時行為不變（不附加建議段落）", () => {
+  const line = formatEndedSummary(base);
+  assert.doesNotMatch(line, /##/);
+});
+
+test("formatEndedSummary advice 為空陣列時不附加建議段落", () => {
+  const line = formatEndedSummary(base, []);
+  assert.doesNotMatch(line, /##/);
+});
+
+test("formatEndedSummary 有 advice 時，在摘要下面附上分組後的建議內容", () => {
+  const advice: Advice[] = [
+    {
+      sessionId: "s1",
+      kind: "fat-tool-result",
+      at: "2026-09-16T09:00:00.000Z",
+      severity: "warn",
+      summary: "第一筆",
+      action: "act-1",
+      target: "src/foo.ts",
+    },
+    {
+      sessionId: "s1",
+      kind: "fat-tool-result",
+      at: "2026-09-16T09:10:00.000Z",
+      severity: "critical",
+      summary: "第二筆",
+      action: "act-2",
+      target: "src/foo.ts",
+    },
+  ];
+  const line = formatEndedSummary(base, advice);
+  assert.match(line, /似乎已結束/);
+  assert.match(line, /共 2 則：fat-tool-result 2/);
+  assert.match(line, /## fat-tool-result · 2 則/);
+  assert.match(line, /✗ 第二筆（×2 次）/);
+  assert.match(line, /  → act-2/);
 });

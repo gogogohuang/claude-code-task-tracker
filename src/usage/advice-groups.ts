@@ -1,4 +1,5 @@
 import { Advice, AdviceKind, AdviceSeverity } from "./types.js";
+import { formatTokenCount } from "../usage-overview.js";
 
 const SEVERITY_RANK: Record<Advice["severity"], number> = { critical: 0, warn: 1 };
 
@@ -93,4 +94,34 @@ export function adviceOverviewLine(groups: readonly AdviceGroup[]): string {
   const total = groups.reduce((sum, group) => sum + group.totalCount, 0);
   const parts = groups.map((group) => `${group.kind} ${group.totalCount}`);
   return `共 ${total} 則：${parts.join(" · ")}`;
+}
+
+function mergeSuffix(count: number, estTokensSum: number | undefined): string {
+  if (count <= 1) return "";
+  const tokenPart = estTokensSum !== undefined ? `，累積約 ${formatTokenCount(estTokensSum)} token` : "";
+  return `（×${count} 次${tokenPart}）`;
+}
+
+/**
+ * 總覽列 + 依 kind 分組列印的內文行，供複製輸出與「已結束」摘要共用。
+ * 沒有建議時回空陣列；各呼叫端自行決定空狀態要不要顯示提示文字。
+ */
+export function formatAdviceGroupsLines(advice: readonly Advice[]): string[] {
+  const groups = groupAdvice(advice);
+  if (groups.length === 0) return [];
+
+  const lines: string[] = [adviceOverviewLine(groups), ""];
+  for (const group of groups) {
+    lines.push(`## ${group.kind} · ${group.totalCount} 則`);
+    for (const row of group.rows) {
+      const marker = row.severity === "critical" ? "✗" : "⚠";
+      lines.push(`${marker} ${row.summary}${mergeSuffix(row.count, row.estTokensSum)}`);
+      lines.push(`  → ${row.action}`);
+      for (const detail of row.detailLines ?? []) {
+        lines.push(`  · ${detail}`);
+      }
+    }
+    lines.push("");
+  }
+  return lines;
 }
