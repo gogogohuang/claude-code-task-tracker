@@ -149,7 +149,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對該 session 回報的視窗（Claude 1M、Codex 258,400）的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在
-`AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。其他 session 在等你或有新用量建議時，頂列也會彙總並響鈴（按 `n` 跳轉）。若設 `TASK_TRACKER_NOTIFY=1`，同一事件會再發一次 macOS 桌面通知（失敗静默）。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。有 workflow 時會多一條 Phase 進度條；活動列下方可顯示「下一個」pending 任務。若約 5 分鐘無更新且沒有進行中的工作，會提示「Session 似乎已結束」。專案／session 列表前綴：`!` 等你、
+`AskUserQuestion` 或等待核准計畫時，頂部會出現等待提示並響鈴一次。其他 session 在等你或有新用量建議時，頂列也會彙總並響鈴（按 `n` 跳轉）。若設 `TASK_TRACKER_NOTIFY=1`，同一事件會再發一次 macOS 桌面通知（失敗静默）。若同一工具持續 running 超過約 120 秒且不是在等你，活動列下方會標「可能卡住」。有 workflow 時會多一條 Phase 進度條；活動列下方可顯示「下一個」pending 任務。若約 5 分鐘無更新且沒有進行中的工作，會提示「Session 似乎已結束」；若該 session 有觸發過用量建議，會接在提示下方一併列出（跟 `a` 面板、`c` 複製輸出同一套依 kind 分組格式），讓建議不會因為 session 閒置而消失。專案／session 列表前綴：`!` 等你、
 `●` 忙碌、`○` 閒置；整列文字上色（紅＝等你、黃＝進行中、綠＝就緒），進入 session 後標題列同色。
 
 派發過 `Agent` 工具（sub-task）時，主畫面會多一塊「Sub-task（Agent 派發）」清單，逐筆顯示派發時的
