@@ -47,6 +47,7 @@ import { HistoryPanel } from "./HistoryPanel.js";
 import { UsagePanel } from "./UsagePanel.js";
 import { cachePanelLinesForSession } from "../cache-panel-lines.js";
 import { adviceForSession } from "../usage/advice-groups.js";
+import { formatAdviceForClipboard } from "../usage/advice-export.js";
 import { attachHeavyBaselineHeat } from "../usage/advice-heat.js";
 import { forget, peek, peekSubagents, prime, refresh } from "../usage/tail-runtime.js";
 import { formatToolInventoryLines, formatToolInventorySummary } from "../usage/tool-inventory.js";
@@ -467,6 +468,23 @@ export function App({
         const payload = input === "c" ? actionSessionId : statePathForSession(actionSessionId);
         const ok = copyText(payload);
         setNotice(ok ? (input === "c" ? "已複製 session id" : "已複製暫存路徑") : "複製失敗（請手動選取）");
+        return;
+      }
+      if (input === "c" && view === "advice" && selectedSessionId) {
+        const stats = peek(selectedSessionId);
+        if (!stats) {
+          setNotice("沒有可複製的用量建議");
+          return;
+        }
+        const filtered = adviceForSession(adviceList, selectedSessionId);
+        const heatCwd = readTaskState(selectedSessionId)?.cwd ?? taskState?.cwd ?? cwd;
+        const enriched =
+          filtered.some((item) => item.kind === "heavy-baseline") &&
+          agentOf(readTaskState(selectedSessionId)) !== "codex"
+            ? attachHeavyBaselineHeat(filtered, launchHeatLines(heatCwd))
+            : filtered;
+        const ok = copyText(formatAdviceForClipboard(stats, enriched));
+        setNotice(ok ? "已複製用量建議" : "複製失敗（請手動選取）");
         return;
       }
       if (input !== "b" && !key.escape) return;
