@@ -11,6 +11,7 @@ function assistantLine(opts: {
   isSidechain?: boolean;
   timestamp?: string;
   content?: unknown[];
+  cacheMissReason?: { type: string; cache_missed_input_tokens?: number };
 }): string {
   return JSON.stringify({
     isSidechain: opts.isSidechain ?? false,
@@ -25,6 +26,7 @@ function assistantLine(opts: {
         input_tokens: opts.input ?? 0,
       },
       content: opts.content ?? [{ type: "text", text: "hi" }],
+      ...(opts.cacheMissReason ? { diagnostics: { cache_miss_reason: opts.cacheMissReason } } : {}),
     },
   });
 }
@@ -60,6 +62,26 @@ test("parseNewContent 一次讀多行，回傳每個 assistant 訊息的 usage �
   assert.equal(events[0].messageId, "m1");
   assert.equal(events[0].usage?.cacheCreation, 100);
   assert.equal(events[1].messageId, "m2");
+});
+
+test("parseNewContent 解析 message.diagnostics.cache_miss_reason 進 usage 事件", () => {
+  const state = createTailState();
+  const chunk =
+    assistantLine({
+      id: "m1",
+      cacheCreation: 30000,
+      cacheMissReason: { type: "messages_changed", cache_missed_input_tokens: 30000 },
+    }) + "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0].cacheMissReason, { type: "messages_changed", cacheMissedInputTokens: 30000 });
+});
+
+test("parseNewContent 沒有 diagnostics.cache_miss_reason 時，cacheMissReason 是 undefined", () => {
+  const state = createTailState();
+  const chunk = assistantLine({ id: "m1", cacheCreation: 100 }) + "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  assert.equal(events[0].cacheMissReason, undefined);
 });
 
 test("parseNewContent 對跨 chunk 斷行的最後一行，先暫存到下一次呼叫再解析", () => {

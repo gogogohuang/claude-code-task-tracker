@@ -32,6 +32,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function extractCacheMissReason(
+  diagnostics: unknown,
+): { type: string; cacheMissedInputTokens?: number } | undefined {
+  if (!isRecord(diagnostics)) return undefined;
+  const reason = diagnostics.cache_miss_reason;
+  if (!isRecord(reason) || typeof reason.type !== "string") return undefined;
+  const cacheMissedInputTokens = numberOr0(reason.cache_missed_input_tokens);
+  return {
+    type: reason.type,
+    ...(reason.cache_missed_input_tokens !== undefined ? { cacheMissedInputTokens } : {}),
+  };
+}
+
 function extractToolPath(input: unknown): string | undefined {
   if (!isRecord(input)) return undefined;
   const filePath = input.file_path;
@@ -143,6 +156,7 @@ export function parseNewContent(
             input: numberOr0(usage.input_tokens),
           },
           toolResultChars: undefined,
+          cacheMissReason: extractCacheMissReason(message.diagnostics),
         });
       }
       if (Array.isArray(content)) {

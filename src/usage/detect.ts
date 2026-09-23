@@ -76,6 +76,18 @@ function checkLongSession(before: SessionUsageStats, after: SessionUsageStats): 
   ];
 }
 
+/** message.diagnostics.cache_miss_reason.type → 人話原因；未知 type 用原始字串當保底。 */
+function describeCacheMissReason(reason: { type: string }): string {
+  switch (reason.type) {
+    case "messages_changed":
+      return "原因（API 回報）：訊息內容跟快取版本不一致";
+    case "previous_message_not_found":
+      return "原因（API 回報）：找不到快取參照的上一則訊息（可能剛 /clear、開新 session、或快取已過期）";
+    default:
+      return `原因（API 回報）：${reason.type}`;
+  }
+}
+
 function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advice[] {
   const usage = step.event.usage;
   if (!usage) return [];
@@ -89,6 +101,7 @@ function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advic
     ratioToAvg !== undefined
       ? `，是平常 ${formatTokenCount(avg)} 的 ${ratioToAvg} 倍（門檻 ${CACHE_SPIKE_MULTIPLIER} 倍）`
       : `（平常只要 ${formatTokenCount(avg)}）`;
+  const cacheMissReason = step.event.cacheMissReason;
   return [
     {
       sessionId: before.sessionId,
@@ -102,6 +115,7 @@ function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advic
       action: isCodex(before)
         ? `長時間離開後建議另開新 session。`
         : `現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定。`,
+      ...(cacheMissReason ? { detailLines: [describeCacheMissReason(cacheMissReason)] } : {}),
     },
   ];
 }
