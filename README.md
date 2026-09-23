@@ -77,7 +77,10 @@ npm install -g claude-code-task-tracker
 `watch` 也會持續分析每個已知 session 的 token 用量（讀 Claude Code 自己寫的 session transcript，
 不限目前正在看的那個），偵測到「session 拖太長」「單輪 cache 重算暴增」「單次工具回傳過肥」
 「開場底子就重」「同一檔案反覆 Read」這幾種狀況時，會用同一套提示 + 響鈴機制通知你，並直接告訴你現在該做的動作
-（例如先把進度寫進 plan 再 `/clear`、開新 session、子 agent 只交結論與路徑、或加 `head`/`limit` 重跑）。每則建議都依「超過門檻多少」分成
+（例如先把進度寫進 plan 再 `/clear`、開新 session、子 agent 只交結論與路徑、或加 `head`/`limit` 重跑）。cache-spike
+若 transcript 帶有 Anthropic API 回報的快取未命中原因（`message.diagnostics.cache_miss_reason`），會多附一行實際原因
+（例如「訊息內容跟快取版本不一致」「找不到快取參照的上一則訊息」），不是單純靠門檻猜的；沒有這個欄位時維持原本的文案。
+每則建議都依「超過門檻多少」分成
 warn（黃）／critical（紅）兩級。`a` 面板依 kind 分組顯示（含 critical 的 kind 排前面），最上面有一行總覽（例如
 `共 6 則：fat-tool-result 3 · cache-spike 2 · long-session 1`）；同 kind 且同目標（如同一個檔案）的多筆會合併成一列，
 附上次數與累積 token（例如 `（×3 次，累積約 24K token）`）。按 `a` 隨時查看目前所有建議，按 `c` 把這個 session 的
