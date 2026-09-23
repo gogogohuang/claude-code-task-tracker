@@ -38,13 +38,13 @@ function minutesBetween(startIso: string, endIso: string): number {
   return (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000;
 }
 
-function elapsedMinutes(stats: SessionUsageStats): number {
+export function elapsedMinutes(stats: SessionUsageStats): number {
   if (!stats.sessionStartedAt || !stats.lastMsgAt) return 0;
   return minutesBetween(stats.sessionStartedAt, stats.lastMsgAt);
 }
 
 /** 87 → "87 分鐘"、187 → "3 小時 7 分鐘"、180 → "3 小時"（整點不附「0 分鐘」）。 */
-function formatElapsedMinutes(minutes: number): string {
+export function formatElapsedMinutes(minutes: number): string {
   const totalMinutes = Math.round(minutes);
   if (totalMinutes < 60) return `${totalMinutes.toLocaleString("en-US")} 分鐘`;
   const hours = Math.floor(totalMinutes / 60);
@@ -95,6 +95,7 @@ function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advic
       kind: "cache-spike",
       at: step.event.timestamp ?? new Date().toISOString(),
       severity: severityForOverage(usage.cacheCreation, threshold),
+      estTokens: usage.cacheCreation,
       summary: isCodex(before)
         ? `這一輪重算了 ${tokens} token${comparedToAvg}，可能是閒置太久 cache 過期或 context 被改動。`
         : `這一輪重算了 ${tokens} token${comparedToAvg}。`,
@@ -116,6 +117,7 @@ function checkHeavyBaseline(before: SessionUsageStats, step: AccumulateStep): Ad
       kind: "heavy-baseline",
       at: step.event.timestamp ?? new Date().toISOString(),
       severity: severityForOverage(usage.cacheCreation, HEAVY_BASELINE_TOKENS),
+      estTokens: usage.cacheCreation,
       summary: `開場偏重（第一輪就吃了 ${formatTokenCount(usage.cacheCreation)} token，門檻 ${formatTokenCount(HEAVY_BASELINE_TOKENS)}）。`,
       action: isCodex(before)
         ? `檢查 AGENTS.md、啟用的 MCP／plugin 與 skill 有沒有太多。`
@@ -144,6 +146,7 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
         kind: "fat-tool-result",
         at: step.event.timestamp ?? new Date().toISOString(),
         severity,
+        estTokens,
         summary: `子 agent 這次回傳約 ${tokens} token，約占 context window ${pct}%（門檻 ${thresholdTokens}）。`,
         action: `下次派子 agent 只讓它交回結論與檔案路徑，不要把完整 diff/review 貼回主線。`,
       },
@@ -157,6 +160,8 @@ function checkFatToolResult(stats: SessionUsageStats, step: AccumulateStep): Adv
       kind: "fat-tool-result",
       at: step.event.timestamp ?? new Date().toISOString(),
       severity,
+      estTokens,
+      target: toolResultChars.path,
       summary: `${tool}${pathPart} 這次回傳約 ${tokens} token，約占 context window ${pct}%（門檻 ${thresholdTokens}）。`,
       action: isCodex(stats)
         ? `重跑剛剛那個呼叫，加上 head/grep 把輸出縮小。`
@@ -177,6 +182,7 @@ function checkRepeatedRead(before: SessionUsageStats, after: SessionUsageStats, 
       kind: "repeated-read",
       at: step.event.timestamp ?? new Date().toISOString(),
       severity: severityForOverage(next, REPEATED_READ_THRESHOLD),
+      target: path,
       summary: `同一個檔案已 Read ${next} 次（${path}），門檻 ${REPEATED_READ_THRESHOLD} 次。`,
       action: `下次加 offset/limit，或先寫進 plan 再 /clear。`,
     },

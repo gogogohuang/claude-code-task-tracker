@@ -78,7 +78,10 @@ npm install -g claude-code-task-tracker
 不限目前正在看的那個），偵測到「session 拖太長」「單輪 cache 重算暴增」「單次工具回傳過肥」
 「開場底子就重」「同一檔案反覆 Read」這幾種狀況時，會用同一套提示 + 響鈴機制通知你，並直接告訴你現在該做的動作
 （例如先把進度寫進 plan 再 `/clear`、開新 session、子 agent 只交結論與路徑、或加 `head`/`limit` 重跑）。每則建議都依「超過門檻多少」分成
-warn（黃）／critical（紅）兩級，`a` 面板依嚴重度排序，最急的排最上面。按 `a` 隨時查看目前所有建議，`b` 回上一頁。
+warn（黃）／critical（紅）兩級。`a` 面板依 kind 分組顯示（含 critical 的 kind 排前面），最上面有一行總覽（例如
+`共 6 則：fat-tool-result 3 · cache-spike 2 · long-session 1`）；同 kind 且同目標（如同一個檔案）的多筆會合併成一列，
+附上次數與累積 token（例如 `（×3 次，累積約 24K token）`）。按 `a` 隨時查看目前所有建議，按 `c` 把這個 session 的
+資訊與建議清單複製成純文字（方便貼去其他 AI 工具分析），`b` 回上一頁。
 主畫面也會顯示這個 session 實際用過的 tools／MCP 摘要（例如 `tools 5 · mcp 2`）；按 `t` 看完整清單與呼叫次數。
 
 ```bash
@@ -142,7 +145,7 @@ task-tracker clear --log        # 一併清 hook-debug.log
 
 不會刪 `task-tracker-hook.js`。hook 註冊也不會動。
 
-畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議、按 `h` 查看活動紀錄（依呼叫順序回放整個 session，不是只從打開 watch 那刻起算；切走再切回或重開 task-tracker 都不會遺失；每筆寫明這次呼叫做了什麼（例如 `Bash · 已執行 npm test`，與活動列同一套句子），後面附這次呼叫回傳給模型的內容量（單筆、以字元數粗估 token，不是累計），例如 `ctx +1.2K`；超過單次過肥門檻會標黃字，達 2 倍門檻標紅字，跟 `a` 面板用同一套判斷；結果還沒回來就不顯示）、按 `u` 開啟用量總覽〔beta〕（所有 session 依累計用量排序）、按 `f` 開啟焦點（只列出「等你」「有用量建議」的 session，依嚴重度排序，每行顯示最需要處理的那筆建議）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
+畫面內按 `q` 離開、按 `b` 回上一層（列表時解除釘選）、在 session 列表畫面按 `Tab`／`Shift+Tab` 切換 Claude／Codex／Cursor 分頁（見〈分頁檢視〉）、按 `v` 與另一 session 雙欄並排（終端寬 ≥ 120；再按 `v`／`b` 退出）、`[` `]` 切左右欄焦點、按 `p` 釘選／解除目前（或焦點）session、按 `c` 複製 session id、`C` 複製暫存 JSON 路徑、按 `n` 跳到其他 session 的「等你」或用量建議、按 `s` 檢視暫存 JSON、按 `d` 清除暫存（需再按一次確認）、按 `a` 查看用量建議（進入後按 `c` 複製這個 session 的資訊＋建議清單純文字）、按 `h` 查看活動紀錄（依呼叫順序回放整個 session，不是只從打開 watch 那刻起算；切走再切回或重開 task-tracker 都不會遺失；每筆寫明這次呼叫做了什麼（例如 `Bash · 已執行 npm test`，與活動列同一套句子），後面附這次呼叫回傳給模型的內容量（單筆、以字元數粗估 token，不是累計），例如 `ctx +1.2K`；超過單次過肥門檻會標黃字，達 2 倍門檻標紅字，跟 `a` 面板用同一套判斷；結果還沒回來就不顯示）、按 `u` 開啟用量總覽〔beta〕（所有 session 依累計用量排序）、按 `f` 開啟焦點（只列出「等你」「有用量建議」的 session，依嚴重度排序，每行顯示最需要處理的那筆建議）、↑↓／j k 捲動。活動列直接顯示那句話，例如 `◐ 正在讀取 src/schema.ts`；結束後變成
 `已讀取 src/schema.ts`。不再前置工具名，也不顯示原始指令。活動句語系可由 `TASK_TRACKER_LOCALE=en|zh` 覆寫，否則依 `LANG`（`en*` → en，其餘 zh）。
 
 主畫面會顯示 context 血條（依上一輪佔用 token 相對該 session 回報的視窗（Claude 1M、Codex 258,400）的粗估；≥80% 黃、≥95% 紅）。當 Claude 正在

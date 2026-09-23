@@ -126,4 +126,8 @@ export interface Advice {
   /** 建議怎麼做。 */
   action: string;
   detailLines?: string[];
+  /** 合併依據：同 kind + 同 target 的多筆會在 AdvicePanel 合併成一列。沒有自然目標（如 long-session）就不設，永不合併。 */
+  target?: string;
+  /** 這筆代表的估算 token 量，供合併後加總「累積量」；不是每種 kind 都有。 */
+  estTokens?: number;
 }
