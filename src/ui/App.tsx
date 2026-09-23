@@ -1062,7 +1062,7 @@ export function App({
         ? formatStuckLabel(taskState.activity.at)
         : undefined;
     const endedSummary = isSessionEnded(taskState)
-      ? formatEndedSummary(taskState)
+      ? formatEndedSummary(taskState, adviceForSession(adviceList, taskState.sessionId))
       : undefined;
 
     return withNotice(

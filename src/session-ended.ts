@@ -1,5 +1,7 @@
 import { activityLineLabel } from "./context-snapshot.js";
 import type { TaskState } from "./schema.js";
+import { formatAdviceGroupsLines } from "./usage/advice-groups.js";
+import type { Advice } from "./usage/types.js";
 
 export const ENDED_MS = 300_000;
 
@@ -30,9 +32,13 @@ function taskDoneTotal(state: TaskState): { done: number; total: number } | unde
   return { done, total: items.length };
 }
 
-export function formatEndedSummary(state: TaskState): string {
+export function formatEndedSummary(state: TaskState, advice: readonly Advice[] = []): string {
   const counts = taskDoneTotal(state);
   const taskPart = counts ? `任務 ${counts.done}/${counts.total}` : "任務 —";
   const last = state.activity ? activityLineLabel(state.activity) : "無活動";
-  return `Session 似乎已結束 · ${taskPart} · 最後：${last}`;
+  const base = `Session 似乎已結束 · ${taskPart} · 最後：${last}`;
+
+  const adviceLines = formatAdviceGroupsLines(advice);
+  if (adviceLines.length === 0) return base;
+  return [base, "", ...adviceLines].join("\n").trimEnd();
 }

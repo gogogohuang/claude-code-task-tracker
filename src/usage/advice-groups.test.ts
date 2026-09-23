@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Advice } from "./types.js";
-import { adviceForSession, adviceOverviewLine, groupAdvice } from "./advice-groups.js";
+import { adviceForSession, adviceOverviewLine, formatAdviceGroupsLines, groupAdvice } from "./advice-groups.js";
 
 const advice: Advice[] = [
   { sessionId: "session-aaa11111", kind: "long-session", at: "2026-09-15T01:00:00.000Z", severity: "warn", summary: "old", action: "act-old" },
@@ -115,4 +115,50 @@ test("adviceOverviewLine 列出總筆數與各 kind 筆數", () => {
   const groups = groupAdvice(items);
   // 兩組都是 warn，依組內最新時間排序：long-session 最新一筆（03:00）比 fat-tool-result 最新一筆（02:00）更晚，排前面。
   assert.equal(adviceOverviewLine(groups), "共 3 則：long-session 1 · fat-tool-result 2");
+});
+
+test("formatAdviceGroupsLines 沒有建議時回空陣列", () => {
+  assert.deepEqual(formatAdviceGroupsLines([]), []);
+});
+
+test("formatAdviceGroupsLines 依 kind 分組並附合併後的次數/累積量", () => {
+  const items: Advice[] = [
+    {
+      sessionId: "s1",
+      kind: "fat-tool-result",
+      at: "2026-09-15T01:00:00.000Z",
+      severity: "warn",
+      summary: "first",
+      action: "act-1",
+      target: "src/foo.ts",
+      estTokens: 9000,
+    },
+    {
+      sessionId: "s1",
+      kind: "fat-tool-result",
+      at: "2026-09-15T01:10:00.000Z",
+      severity: "critical",
+      summary: "second",
+      action: "act-2",
+      target: "src/foo.ts",
+      estTokens: 20000,
+    },
+    {
+      sessionId: "s1",
+      kind: "long-session",
+      at: "2026-09-15T01:20:00.000Z",
+      severity: "warn",
+      summary: "third",
+      action: "act-3",
+      detailLines: ["detail-1"],
+    },
+  ];
+  const lines = formatAdviceGroupsLines(items).join("\n");
+  assert.match(lines, /共 3 則：fat-tool-result 2 · long-session 1/);
+  assert.match(lines, /## fat-tool-result · 2 則/);
+  assert.match(lines, /✗ second（×2 次，累積約 29K token）/);
+  assert.match(lines, /  → act-2/);
+  assert.match(lines, /## long-session · 1 則/);
+  assert.match(lines, /⚠ third/);
+  assert.match(lines, /  · detail-1/);
 });
