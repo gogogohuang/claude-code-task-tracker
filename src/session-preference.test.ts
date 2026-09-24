@@ -75,22 +75,22 @@ test("sessionChoices 過長 activity 截斷", () => {
   assert.ok(!items[0]!.label.includes(long));
 });
 
-test("sessionChoices 沒有 cwd 對得上時，最新的標 最近（但列表順序仍照字母排序，不會跳到最前面）", () => {
+test("sessionChoices 沒有 cwd 對得上時，最新的排最前面並標 (最近)", () => {
   const now = Date.parse("2026-09-15T03:00:00.000Z");
   const items = sessionChoices(sessions, "/elsewhere", now);
   assert.deepEqual(
     items.map((item) => item.value),
-    ["current", "newer-other", "old"],
+    ["newer-other", "current", "old"],
   );
-  assert.equal(items[1].label, "○ newer-ot  (最近) · 剛剛");
+  assert.equal(items[0].label, "○ newer-ot  (最近) · 剛剛");
 });
 
-test("sessionChoices 依標題／firstPrompt／sessionId 字母排序，不受 updatedAt 影響", () => {
+test("sessionChoices 依 updatedAt 由新到舊排序，不受標題字母影響", () => {
   const now = Date.parse("2026-09-15T03:00:00.000Z");
   const items = sessionChoices(
     [
-      { sessionId: "z-id", cwd: "/proj/a", updatedAt: "2026-09-15T03:00:00.000Z", title: "Apple" },
-      { sessionId: "a-id", cwd: "/proj/a", updatedAt: "2026-09-15T01:00:00.000Z", title: "Banana" },
+      { sessionId: "a-id", cwd: "/proj/a", updatedAt: "2026-09-15T01:00:00.000Z", title: "Apple" },
+      { sessionId: "z-id", cwd: "/proj/a", updatedAt: "2026-09-15T03:00:00.000Z", title: "Banana" },
     ],
     "/elsewhere",
     now,
@@ -101,7 +101,7 @@ test("sessionChoices 依標題／firstPrompt／sessionId 字母排序，不受 u
   );
 });
 
-test("groupSessionsByProject 依 cwd 分組，當下專案排第一；無 cwd 不進列表", () => {
+test("groupSessionsByProject 依 cwd 分組，當下專案排第一，其餘依字母排序；無 cwd 不進列表", () => {
   const groups = groupSessionsByProject(
     [
       ...sessions,
@@ -112,7 +112,7 @@ test("groupSessionsByProject 依 cwd 分組，當下專案排第一；無 cwd �
   );
   assert.deepEqual(
     groups.map((group) => `${group.label}:${group.sessions.map((s) => s.sessionId).join(",")}`),
-    ["b:current,b2", "c:newer-other", "a:old"],
+    ["b:current,b2", "a:old", "c:newer-other"],
   );
   assert.ok(!groups.some((group) => group.label === "未知專案"));
 });
