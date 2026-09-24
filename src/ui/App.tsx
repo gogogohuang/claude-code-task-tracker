@@ -10,6 +10,7 @@ import { canSwitchTab, nextTabAgent, summarizeTabs } from "../agent-tabs.js";
 import { CLEAR_SCREEN_AND_HOME, pageKeyOf } from "../page-key.js";
 import {
   addedSessionIds,
+  clipLabelPart,
   filterListableSessionIds,
   formatNewSessionNotice,
   groupSessionsByProject,
@@ -830,6 +831,11 @@ export function App({
           ? attachHeavyBaselineHeat(filtered, launchHeatLines(heatCwd))
           : filtered;
       const shortId = selectedSessionId ? shortSessionId(selectedSessionId) : undefined;
+      const sessionCwd = selectedSessionId ? readTaskState(selectedSessionId)?.cwd ?? taskState?.cwd : undefined;
+      const projectLabel = sessionCwd ? basename(sessionCwd) : undefined;
+      const adviceUsage = selectedSessionId ? peek(selectedSessionId) : undefined;
+      const sessionTitleRaw = adviceUsage?.title ?? adviceUsage?.firstPrompt;
+      const sessionTitle = sessionTitleRaw ? clipLabelPart(sessionTitleRaw) : undefined;
       const emptyHint = selectedSessionId ? undefined : "先選一個 session 再查看用量建議";
       const uncoveredHint =
         selectedSessionId && !transcriptSource(readTaskState(selectedSessionId))
@@ -840,6 +846,8 @@ export function App({
         <AdvicePanel
           advice={enriched}
           shortId={shortId}
+          projectLabel={projectLabel}
+          sessionTitle={sessionTitle}
           emptyHint={emptyHint}
           uncoveredHint={uncoveredHint}
         />,

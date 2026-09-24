@@ -37,11 +37,15 @@ function mergeSuffix(row: AdviceRow): string {
 export function AdvicePanel({
   advice,
   shortId,
+  projectLabel,
+  sessionTitle,
   emptyHint,
   uncoveredHint,
 }: {
   advice: Advice[];
   shortId?: string;
+  projectLabel?: string;
+  sessionTitle?: string;
   emptyHint?: string;
   uncoveredHint?: string;
 }) {
@@ -96,7 +100,11 @@ export function AdvicePanel({
   return (
     <Box flexDirection="column">
       <Box marginBottom={1} flexDirection="column">
-        <Text bold>用量建議 · {shortId}</Text>
+        <Text bold>
+          用量建議 · {projectLabel ? `${projectLabel} · ` : ""}
+          {shortId}
+          {sessionTitle ? ` · ${sessionTitle}` : ""}
+        </Text>
         <Text dimColor>{adviceOverviewLine(groups)}</Text>
       </Box>
       {start > 0 ? <Text dimColor>↑ 還有 {start} 則</Text> : null}
