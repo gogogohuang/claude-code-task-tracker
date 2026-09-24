@@ -21,6 +21,19 @@ function toolResultEvent(toolName: string | undefined, chars: number, timestamp:
   return { messageId: undefined, isSidechain: false, timestamp, usage: undefined, toolResultChars: { toolName, chars } };
 }
 
+function toolUseEvent(toolName: string, timestamp: string, opts?: { path?: string; summary?: string }): ParsedEvent {
+  return {
+    messageId: undefined,
+    isSidechain: false,
+    timestamp,
+    usage: undefined,
+    toolResultChars: undefined,
+    toolUseName: toolName,
+    toolUsePath: opts?.path,
+    toolUseSummary: opts?.summary,
+  };
+}
+
 test("detect：long-session 訊息數剛好跨過 200 才觸發一次", () => {
   const stats0 = createSessionUsageStats("s1");
   const events = Array.from({ length: 201 }, (_, i) => usageEvent(`m${i}`, 10, "2026-09-15T00:00:00.000Z"));
@@ -116,6 +129,67 @@ test("detect：cache-spike 有 cacheMissReason=previous_message_not_found 時，
   assert.deepEqual(spikeAdvice[0].detailLines, [
     "原因（API 回報）：找不到快取參照的上一則訊息（可能剛 /clear、開新 session、或快取已過期）",
   ]);
+});
+
+test("detect：cache-spike 是 messages_changed 且之前有工具呼叫時，detailLines 附上「最近一次工具呼叫」", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const warmup = accumulate(
+    stats0,
+    Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 1000, `t${i}`)).concat([
+      toolUseEvent("Bash", "t5", { summary: "已執行 npm test" }),
+    ]),
+  );
+  const { next, steps } = accumulate(warmup.next, [
+    usageEventWithReason("spike", 30000, "tspike", { type: "messages_changed" }),
+  ]);
+  const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
+  assert.deepEqual(spikeAdvice[0].detailLines, [
+    "原因（API 回報）：訊息內容跟快取版本不一致",
+    "最近一次工具呼叫：Bash（已執行 npm test）",
+  ]);
+});
+
+test("detect：cache-spike 是 messages_changed 但沒有 summary 時，退回顯示 path", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const warmup = accumulate(
+    stats0,
+    Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 1000, `t${i}`)).concat([
+      toolUseEvent("Read", "t5", { path: "src/foo.ts" }),
+    ]),
+  );
+  const { next, steps } = accumulate(warmup.next, [
+    usageEventWithReason("spike", 30000, "tspike", { type: "messages_changed" }),
+  ]);
+  const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
+  assert.deepEqual(spikeAdvice[0].detailLines, [
+    "原因（API 回報）：訊息內容跟快取版本不一致",
+    "最近一次工具呼叫：Read（src/foo.ts）",
+  ]);
+});
+
+test("detect：cache-spike 是 previous_message_not_found 時，即使之前有工具呼叫也不附「最近一次工具呼叫」", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const warmup = accumulate(
+    stats0,
+    Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 1000, `t${i}`)).concat([toolUseEvent("Bash", "t5")]),
+  );
+  const { next, steps } = accumulate(warmup.next, [
+    usageEventWithReason("spike", 30000, "tspike", { type: "previous_message_not_found" }),
+  ]);
+  const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
+  assert.deepEqual(spikeAdvice[0].detailLines, [
+    "原因（API 回報）：找不到快取參照的上一則訊息（可能剛 /clear、開新 session、或快取已過期）",
+  ]);
+});
+
+test("detect：cache-spike 是 messages_changed 但之前沒有任何工具呼叫時，detailLines 只有原因那行", () => {
+  const stats0 = createSessionUsageStats("s1");
+  const warmup = accumulate(stats0, Array.from({ length: 5 }, (_, i) => usageEvent(`m${i}`, 1000, `t${i}`)));
+  const { next, steps } = accumulate(warmup.next, [
+    usageEventWithReason("spike", 30000, "tspike", { type: "messages_changed" }),
+  ]);
+  const spikeAdvice = detect(warmup.next, next, steps).filter((a) => a.kind === "cache-spike");
+  assert.deepEqual(spikeAdvice[0].detailLines, ["原因（API 回報）：訊息內容跟快取版本不一致"]);
 });
 
 test("detect：cache-spike 遇到未知 cacheMissReason type 時，用原始字串當保底文案", () => {

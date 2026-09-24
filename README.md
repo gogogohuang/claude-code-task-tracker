@@ -80,6 +80,8 @@ npm install -g claude-code-task-tracker
 （例如先把進度寫進 plan 再 `/clear`、開新 session、子 agent 只交結論與路徑、或加 `head`/`limit` 重跑）。cache-spike
 若 transcript 帶有 Anthropic API 回報的快取未命中原因（`message.diagnostics.cache_miss_reason`），會多附一行實際原因
 （例如「訊息內容跟快取版本不一致」「找不到快取參照的上一則訊息」），不是單純靠門檻猜的；沒有這個欄位時維持原本的文案。
+原因是「訊息內容跟快取版本不一致」時，還會再多附一行這個 session 重算前最近一次的工具呼叫（例如
+「最近一次工具呼叫：Bash（已執行 npm test）」）當參考情境——這只是時間上最接近的一筆，不是保證的因果關係。
 每則建議都依「超過門檻多少」分成
 warn（黃）／critical（紅）兩級。`a` 面板依 kind 分組顯示（含 critical 的 kind 排前面），最上面有一行總覽（例如
 `共 6 則：fat-tool-result 3 · cache-spike 2 · long-session 1`）；同 kind 且同目標（如同一個檔案）的多筆會合併成一列，

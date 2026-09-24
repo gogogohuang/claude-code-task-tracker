@@ -1,6 +1,7 @@
 import { CODEX_CONTEXT_WINDOW_TOKENS, contextOccupancyPct } from "../context-snapshot.js";
 import { formatTokenCount } from "../usage-overview.js";
 import { AccumulateStep, Advice, AdviceSeverity, SessionUsageStats } from "./types.js";
+import { ToolCallLogEntry } from "./tool-inventory.js";
 
 const LONG_SESSION_MSG_THRESHOLD = 200;
 const LONG_SESSION_MINUTES_THRESHOLD = 90;
@@ -88,6 +89,12 @@ function describeCacheMissReason(reason: { type: string }): string {
   }
 }
 
+/** 「最近一次工具呼叫：Read（src/foo.ts）」；沒有 path/summary 就只顯示工具名。 */
+function formatToolCallRef(entry: ToolCallLogEntry): string {
+  const detail = entry.summary ?? entry.path;
+  return detail ? `最近一次工具呼叫：${entry.toolName}（${detail}）` : `最近一次工具呼叫：${entry.toolName}`;
+}
+
 function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advice[] {
   const usage = step.event.usage;
   if (!usage) return [];
@@ -102,6 +109,12 @@ function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advic
       ? `，是平常 ${formatTokenCount(avg)} 的 ${ratioToAvg} 倍（門檻 ${CACHE_SPIKE_MULTIPLIER} 倍）`
       : `（平常只要 ${formatTokenCount(avg)}）`;
   const cacheMissReason = step.event.cacheMissReason;
+  const detailLines: string[] = [];
+  if (cacheMissReason) detailLines.push(describeCacheMissReason(cacheMissReason));
+  if (cacheMissReason?.type === "messages_changed") {
+    const lastCall = before.toolCallLog?.[before.toolCallLog.length - 1];
+    if (lastCall) detailLines.push(formatToolCallRef(lastCall));
+  }
   return [
     {
       sessionId: before.sessionId,
@@ -115,7 +128,7 @@ function checkCacheSpike(before: SessionUsageStats, step: AccumulateStep): Advic
       action: isCodex(before)
         ? `長時間離開後建議另開新 session。`
         : `現在 /clear 或開新 session，別在這個 session 裡繼續換工具/MCP 設定。`,
-      ...(cacheMissReason ? { detailLines: [describeCacheMissReason(cacheMissReason)] } : {}),
+      ...(detailLines.length > 0 ? { detailLines } : {}),
     },
   ];
 }
