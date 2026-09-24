@@ -29,6 +29,8 @@ export interface AgentDispatchInfo {
   toolUseId: string;
   subagentType?: string;
   description?: string;
+  /** 只有派發時明確 override 模型才會有值（例如 "sonnet"）；沒 override 就沒有這個欄位。 */
+  model?: string;
 }
 
 /** 一行 transcript JSONL 解析出來的事件。assistant 行帶 usage；user 行裡的 tool_result 帶 toolResultChars。 */

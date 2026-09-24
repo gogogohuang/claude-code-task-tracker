@@ -54,11 +54,12 @@ function extractToolPath(input: unknown): string | undefined {
   return undefined;
 }
 
-function extractAgentDispatch(input: unknown): { subagentType?: string; description?: string } {
+function extractAgentDispatch(input: unknown): { subagentType?: string; description?: string; model?: string } {
   if (!isRecord(input)) return {};
   const subagentType = typeof input.subagent_type === "string" ? input.subagent_type : undefined;
   const description = typeof input.description === "string" ? input.description : undefined;
-  return { subagentType, description };
+  const model = typeof input.model === "string" ? input.model : undefined;
+  return { subagentType, description, model };
 }
 
 function extractUsableUserText(content: unknown): string | undefined {

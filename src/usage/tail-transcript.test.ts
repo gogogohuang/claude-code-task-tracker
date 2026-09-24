@@ -236,7 +236,32 @@ test("parseNewContent 對 Agent tool_use 事件帶出 agentDispatch（toolUseId/
     }) + "\n";
   const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
   const dispatch = events.find((e) => e.agentDispatch)?.agentDispatch;
-  assert.deepEqual(dispatch, { toolUseId: "toolu_1", subagentType: "Explore", description: "找 schema 定義" });
+  assert.deepEqual(dispatch, {
+    toolUseId: "toolu_1",
+    subagentType: "Explore",
+    description: "找 schema 定義",
+    model: undefined,
+  });
+});
+
+test("parseNewContent 對 Agent tool_use 事件帶出明確 override 的 model", () => {
+  const state = createTailState();
+  const chunk =
+    assistantLine({
+      id: "m1",
+      cacheCreation: 100,
+      content: [
+        {
+          type: "tool_use",
+          id: "toolu_1",
+          name: "Agent",
+          input: { subagent_type: "Explore", description: "找 schema 定義", model: "sonnet" },
+        },
+      ],
+    }) + "\n";
+  const { events } = parseNewContent(chunk, state, Buffer.byteLength(chunk, "utf-8"));
+  const dispatch = events.find((e) => e.agentDispatch)?.agentDispatch;
+  assert.equal(dispatch?.model, "sonnet");
 });
 
 test("parseNewContent 對非 Agent 的 tool_use 不帶 agentDispatch", () => {

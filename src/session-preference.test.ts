@@ -75,11 +75,30 @@ test("sessionChoices 過長 activity 截斷", () => {
   assert.ok(!items[0]!.label.includes(long));
 });
 
-test("sessionChoices 沒有 cwd 對得上時，最新的標 最近", () => {
+test("sessionChoices 沒有 cwd 對得上時，最新的標 最近（但列表順序仍照字母排序，不會跳到最前面）", () => {
   const now = Date.parse("2026-09-15T03:00:00.000Z");
   const items = sessionChoices(sessions, "/elsewhere", now);
-  assert.equal(items[0].value, "newer-other");
-  assert.equal(items[0].label, "○ newer-ot  (最近) · 剛剛");
+  assert.deepEqual(
+    items.map((item) => item.value),
+    ["current", "newer-other", "old"],
+  );
+  assert.equal(items[1].label, "○ newer-ot  (最近) · 剛剛");
+});
+
+test("sessionChoices 依標題／firstPrompt／sessionId 字母排序，不受 updatedAt 影響", () => {
+  const now = Date.parse("2026-09-15T03:00:00.000Z");
+  const items = sessionChoices(
+    [
+      { sessionId: "z-id", cwd: "/proj/a", updatedAt: "2026-09-15T03:00:00.000Z", title: "Apple" },
+      { sessionId: "a-id", cwd: "/proj/a", updatedAt: "2026-09-15T01:00:00.000Z", title: "Banana" },
+    ],
+    "/elsewhere",
+    now,
+  );
+  assert.deepEqual(
+    items.map((item) => item.value),
+    ["z-id", "a-id"],
+  );
 });
 
 test("groupSessionsByProject 依 cwd 分組，當下專案排第一；無 cwd 不進列表", () => {

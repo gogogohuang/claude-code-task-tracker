@@ -3,7 +3,13 @@ import test from "node:test";
 import { ParsedEvent } from "./types.js";
 import { applySubagentEvents, createSubagentsState, dispatchLabel } from "./subagents.js";
 
-function dispatchEvent(opts: { toolUseId: string; subagentType?: string; description?: string; timestamp?: string }): ParsedEvent {
+function dispatchEvent(opts: {
+  toolUseId: string;
+  subagentType?: string;
+  description?: string;
+  model?: string;
+  timestamp?: string;
+}): ParsedEvent {
   return {
     messageId: undefined,
     isSidechain: false,
@@ -11,7 +17,12 @@ function dispatchEvent(opts: { toolUseId: string; subagentType?: string; descrip
     usage: undefined,
     toolResultChars: undefined,
     toolUseName: opts.subagentType ? `Agent · ${opts.subagentType}` : "Agent",
-    agentDispatch: { toolUseId: opts.toolUseId, subagentType: opts.subagentType, description: opts.description },
+    agentDispatch: {
+      toolUseId: opts.toolUseId,
+      subagentType: opts.subagentType,
+      description: opts.description,
+      model: opts.model,
+    },
   };
 }
 
@@ -120,4 +131,29 @@ test("dispatchLabel 有 description 時用 subagentType · description", () => {
 test("dispatchLabel 沒有 subagentType／description 時退回 toolUseId", () => {
   const label = dispatchLabel({ toolUseId: "toolu_1", status: "running" });
   assert.equal(label, "agent · toolu_1");
+});
+
+test("applySubagentEvents 派發明確 override model 時記錄下來", () => {
+  const state = applySubagentEvents(createSubagentsState(), [
+    dispatchEvent({ toolUseId: "toolu_1", subagentType: "Explore", description: "找 schema 定義", model: "sonnet" }),
+  ]);
+  assert.equal(state.dispatches[0].model, "sonnet");
+});
+
+test("applySubagentEvents 沒有 override model 時不設 model 欄位", () => {
+  const state = applySubagentEvents(createSubagentsState(), [
+    dispatchEvent({ toolUseId: "toolu_1", subagentType: "Explore" }),
+  ]);
+  assert.equal("model" in state.dispatches[0], false);
+});
+
+test("dispatchLabel 有 model 時附加顯示", () => {
+  const label = dispatchLabel({
+    toolUseId: "toolu_1",
+    subagentType: "Explore",
+    description: "找 schema 定義",
+    model: "sonnet",
+    status: "running",
+  });
+  assert.equal(label, "Explore · 找 schema 定義 · sonnet");
 });
