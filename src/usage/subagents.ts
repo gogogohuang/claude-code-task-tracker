@@ -6,6 +6,8 @@ export interface AgentDispatch {
   toolUseId: string;
   subagentType?: string;
   description?: string;
+  /** 只有派發時明確 override 模型才會有值；沒 override 就沒有這個欄位，不臆測預設值。 */
+  model?: string;
   status: AgentDispatchStatus;
   startedAt?: string;
   endedAt?: string;
@@ -40,11 +42,12 @@ export function applySubagentEvents(prev: SubagentsState, events: ParsedEvent[])
     }
 
     if (event.agentDispatch) {
-      const { toolUseId, subagentType, description } = event.agentDispatch;
+      const { toolUseId, subagentType, description, model } = event.agentDispatch;
       const dispatch: AgentDispatch = {
         toolUseId,
         subagentType,
         description,
+        ...(model !== undefined ? { model } : {}),
         status: "running",
         startedAt: event.timestamp,
         endedAt: undefined,
@@ -70,5 +73,6 @@ export function applySubagentEvents(prev: SubagentsState, events: ParsedEvent[])
 export function dispatchLabel(dispatch: AgentDispatch): string {
   const type = dispatch.subagentType ?? "agent";
   const desc = dispatch.description ?? dispatch.toolUseId;
-  return `${type} · ${desc}`;
+  const base = `${type} · ${desc}`;
+  return dispatch.model ? `${base} · ${dispatch.model}` : base;
 }

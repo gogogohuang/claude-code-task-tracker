@@ -74,6 +74,16 @@ function newestFirst(left: SessionHint, right: SessionHint): number {
   return right.updatedAt.localeCompare(left.updatedAt);
 }
 
+/** 顯示順序的排序鍵：標題優先，沒標題退回 firstPrompt，都沒有就用 sessionId——三者都不會因活動而變動，
+ * 讓 session 列表照字母排序、不會因為 updatedAt 一直變而跳動順序。 */
+function sessionSortKey(session: SessionHint): string {
+  return session.title ?? session.firstPrompt ?? session.sessionId;
+}
+
+function alphabetically(left: SessionHint, right: SessionHint): number {
+  return sessionSortKey(left).localeCompare(sessionSortKey(right));
+}
+
 /** 沒有 cwd 的狀態檔不進專案配對池；全無 cwd 時退回全域最新（給 status）。 */
 function sessionsWithCwd(sessions: SessionHint[]): Array<SessionHint & { cwd: string }> {
   return sessions.flatMap((session) => {
@@ -143,11 +153,7 @@ export function sessionChoices(sessions: SessionHint[], watchCwd: string, now: n
   const preferred = pickPreferredSession(sessions, watchCwd);
   const cwdMatched = sessions.some((session) => sameCwd(session.cwd, watchCwd));
   return [...sessions]
-    .sort((left, right) => {
-      if (left.sessionId === preferred) return -1;
-      if (right.sessionId === preferred) return 1;
-      return newestFirst(left, right);
-    })
+    .sort(alphabetically)
     .map((session) => ({
       value: session.sessionId,
       label: formatSessionLabel(
@@ -216,11 +222,7 @@ export function sessionChoicesInProject(
     watchCwd,
   );
   return [...inProject]
-    .sort((left, right) => {
-      if (left.sessionId === preferred) return -1;
-      if (right.sessionId === preferred) return 1;
-      return newestFirst(left, right);
-    })
+    .sort(alphabetically)
     .map((session) => ({
       value: session.sessionId,
       label: formatSessionLabel(
