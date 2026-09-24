@@ -71,7 +71,18 @@ export function HistoryPanel({
         const resultColor = severity === "critical" ? "red" : severity === "warn" ? "yellow" : undefined;
         return (
           <Text key={`${entry.at}-${entry.phase}-${entry.toolName}-${start + index}`} wrap="truncate-end">
-            <Text dimColor>{time} </Text>
+            <Text dimColor>{time}</Text>
+            {entry.resultTokens !== undefined ? (
+              <>
+                <Text color={resultColor} dimColor={resultColor === undefined}>
+                  {" · ctx +"}
+                  {formatTokenCount(entry.resultTokens)}
+                </Text>
+                <Text dimColor> · </Text>
+              </>
+            ) : (
+              <Text> </Text>
+            )}
             {entry.isError ? (
               <Text color="red">
                 ✗ {activityLineLabel(entry)} · 失敗
@@ -79,12 +90,6 @@ export function HistoryPanel({
             ) : (
               activityLineLabel(entry)
             )}
-            {entry.resultTokens !== undefined ? (
-              <Text color={resultColor} dimColor={resultColor === undefined}>
-                {" "}
-                · ctx +{formatTokenCount(entry.resultTokens)}
-              </Text>
-            ) : null}
           </Text>
         );
       })}
