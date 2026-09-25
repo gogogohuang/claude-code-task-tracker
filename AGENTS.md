@@ -14,7 +14,7 @@ Run `pnpm typecheck` and `pnpm test` before committing.
 
 ## Branching
 
-When creating a new branch, use the **currently logged-in GitHub account name** as the prefix. Don't hardcode `cursor/` or any other fixed string.
+When creating a new branch, use the **currently logged-in GitHub account name** as the prefix.
 
 1. First check the account: `gh api user -q .login` (or `gh auth status` for the active account)
 2. Branch name: `<login>/<short-description>`, e.g. `gogogohuang/session-cache-show`
@@ -31,14 +31,7 @@ Follow this in every agent session in this repo.
 
 ### Subagents
 
-When dispatching a subagent / subtask (if your tool supports it), only the following may be returned to the main thread:
-
-- Conclusion (≤15 lines)
-- Which paths were changed
-- Test commands and results (one line each for pass/fail)
-- File paths to read next
-
-Forbidden: full diffs, full review text, entire file contents, long logs. Put the details in a file; give the main thread only the path.
+When dispatching a subagent / subtask (if your tool supports it), have it return only what the main thread needs to act on: the conclusion, which paths were changed, each test command with its pass/fail result, and the file paths to read next. Details such as diffs, review text, file contents, and logs go into a file, and the main thread gets only its path, because everything returned stays in the main thread's context for the rest of the session.
 
 ### Stage Handoff
 
